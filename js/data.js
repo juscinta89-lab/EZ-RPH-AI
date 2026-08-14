@@ -84,20 +84,46 @@ function rptUntuk(subjek, tahun, minggu){
 }
 
 /* ---------- Minggu persekolahan ---------- */
+function hariSekolah(tw){
+  // Kumpulan A (Ahad–Khamis) atau Kumpulan B (Isnin–Jumaat)
+  return (tw && tw.mulaHari === 'isnin') ? [1,2,3,4,5] : [0,1,2,3,4];
+}
 function janaMinggu(tw){
   if(!tw || !tw.mula || !tw.tamat) return [];
-  const mulaHari = tw.mulaHari === 'isnin' ? 1 : 0;      // 0=Ahad, 1=Isnin
+  const hari = hariSekolah(tw);
+  const mulaHari = hari[0];
   const d = new Date(tw.mula + 'T00:00:00');
   while(d.getDay() !== mulaHari) d.setDate(d.getDate() - 1);
   const akhir = new Date(tw.tamat + 'T00:00:00');
   const cuti = (tw.cuti || []);
-  const senarai = []; let no = 0; let guard = 0;
+  const dalamCuti = iso => cuti.some(c => iso >= c.mula && iso <= c.tamat);
+  const senarai = []; let no = 0, guard = 0;
+
   while(d <= akhir && guard++ < 80){
-    const m = new Date(d), h = new Date(d); h.setDate(h.getDate() + 6);
-    const c = cuti.find(x => tarikhISO(m) <= x.tamat && tarikhISO(h) >= x.mula &&
-                             tarikhISO(m) >= x.mula && tarikhISO(h) <= x.tamat);
-    if(c) senarai.push({ no:null, label:c.nama || 'Cuti', mula:tarikhISO(m), tamat:tarikhISO(h) });
-    else  senarai.push({ no:++no, label:'Minggu '+no, mula:tarikhISO(m), tamat:tarikhISO(h) });
+    const mula = new Date(d), hujung = new Date(d); hujung.setDate(hujung.getDate() + 6);
+    // kumpul hari persekolahan sebenar dalam blok ini
+    const hariPdP = [];
+    for(let i=0;i<7;i++){
+      const x = new Date(mula); x.setDate(x.getDate() + i);
+      const iso = tarikhISO(x);
+      if(!hari.includes(x.getDay())) continue;              // hujung minggu
+      if(iso < tw.mula || iso > tw.tamat) continue;         // luar sesi
+      if(dalamCuti(iso)) continue;                          // cuti penggal/perayaan
+      hariPdP.push(iso);
+    }
+    const cutiBlok = cuti.find(c => tarikhISO(mula) <= c.tamat && tarikhISO(hujung) >= c.mula);
+    if(!hariPdP.length){
+      if(tw.kiraMinggu === 'semua'){
+        senarai.push({ no:++no, label:'Minggu '+no+' (cuti)', mula:tarikhISO(mula), tamat:tarikhISO(hujung),
+                       hariPdP:0, cuti:cutiBlok ? (cutiBlok.nama||'Cuti') : 'Tiada PdP' });
+      }else{
+        senarai.push({ no:null, label: cutiBlok ? (cutiBlok.nama||'Cuti') : 'Tiada PdP',
+                       mula:tarikhISO(mula), tamat:tarikhISO(hujung), hariPdP:0 });
+      }
+    }else{
+      senarai.push({ no:++no, label:'Minggu '+no, mula:tarikhISO(mula), tamat:tarikhISO(hujung),
+                     hariPdP:hariPdP.length, pdpMula:hariPdP[0], pdpTamat:hariPdP[hariPdP.length-1] });
+    }
     d.setDate(d.getDate() + 7);
   }
   return senarai;
@@ -511,14 +537,28 @@ function halTakwim(){
   $('#kandungan').innerHTML = `
     <div class="kad">
       <div class="kad-h"><h3>Takwim ${tahun}</h3><small>${minggu.filter(m=>m.no).length} minggu persekolahan</small></div>
-      ${!tw ? `<div class="kosong"><b>Takwim belum ditetapkan</b>Sila masukkan atau import takwim rasmi KPM bagi tahun berkenaan.</div>` : ''}
+      ${!tw ? `<div class="kosong"><b>Takwim belum ditetapkan</b>Muat pratetap KPM di bawah, atau isi sendiri.</div>` : ''}
+      <div class="toolbar" style="margin-bottom:14px">
+        <button class="btn btn-ungu" onclick="muatTakwimKPM('A')">📅 Muat Takwim KPM 2026 — Kumpulan A</button>
+        <button class="btn" onclick="muatTakwimKPM('B')">📅 Kumpulan B</button>
+      </div>
+      <p style="font-size:12px;color:var(--teks-3);margin:-6px 0 14px">
+        <b>Kumpulan A:</b> Kedah, Kelantan, Terengganu (Ahad–Khamis) ·
+        <b>Kumpulan B:</b> negeri lain (Isnin–Jumaat). Termasuk cuti penggal & perayaan 2026.</p>
       <div class="grid2">
         <label class="fld"><span>Tarikh mula sesi</span><input id="twMula" type="date" value="${esc(tw?.mula||'')}"></label>
         <label class="fld"><span>Tarikh akhir sesi</span><input id="twTamat" type="date" value="${esc(tw?.tamat||'')}"></label>
       </div>
-      <label class="fld"><span>Hari mula minggu <em>(Ahad untuk KEL/TRG/JHR/KDH)</em></span>
-        <select id="twHari"><option value="ahad" ${tw?.mulaHari!=='isnin'?'selected':''}>Ahad</option>
-        <option value="isnin" ${tw?.mulaHari==='isnin'?'selected':''}>Isnin</option></select></label>
+      <label class="fld"><span>Cara nombor minggu <em>(padankan dengan RPT anda)</em></span>
+        <select id="twKira">
+          <option value="langkau" ${tw?.kiraMinggu!=='semua'?'selected':''}>Langkau minggu cuti penuh (disyorkan)</option>
+          <option value="semua" ${tw?.kiraMinggu==='semua'?'selected':''}>Kira semua minggu kalendar</option>
+        </select></label>
+      <label class="fld"><span>Hari persekolahan</span>
+        <select id="twHari">
+          <option value="ahad" ${tw?.mulaHari!=='isnin'?'selected':''}>Ahad – Khamis (Kumpulan A)</option>
+          <option value="isnin" ${tw?.mulaHari==='isnin'?'selected':''}>Isnin – Jumaat (Kumpulan B)</option>
+        </select></label>
       <button class="btn btn-primary" onclick="simpanTakwim()">Simpan takwim</button>
     </div>
 
@@ -531,17 +571,64 @@ function halTakwim(){
         <div class="baris"><div class="baris-t"><b>${esc(c.nama)}</b><small>${tarikhCantik(c.mula)} — ${tarikhCantik(c.tamat)}</small></div>
         <button class="btn btn-sm btn-danger" onclick="hapusCuti(${i})">✕</button></div>`).join('')}</div>`
         : `<div class="kosong">Tiada rekod cuti. Tambah cuti penggal, cuti perayaan atau cuti umum.</div>`}
-      <p style="font-size:12px;color:var(--teks-3);margin-top:10px">Format CSV: <code>nama,mula(YYYY-MM-DD),tamat(YYYY-MM-DD)</code></p>
+      <p style="font-size:12px;color:var(--teks-3);margin-top:10px">
+        Format: <code>nama,mula(YYYY-MM-DD),tamat(YYYY-MM-DD)</code><br>
+        Pratetap KPM merangkumi cuti penggal & perayaan utama sahaja. <b>Sila tambah sendiri cuti umum negeri</b>
+        (Hari Keputeraan Sultan, Wesak, Awal Muharram, Maulidur Rasul, Hari Malaysia dan sebagainya)
+        supaya kiraan hari PdP tepat.</p>
     </div>
 
-    ${minggu.length ? `<div class="kad"><div class="kad-h"><h3>Minggu persekolahan</h3></div>
-      <div class="tbl-scroll"><table><tr><th>Minggu</th><th>Mula</th><th>Tamat</th></tr>
-      ${minggu.map(m=>`<tr><td>${m.no?`<span class="pil biru">${m.label}</span>`:`<span class="pil kelabu">${esc(m.label)}</span>`}</td>
-        <td>${m.mula}</td><td>${m.tamat}</td></tr>`).join('')}</table></div></div>` : ''}`;
+    ${minggu.length ? `<div class="kad">
+      <div class="kad-h"><h3>Minggu persekolahan</h3>
+        <small>${minggu.filter(m=>m.no).length} minggu · ${minggu.reduce((j,m)=>j+(m.hariPdP||0),0)} hari PdP</small></div>
+      <div class="tbl-scroll"><table><tr><th>Minggu</th><th>Hari PdP</th><th>Mula</th><th>Tamat</th></tr>
+      ${minggu.map(m=>`<tr>
+        <td>${m.no?`<span class="pil biru">${m.label}</span>`:`<span class="pil kelabu">${esc(m.label)}</span>`}</td>
+        <td>${m.hariPdP ? m.hariPdP+' hari' : '—'}</td>
+        <td>${m.pdpMula||m.mula}</td><td>${m.pdpTamat||m.tamat}</td></tr>`).join('')}</table></div>
+      <p style="font-size:12px;color:var(--teks-3);margin-top:10px">
+        Minggu dikira hanya jika ada sekurang-kurangnya satu hari PdP. Minggu yang penuh cuti tidak diberi nombor.</p>
+    </div>` : ''}`;
 }
+const TAKWIM_KPM = {
+  A: { nama:'Kumpulan A — Kedah, Kelantan, Terengganu', mulaHari:'ahad',
+       mula:'2026-01-11', tamat:'2026-12-03',
+       cuti:[
+         {nama:'Cuti Tahun Baru Cina',        mula:'2026-02-15', tamat:'2026-02-19'},
+         {nama:'Cuti Hari Raya Aidilfitri',   mula:'2026-03-19', tamat:'2026-03-19'},
+         {nama:'Cuti Penggal 1',              mula:'2026-03-20', tamat:'2026-03-28'},
+         {nama:'Cuti Pertengahan Tahun',      mula:'2026-05-22', tamat:'2026-06-06'},
+         {nama:'Cuti Penggal 2',              mula:'2026-08-28', tamat:'2026-09-05'},
+         {nama:'Cuti Deepavali',              mula:'2026-11-08', tamat:'2026-11-09'},
+         {nama:'Cuti Akhir Persekolahan',     mula:'2026-12-04', tamat:'2026-12-31'}
+       ]},
+  B: { nama:'Kumpulan B — negeri lain & Wilayah Persekutuan', mulaHari:'isnin',
+       mula:'2026-01-12', tamat:'2026-12-04',
+       cuti:[
+         {nama:'Cuti Tahun Baru Cina',        mula:'2026-02-16', tamat:'2026-02-20'},
+         {nama:'Cuti Hari Raya Aidilfitri',   mula:'2026-03-19', tamat:'2026-03-20'},
+         {nama:'Cuti Penggal 1',              mula:'2026-03-21', tamat:'2026-03-29'},
+         {nama:'Cuti Pertengahan Tahun',      mula:'2026-05-23', tamat:'2026-06-07'},
+         {nama:'Cuti Penggal 2',              mula:'2026-08-29', tamat:'2026-09-06'},
+         {nama:'Cuti Deepavali',              mula:'2026-11-09', tamat:'2026-11-10'},
+         {nama:'Cuti Akhir Persekolahan',     mula:'2026-12-05', tamat:'2026-12-31'}
+       ]}
+};
+function muatTakwimKPM(kump){
+  const t = TAKWIM_KPM[kump];
+  sahkan('Muat '+t.nama+'? Takwim sedia ada akan digantikan.', async () => {
+    sibuk(true,'Memuatkan takwim KPM…');
+    const tahun = String(new Date().getFullYear());
+    await rujuk('takwim').doc(tahun).set({ tahun, mula:t.mula, tamat:t.tamat,
+      mulaHari:t.mulaHari, kumpulan:kump, cuti:t.cuti });
+    await muatData(); sibuk(false); pergi('takwim'); toast('Takwim '+kump+' dimuatkan','jaya');
+  });
+}
+
 async function simpanTakwim(){
   const tahun = String(new Date().getFullYear());
-  const d = { tahun, mula:$('#twMula').value, tamat:$('#twTamat').value, mulaHari:$('#twHari').value, cuti:(S.takwim?.cuti||[]) };
+  const d = { tahun, mula:$('#twMula').value, tamat:$('#twTamat').value, mulaHari:$('#twHari').value,
+              kiraMinggu:$('#twKira').value, cuti:(S.takwim?.cuti||[]) };
   if(!d.mula || !d.tamat) return toast('Isi tarikh mula dan akhir sesi','salah');
   sibuk(true,'Menyimpan…'); await rujuk('takwim').doc(tahun).set(d,{merge:true});
   await muatData(); sibuk(false); pergi('takwim'); toast('Takwim disimpan','jaya');

@@ -675,6 +675,17 @@ function halCetak(){
     </div>
 
     <div class="kad">
+      <div class="kad-h"><h3>Cetak harian</h3><small>Pilih mana-mana tarikh</small></div>
+      <div class="grid2">
+        <label class="fld"><span>Tarikh</span><input id="ckTarikh" type="date" value="${hariIni}" onchange="kiraCetakHari()"></label>
+        <label class="fld"><span>Status</span><select id="ckStatus" onchange="kiraCetakHari()">
+          <option value="">Lengkap dan draf</option><option value="lengkap">Lengkap sahaja</option></select></label>
+      </div>
+      <div id="ckKira" class="kad" style="background:var(--bg);padding:12px;margin-bottom:12px"></div>
+      <button class="btn btn-primary btn-block" onclick="jalankanCetakHari()">🖨️ Cetak RPH tarikh ini</button>
+    </div>
+
+    <div class="kad">
       <div class="kad-h"><h3>Cetak mengikut minggu</h3><small>Pilih & semak dahulu</small></div>
       <p style="font-size:13px;color:var(--teks-2);margin-bottom:12px">
         Satu RPH satu muka surat. Kotak <b>SEMAKAN</b> dicetak sekali sahaja pada RPH terakhir setiap hari —
@@ -691,6 +702,32 @@ function halCetak(){
         <div class="baris"><div class="baris-t"><b>Headers and footers</b><small>Buang tanda — elak URL pada kertas</small></div></div>
       </div>
     </div>`;
+  kiraCetakHari();
+}
+
+function senaraiCetakHari(){
+  const t = $('#ckTarikh').value, st = $('#ckStatus').value;
+  return S.rph.filter(r => r.tarikh === t && (!st || r.status === st))
+              .sort((a,b)=> (a.mula||'').localeCompare(b.mula||''));
+}
+function kiraCetakHari(){
+  const senarai = senaraiCetakHari();
+  const t = $('#ckTarikh').value;
+  const cuti = cutiPada(t);
+  $('#ckKira').innerHTML = senarai.length
+    ? `<b style="font-size:13.5px">${tarikhCantik(t)} · ${mingguUntuk(t)||'—'}</b>
+       <div style="margin-top:8px">${senarai.map(r=>`
+         <div style="display:flex;gap:8px;font-size:12.5px;padding:3px 0;color:var(--teks-2)">
+           <span style="min-width:88px">${esc(r.mula)}-${esc(r.tamat)}</span>
+           <span style="flex:1">${esc(r.subjek)} · ${esc(r.kelas)}</span>
+           <span class="pil ${r.status==='lengkap'?'hijau':'kuning'}">${r.status==='lengkap'?'Lengkap':'Draf'}</span></div>`).join('')}
+       </div><p style="font-size:12px;color:var(--teks-3);margin-top:8px">${senarai.length} muka surat · SEMAKAN pada helaian terakhir</p>`
+    : `<span style="color:var(--merah);font-size:13px">Tiada RPH pada tarikh ini${cuti?' ('+esc(cuti.nama)+')':''}</span>`;
+}
+function jalankanCetakHari(){
+  const senarai = senaraiCetakHari();
+  if(!senarai.length) return toast('Tiada RPH pada tarikh ini','salah');
+  cetakBanyak(senarai);
 }
 
 function cetakMingguModal(){
