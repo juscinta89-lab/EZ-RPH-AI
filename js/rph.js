@@ -59,7 +59,7 @@ function halJana(){
       <div class="kad-h"><h3>Jana satu RPH</h3><small>Slot tunggal</small></div>
       <label class="fld"><span>Tarikh</span><input id="jgTarikh" type="date" value="${hariIni}" onchange="lukisSlotJana()"></label>
       <div id="jgSlot"></div>
-      <label class="fld"><span>Tajuk / topik <em>(kosongkan untuk biar AI cadang daripada DSKP)</em></span>
+      <label class="fld"><span>Tajuk / topik <em>(kosongkan untuk ikut RPT minggu ini)</em></span>
         <input id="jgTajuk" placeholder="Cth: Kata Kerja Transitif"></label>
       <label class="fld"><span>Arahan khas kepada AI <em>(pilihan)</em></span>
         <input id="jgArahan" placeholder="Cth: banyakkan aktiviti kumpulan PAK21"></label>
@@ -243,7 +243,7 @@ function halEditor(){
         <label class="fld"><span>Standard Kandungan</span><textarea id="eSk">${esc(r.sk||'')}</textarea></label>
         <label class="fld"><span>Standard Pembelajaran</span><textarea id="eSp">${esc(r.sp||'')}</textarea></label>
         <label class="fld"><span>Standard Prestasi</span><textarea id="eTp">${esc(r.tp||'')}</textarea></label>
-        <button class="btn btn-sm" onclick="pilihSpDb()">📗 Pilih daripada pangkalan DSKP</button>
+        <button class="btn btn-sm" onclick="pilihRpt()">📗 Ambil daripada RPT</button>
 
         <div class="seksyen-tajuk">Objektif & kriteria</div>
         <label class="fld"><span>Objektif pembelajaran <em>(satu baris satu objektif)</em></span><textarea id="eObjektif">${esc(r.objektif||'')}</textarea></label>
@@ -346,31 +346,34 @@ async function buatSalinan(){
   sibuk(true,'Menyalin…'); const ref = await rujuk('rph').add(baru);
   await muatRph(); sibuk(false); tutupModal(); bukaRph(ref.id); toast('RPH disalin','jaya');
 }
-async function pilihSpDb(){
-  const subjek = $('#eSubjek').value;
-  if(!kontekDskp(subjek,'').length){
-    sibuk(true,'Memuatkan DSKP…'); await muatDskpSubjek(subjek, ''); sibuk(false);
+async function pilihRpt(){
+  const subjek = $('#eSubjek').value, minggu = $('#eMinggu').value;
+  let d = rptUntuk(subjek, '', minggu).semua;
+  if(!d.length){
+    sibuk(true,'Memuatkan RPT…'); d = await muatRptSubjek(subjek, ''); sibuk(false);
   }
-  const d = kontekDskp(subjek, '');
-  window._spList = d;
-  modal('Pilih Standard Pembelajaran', d.length
-    ? `<input placeholder="Cari…" oninput="tapisSp(this.value)" style="margin-bottom:10px">
-       <div id="spSenarai" class="senarai">${d.slice(0,200).map((x,i)=>`
-        <div class="baris" onclick="pakaiSp(${i})" style="cursor:pointer">
-          <div class="baris-t"><b>${esc(x.kodSp||'')} ${esc((x.sp||'').slice(0,90))}</b>
-          <small>${esc(x.tahun)} · ${esc(x.bidang||'')} ${esc(x.tajuk||'')}</small></div></div>`).join('')}</div>`
-    : `<div class="kosong"><b>Tiada DSKP untuk subjek ini</b>Import DSKP dahulu di menu DSKP.</div>`);
+  window._rptPilih = d.sort((a,b)=> noMinggu(a.minggu) - noMinggu(b.minggu));
+  const n = noMinggu(minggu);
+  modal('Pilih baris RPT', d.length
+    ? `<input placeholder="Cari minggu atau tajuk…" oninput="tapisRpt(this.value)" style="margin-bottom:10px">
+       <div id="rptSenarai" class="senarai">${window._rptPilih.slice(0,300).map((x,i)=>`
+        <div class="baris" onclick="pakaiRpt(${i})" style="cursor:pointer;${noMinggu(x.minggu)===n?'border-color:var(--biru);background:var(--biru-t)':''}">
+          <span class="pil ${noMinggu(x.minggu)===n?'biru':'kelabu'}">M${esc(x.minggu||'-')}</span>
+          <div class="baris-t"><b>${esc((x.tajuk||x.tema||'').slice(0,70))}</b>
+          <small>${esc(x.kodSp||'')} ${esc((x.sp||'').slice(0,80))}</small></div></div>`).join('')}</div>`
+    : `<div class="kosong"><b>Tiada RPT untuk subjek ini</b>Muat naik RPT di menu RPT dahulu.</div>`);
 }
-function tapisSp(q){
+function tapisRpt(q){
   q = q.toLowerCase();
-  Array.from($('#spSenarai').children).forEach(el => el.style.display = el.textContent.toLowerCase().includes(q) ? '' : 'none');
+  Array.from($('#rptSenarai').children).forEach(el => el.style.display = el.textContent.toLowerCase().includes(q) ? '' : 'none');
 }
-function pakaiSp(i){
-  const x = (window._spList || [])[i]; if(!x) return;
+function pakaiRpt(i){
+  const x = (window._rptPilih || [])[i]; if(!x) return;
   $('#eKodSk').value = x.kodSk||''; $('#eSk').value = x.sk||'';
   $('#eKodSp').value = x.kodSp||''; $('#eSp').value = x.sp||''; $('#eTp').value = x.tp||'';
   if(!$('#eTajuk').value) $('#eTajuk').value = x.tajuk||'';
-  tutupModal(); toast('Standard dimasukkan','jaya');
+  if(!$('#eTema').value) $('#eTema').value = x.tema||'';
+  tutupModal(); toast('Maklumat RPT dimasukkan','jaya');
 }
 
 /* ---------- AI dalam editor ---------- */
@@ -525,7 +528,7 @@ function halLaporan(){
     return Object.entries(m).sort((a,b)=>b[1]-a[1]);
   };
   const spGuna = new Set(S.rph.map(r => (r.sp||'').trim()).filter(Boolean));
-  const spSemua = S.dskp.filter(d => d.sp);
+  const spSemua = S.rpt.filter(d => d.sp);
   const spBelum = spSemua.filter(d => !spGuna.has(d.sp.trim()));
 
   $('#kandungan').innerHTML = `
@@ -533,7 +536,7 @@ function halLaporan(){
       <div class="stat b"><b>${S.rph.length}</b><small>Jumlah RPH</small></div>
       <div class="stat h"><b>${S.rph.filter(r=>r.status==='lengkap').length}</b><small>Lengkap</small></div>
       <div class="stat k"><b>${S.rph.filter(r=>r.status==='draf').length}</b><small>Draf</small></div>
-      <div class="stat"><b>${spSemua.length ? Math.round((spSemua.length-spBelum.length)/spSemua.length*100) : 0}%</b><small>Liputan DSKP (subjek anda)</small></div>
+      <div class="stat"><b>${spSemua.length ? Math.round((spSemua.length-spBelum.length)/spSemua.length*100) : 0}%</b><small>Liputan RPT</small></div>
     </div>
 
     <div class="kad"><div class="kad-h"><h3>RPH mengikut minggu</h3></div>
@@ -548,9 +551,10 @@ function halLaporan(){
       ${ikut(S.rph,'subjek').map(([k,v])=>`<tr><td>${esc(k)}</td><td>${v}</td></tr>`).join('') || '<tr><td colspan="2">Tiada data</td></tr>'}</table></div></div>
 
     <div class="kad"><div class="kad-h"><h3>Standard Pembelajaran belum digunakan</h3><small>${spBelum.length} SP</small></div>
-      ${spBelum.length ? `<div class="senarai">${spBelum.slice(0,50).map(d=>`<div class="baris"><div class="baris-t">
-        <b>${esc(d.kodSp||'')} ${esc((d.sp||'').slice(0,100))}</b><small>${esc(d.subjek)} ${esc(d.tahun)}</small></div></div>`).join('')}</div>`
-        : '<div class="kosong">Semua SP dalam pangkalan data telah digunakan, atau DSKP belum diimport.</div>'}</div>
+      ${spBelum.length ? `<div class="senarai">${spBelum.slice(0,50).map(d=>`<div class="baris">
+        <span class="pil kelabu">M${esc(d.minggu||'-')}</span><div class="baris-t">
+        <b>${esc(d.tajuk||d.tema||'')} — ${esc(d.kodSp||'')}</b><small>${esc(d.subjek)} ${esc(d.tahun||'')}</small></div></div>`).join('')}</div>`
+        : '<div class="kosong">Semua baris RPT telah dijadikan RPH, atau RPT belum dimuat naik.</div>'}</div>
 
     <div class="toolbar"><button class="btn" onclick="eksportCsv()">⬇️ Muat turun senarai RPH (CSV)</button></div>`;
 }

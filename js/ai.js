@@ -48,12 +48,6 @@ function ambilJSON(teks){
 }
 
 /* ---------- Kumpul konteks daripada pangkalan data ---------- */
-function kontekDskp(subjek, tahun){
-  const s = (subjek||'').toLowerCase(), y = (tahun||'').toLowerCase();
-  let d = S.dskp.filter(x => (x.subjek||'').toLowerCase() === s);
-  if(y) { const f = d.filter(x => (x.tahun||'').toLowerCase().includes(y.replace(/[^0-9]/g,'')||y)); if(f.length) d = f; }
-  return d;
-}
 function kontekBuku(subjek, tahun){
   const s = (subjek||'').toLowerCase();
   return S.buku.filter(x => (x.subjek||'').toLowerCase() === s).slice(0,40);
@@ -64,11 +58,18 @@ function rphSebelum(subjek, kelas, tarikh, n){
 }
 
 /* ---------- Bina prompt RPH ---------- */
+function barisRpt(r){
+  return `- Minggu ${r.minggu||'-'} | Tema/Bidang: ${r.tema||'-'} | Tajuk: ${r.tajuk||'-'}\n` +
+         `  SK [${r.kodSk||'-'}]: ${r.sk||'-'}\n  SP [${r.kodSp||'-'}]: ${r.sp||'-'}` +
+         (r.tp?`\n  TP: ${r.tp}`:'') + (r.catatan?`\n  Catatan RPT: ${r.catatan}`:'');
+}
 function promptRph(ctx){
-  const dskp = kontekDskp(ctx.subjek, ctx.tahun);
-  const dskpTeks = dskp.length
-    ? dskp.slice(0,60).map(d => `- [${d.kodSk||'-'}] SK: ${d.sk||'-'}\n  [${d.kodSp||'-'}] SP: ${d.sp||'-'}${d.tp?'\n  TP: '+d.tp:''}${d.tajuk?'\n  Tajuk: '+d.tajuk:''}`).join('\n')
-    : 'TIADA DATA DSKP DALAM PANGKALAN DATA.';
+  const rpt = rptUntuk(ctx.subjek, ctx.tahun, ctx.minggu);
+  const rptTeks = rpt.minggu.length
+    ? rpt.minggu.map(barisRpt).join('\n')
+    : 'TIADA BARIS RPT UNTUK MINGGU INI.';
+  const rptSekitar = rpt.sekitar.length
+    ? rpt.sekitar.map(barisRpt).join('\n') : 'Tiada.';
   const buku = kontekBuku(ctx.subjek, ctx.tahun);
   const bukuTeks = buku.length
     ? buku.map(b => `- ${b.buku||'Buku Teks'} | Bab ${b.bab||'-'} | ${b.unit||''} | ${b.tajuk||''}${b.pautan?' | pautan: '+b.pautan:''}: ${(b.kandungan||'').slice(0,300)}`).join('\n')
@@ -92,8 +93,11 @@ Tempoh sebenar: ${ctx.tempoh} minit
 ${ctx.tajuk ? 'Tajuk dikehendaki guru: '+ctx.tajuk : ''}
 ${ctx.arahan ? 'Arahan khas guru: '+ctx.arahan : ''}
 
-PANGKALAN DATA DSKP (gunakan HANYA yang ini)
-${dskpTeks}
+RPT MINGGU INI — SUMBER RASMI, GUNA TEPAT SEPERTI DI BAWAH
+${rptTeks}
+
+RPT MINGGU BERHAMPIRAN (konteks kesinambungan sahaja, jangan guna standardnya)
+${rptSekitar}
 
 RUJUKAN BUKU TEKS DALAM SISTEM
 ${bukuTeks}
@@ -102,8 +106,8 @@ RPH TERDAHULU (untuk kesinambungan, jangan ulang aktiviti yang sama tanpa sebab)
 ${laluTeks}
 
 PERATURAN WAJIB
-1. JANGAN cipta, ubah atau reka nombor/teks Standard Kandungan atau Standard Pembelajaran. Salin tepat daripada pangkalan data DSKP di atas.
-2. Jika DSKP tiada dalam pangkalan data, isi medan sk/sp dengan "Maklumat rasmi belum tersedia dalam pangkalan data" dan tetapkan "amaran".
+1. JANGAN cipta, ubah atau reka nombor/teks Standard Kandungan atau Standard Pembelajaran. Salin TEPAT daripada baris RPT minggu ini di atas, termasuk kod SK/SP dan tajuk.
+2. Jika tiada baris RPT untuk minggu ini, isi medan sk/sp dengan "Sila lengkapkan RPT bagi minggu ini" dan senaraikan dalam "amaran". Jangan ambil standard daripada minggu lain.
 3. Aktiviti mesti muat dalam ${ctx.tempoh} minit. Nyatakan anggaran minit setiap langkah, jumlahnya mesti ${ctx.tempoh} minit.
 4. Jangan dakwa kandungan buku teks yang tiada dalam senarai di atas.
 5. Objektif mesti terukur dan selari dengan SP. Pentaksiran mesti selari dengan objektif.
@@ -152,9 +156,10 @@ function semakKualiti(r){
     ['Tarikh sah', !!r.tarikh],
     ['Minggu persekolahan dikenal pasti', !!r.minggu],
     ['Masa & tempoh betul', r.tempoh > 0],
-    ['Standard Kandungan tersedia', !!r.sk && !/belum tersedia/i.test(r.sk)],
-    ['Standard Pembelajaran tersedia', !!r.sp && !/belum tersedia/i.test(r.sp)],
-    ['SP sepadan pangkalan data DSKP', !!S.dskp.find(d => d.sp && r.sp && d.sp.trim() === r.sp.trim())],
+    ['Standard Kandungan tersedia', !!r.sk && !/lengkapkan rpt|belum tersedia/i.test(r.sk)],
+    ['Standard Pembelajaran tersedia', !!r.sp && !/lengkapkan rpt|belum tersedia/i.test(r.sp)],
+    ['SP sepadan dengan RPT minggu ini', !!S.rpt.find(d => d.sp && r.sp && d.sp.trim() === r.sp.trim()
+        && d.subjek === r.subjek && noMinggu(d.minggu) === noMinggu(r.minggu))],
     ['Objektif pembelajaran ada', (r.objektif||'').trim().length > 10],
     ['Kriteria kejayaan ada', (r.kriteria||'').trim().length > 5],
     ['Aktiviti PdP ada', stripHtml(r.aktiviti).length > 60],

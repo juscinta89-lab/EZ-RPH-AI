@@ -10,7 +10,7 @@ const S = {
   sekolah: null,       // dok sekolah/{sid}
   sid: null,
   peranan: 'guru',     // pemilik | admin | guru
-  kelas: [], subjek: [], jadual: [], dskp: [], dskpAda: false, buku: [], takwim: null, logo: '',
+  kelas: [], subjek: [], jadual: [], rpt: [], rptAda: false, buku: [], takwim: null, logo: '',
   rph: [],             // cache RPH pengguna
   hal: 'dashboard',
   editRphId: null
@@ -61,7 +61,7 @@ const MENU = [
   { id:'jadual',    ikon:'⏰', nama:'Jadual Waktu' },
   { id:'kelas',     ikon:'👥', nama:'Kelas' },
   { id:'subjek',    ikon:'📚', nama:'Subjek' },
-  { id:'dskp',      ikon:'📗', nama:'DSKP' },
+  { id:'rpt',       ikon:'📗', nama:'RPT' },
   { id:'buku',      ikon:'📖', nama:'Buku Teks' },
   { id:'takwim',    ikon:'🗓️', nama:'Takwim' },
   { grp:'Lain-lain' },
@@ -91,14 +91,14 @@ const TAJUK = {
   dashboard:['Dashboard','Ringkasan PdP anda hari ini'],
   rph:['RPH Saya','Semua Rancangan Pengajaran Harian'],
   kalendar:['Kalendar RPH','Status RPH mengikut tarikh'],
-  jana:['Jana RPH AI','Hasilkan RPH daripada jadual & DSKP'],
+  jana:['Jana RPH AI','Hasilkan RPH daripada jadual waktu & RPT'],
   jadual:['Jadual Waktu','Slot PdP mingguan anda'],
   kelas:['Kelas','Senarai kelas yang anda ajar'],
   subjek:['Subjek','Mata pelajaran sekolah'],
-  dskp:['DSKP','Standard Kandungan, Pembelajaran & Prestasi'],
+  rpt:['Rancangan Pengajaran Tahunan','Tajuk & standard mengikut minggu persekolahan'],
   buku:['Buku Teks','Rujukan bab & unit buku teks'],
   takwim:['Takwim Persekolahan','Minggu persekolahan & cuti'],
-  laporan:['Laporan','Statistik RPH & kemajuan DSKP'],
+  laporan:['Laporan','Statistik RPH & liputan RPT'],
   tetapan:['Tetapan','Profil, AI dan aplikasi'],
   admin:['Panel Pentadbir','Urus sekolah, guru dan data'],
   editor:['Editor RPH','Semak dan edit sebelum simpan']
@@ -114,7 +114,7 @@ function pergi(hal){
   window.scrollTo(0,0);
   const f = {
     dashboard:halDashboard, rph:halRph, kalendar:halKalendar, jana:halJana,
-    jadual:halJadual, kelas:halKelas, subjek:halSubjek, dskp:halDskp,
+    jadual:halJadual, kelas:halKelas, subjek:halSubjek, rpt:halRpt,
     buku:halBuku, takwim:halTakwim, laporan:halLaporan, tetapan:halTetapan,
     admin:halAdmin, editor:halEditor
   }[hal];

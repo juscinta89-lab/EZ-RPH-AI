@@ -11,15 +11,15 @@ async function muatData(){
     rujuk('jadual').doc(S.user.email).get(),
     rujuk('buku').get(),
     rujuk('takwim').doc(String(tahun)).get(),
-    rujuk('dskp').limit(1).get()
+    rujuk('rpt').limit(1).get()
   ]);
-  S.dskpAda = !ada.empty;
+  S.rptAda = !ada.empty;
   S.kelas  = k.docs.map(d => ({id:d.id, ...d.data()})).sort((a,b)=> (a.nama||'').localeCompare(b.nama||''));
   S.subjek = sj.docs.map(d => ({id:d.id, ...d.data()})).sort((a,b)=> (a.nama||'').localeCompare(b.nama||''));
   S.jadual = jd.exists ? (jd.data().slot || []) : [];
   S.buku   = bk.docs.map(d => ({id:d.id, ...d.data()}));
   S.takwim = tw.exists ? tw.data() : null;
-  await muatDskpJadual();
+  await muatRpt();
   await muatRph();
 }
 
@@ -30,24 +30,44 @@ async function muatRph(){
   S.rph = snap.docs.map(d => ({id:d.id, ...d.data()})).sort((a,b)=> (b.tarikh||'').localeCompare(a.tarikh||''));
 }
 
-/* ---------- DSKP dimuat mengikut keperluan (koleksi boleh sangat besar) ---------- */
-async function muatDskpJadual(){
+/* ---------- RPT (Rancangan Pengajaran Tahunan) ---------- */
+async function muatRpt(){
   const subj = [...new Set(S.jadual.map(x => x.subjek).filter(Boolean))];
-  S.dskp = [];
-  for(let i=0;i<subj.length;i+=10){
-    const q = await rujuk('dskp').where('subjek','in', subj.slice(i,i+10)).limit(3000).get();
-    S.dskp.push(...q.docs.map(d => ({id:d.id, ...d.data()})));
+  S.rpt = [];
+  if(!subj.length){
+    const q = await rujuk('rpt').limit(600).get();
+    S.rpt = q.docs.map(d => ({id:d.id, ...d.data()}));
+    return susunRpt();
   }
+  for(let i=0;i<subj.length;i+=10){
+    const q = await rujuk('rpt').where('subjek','in', subj.slice(i,i+10)).limit(2000).get();
+    S.rpt.push(...q.docs.map(d => ({id:d.id, ...d.data()})));
+  }
+  susunRpt();
 }
-async function muatDskpSubjek(subjek, tahun){
+async function muatRptSubjek(subjek, tahun){
   if(!subjek) return [];
-  let q = rujuk('dskp').where('subjek','==',subjek);
+  let q = rujuk('rpt').where('subjek','==',subjek);
   if(tahun) q = q.where('tahun','==',tahun);
-  const snap = await q.limit(1500).get();
+  const snap = await q.limit(800).get();
   const hasil = snap.docs.map(d => ({id:d.id, ...d.data()}));
-  const idAda = new Set(S.dskp.map(x=>x.id));
-  hasil.forEach(x => { if(!idAda.has(x.id)) S.dskp.push(x); });   // cache untuk AI & semakan
+  const ada = new Set(S.rpt.map(x=>x.id));
+  hasil.forEach(x => { if(!ada.has(x.id)) S.rpt.push(x); });
+  susunRpt();
   return hasil;
+}
+function noMinggu(v){ const m = String(v==null?'':v).match(/\d+/); return m ? +m[0] : 999; }
+function susunRpt(){ S.rpt.sort((a,b)=> noMinggu(a.minggu) - noMinggu(b.minggu)); }
+
+/* Cari baris RPT untuk sesi tertentu */
+function rptUntuk(subjek, tahun, minggu){
+  const n = noMinggu(minggu);
+  const sama = S.rpt.filter(r => r.subjek === subjek && (!tahun || !r.tahun || r.tahun === tahun));
+  return {
+    minggu: sama.filter(r => noMinggu(r.minggu) === n),
+    sekitar: sama.filter(r => Math.abs(noMinggu(r.minggu) - n) <= 2 && noMinggu(r.minggu) !== n),
+    semua: sama
+  };
 }
 
 /* ---------- Minggu persekolahan ---------- */
@@ -182,7 +202,7 @@ function templatExcel(namaFail, kepala, contoh){
 const TEMPLAT = {
   kelas:  ['nama_kelas','tahun_tingkatan','bilangan_murid','tahap','nota'],
   subjek: ['nama_subjek','kod','peringkat'],
-  dskp:   ['tahun','subjek','bidang','tajuk','kod_sk','standard_kandungan','kod_sp','standard_pembelajaran','tp'],
+  rpt:    ['minggu','tahun_tingkatan','subjek','tema_bidang','tajuk_kemahiran','kod_sk','standard_kandungan','kod_sp','standard_pembelajaran','tp','catatan'],
   buku:   ['tahun','subjek','buku','bab','unit','tajuk','kandungan'],
   cuti:   ['nama','mula','tamat'],
   jadual: ['hari','masa_mula','masa_tamat','subjek','kelas','bilik','catatan']
@@ -248,7 +268,7 @@ function kadWizard(){
     ['Subjek', S.subjek.length > 0, 'subjek'],
     ['Jadual waktu', S.jadual.length > 0, 'jadual'],
     ['Takwim persekolahan', !!S.takwim, 'takwim'],
-    ['DSKP', !!S.dskpAda, 'dskp'],
+    ['RPT (Rancangan Pengajaran Tahunan)', !!S.rptAda, 'rpt'],
     ['Buku teks (pilihan)', S.buku.length > 0, 'buku']
   ];
   const siap = langkah.filter(l => l[1]).length;
@@ -542,194 +562,173 @@ function importCuti(){
   });
 }
 
-/* ================= DSKP ================= */
-let dskpHasil = [];
-function halDskp(){
+/* ================= RPT ================= */
+let rptHasil = [];
+function halRpt(){
   const sjJadual = [...new Set(S.jadual.map(x=>x.subjek).filter(Boolean))];
   const senaraiSubjek = [...new Set([...sjJadual, ...S.subjek.map(x=>x.nama)])].sort();
+  const tahunSenarai = ['Prasekolah','Tahun 1','Tahun 2','Tahun 3','Tahun 4','Tahun 5','Tahun 6',
+                        'Tingkatan 1','Tingkatan 2','Tingkatan 3','Tingkatan 4','Tingkatan 5'];
+  rptHasil = S.rpt.filter(r => sjJadual.includes(r.subjek));
   $('#kandungan').innerHTML = `
     <div class="kad">
-      <div class="kad-h"><h3>Cari DSKP</h3><small>${S.dskpAda ? 'Pangkalan data tersedia' : 'Pangkalan data kosong'}</small></div>
+      <div class="kad-h"><h3>Rancangan Pengajaran Tahunan</h3>
+        <small>${S.rptAda ? S.rpt.length+' baris dimuat' : 'Belum ada RPT'}</small></div>
       <div class="toolbar" style="margin:0">
-        <select id="dsSubjek"><option value="">— Pilih subjek —</option>
-          ${senaraiSubjek.map(x=>`<option ${sjJadual.includes(x)?'selected':''}>${esc(x)}</option>`).join('')}</select>
-        <select id="dsTahun"><option value="">Semua tahun</option>
-          ${['Prasekolah','Tahun 1','Tahun 2','Tahun 3','Tahun 4','Tahun 5','Tahun 6'].map(x=>`<option>${x}</option>`).join('')}</select>
-        <button class="btn btn-primary" onclick="cariDskp()">Papar</button>
+        <select id="rtSubjek"><option value="">Semua subjek saya</option>
+          ${senaraiSubjek.map(x=>`<option>${esc(x)}</option>`).join('')}</select>
+        <select id="rtTahun"><option value="">Semua tahun</option>
+          ${tahunSenarai.map(x=>`<option>${x}</option>`).join('')}</select>
+        <button class="btn btn-primary" onclick="cariRpt()">Papar</button>
       </div>
       <div class="toolbar" style="margin:12px 0 0">
-        <input id="dsCari" placeholder="Tapis SK, SP atau tajuk…" oninput="lukisDskp()">
-        <button class="btn" onclick="formDskp()">+ Tambah</button>
-        <button class="btn" onclick="importDskp()">📥 Import Excel/CSV</button>
-        <button class="btn" onclick="templatExcel('templat-dskp.xlsx',TEMPLAT.dskp)">⬇️ Templat</button>
+        <input id="rtCari" placeholder="Tapis tajuk, SK atau SP…" oninput="lukisRpt()">
+        <button class="btn" onclick="formRpt()">+ Tambah baris</button>
+        <button class="btn btn-ungu" onclick="importRpt()">📥 Muat naik RPT (Excel)</button>
+        <button class="btn" onclick="templatRpt()">⬇️ Templat Excel</button>
       </div>
+      <p style="font-size:12px;color:var(--teks-3);margin-top:10px">
+        Satu baris untuk satu minggu. Semasa menjana RPH, sistem padankan minggu persekolahan
+        dengan RPT anda dan AI menggunakan tajuk serta standard di situ — AI tidak mencipta SP sendiri.</p>
     </div>
-    <div id="dsSenarai"><div class="kosong"><b>Pilih subjek untuk mula</b>DSKP dimuat mengikut subjek supaya app kekal pantas walaupun ada puluhan ribu rekod.</div></div>`;
+    <div id="rtSenarai"></div>`;
+  lukisRpt();
 }
-async function cariDskp(){
-  const sj = $('#dsSubjek').value, th = $('#dsTahun').value;
-  if(!sj) return toast('Pilih subjek dahulu','salah');
-  sibuk(true,'Memuatkan DSKP…');
-  dskpHasil = await muatDskpSubjek(sj, th);
-  sibuk(false); lukisDskp();
-  if(!dskpHasil.length) toast('Tiada rekod untuk pilihan ini','salah');
+async function cariRpt(){
+  const sj = $('#rtSubjek').value, th = $('#rtTahun').value;
+  if(!sj){ rptHasil = S.rpt.filter(r => !th || r.tahun === th); return lukisRpt(); }
+  sibuk(true,'Memuatkan RPT…');
+  rptHasil = await muatRptSubjek(sj, th);
+  sibuk(false); lukisRpt();
+  if(!rptHasil.length) toast('Tiada baris RPT untuk pilihan ini','salah');
 }
-function lukisDskp(){
-  const q = ($('#dsCari')?.value || '').toLowerCase();
-  const hasil = dskpHasil.filter(d => !q || JSON.stringify(d).toLowerCase().includes(q));
-  $('#dsSenarai').innerHTML = hasil.length ? `<div class="senarai">${hasil.slice(0,300).map(d => `
-    <div class="baris"><div class="baris-t">
-      <b>${esc(d.kodSp||d.kodSk||'—')} ${esc((d.sp||d.sk||'').slice(0,120))}</b>
-      <small>${esc(d.subjek)} ${esc(d.tahun)} · ${esc(d.bidang||'')} ${d.tajuk?'· '+esc(d.tajuk):''}</small></div>
-      <button class="btn btn-sm" onclick="formDskp('${d.id}')">Edit</button>
-      <button class="btn btn-sm btn-danger" onclick="hapusItem('dskp','${d.id}')">✕</button></div>`).join('')}
-    ${hasil.length>300?'<p style="text-align:center;color:var(--teks-3);font-size:12px;padding:10px">Menunjukkan 300 daripada '+hasil.length+' rekod</p>':''}</div>`
-    : `<div class="kosong"><b>Tiada rekod dipaparkan</b>Pilih subjek dan tekan Papar, atau import fail DSKP.</div>`;
+function lukisRpt(){
+  const q = ($('#rtCari')?.value || '').toLowerCase();
+  const hasil = rptHasil.filter(r => !q || JSON.stringify(r).toLowerCase().includes(q))
+                        .sort((a,b)=> noMinggu(a.minggu) - noMinggu(b.minggu));
+  if(!hasil.length){
+    $('#rtSenarai').innerHTML = `<div class="kosong"><b>Tiada baris RPT</b>
+      Muat turun templat Excel, isikan RPT subjek anda, kemudian muat naik semula.</div>`;
+    return;
+  }
+  $('#rtSenarai').innerHTML = `<div class="kad"><div class="tbl-scroll"><table>
+    <tr><th>Minggu</th><th>Subjek</th><th>Tahun</th><th>Tajuk</th><th>SK</th><th>SP</th><th></th></tr>
+    ${hasil.slice(0,400).map(r=>`<tr>
+      <td><span class="pil biru">${esc(r.minggu||'-')}</span></td>
+      <td>${esc(r.subjek||'')}</td><td>${esc(r.tahun||'')}</td>
+      <td>${esc((r.tajuk||r.tema||'').slice(0,60))}</td>
+      <td style="font-size:12px">${esc(((r.kodSk?r.kodSk+' ':'')+(r.sk||'')).slice(0,70))}</td>
+      <td style="font-size:12px">${esc(((r.kodSp?r.kodSp+' ':'')+(r.sp||'')).slice(0,70))}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-sm" onclick="formRpt('${r.id}')">Edit</button>
+        <button class="btn btn-sm btn-danger" onclick="hapusItem('rpt','${r.id}')">✕</button></td>
+    </tr>`).join('')}
+  </table></div>
+  ${hasil.length>400?`<p style="text-align:center;color:var(--teks-3);font-size:12px;padding:10px">Menunjukkan 400 daripada ${hasil.length} baris</p>`:''}
+  </div>`;
 }
 
-function formDskp(id){
-  const d = S.dskp.find(x => x.id === id) || {};
-  modal(id?'Edit DSKP':'Tambah DSKP', `
-    <div class="grid2">
-      <label class="fld"><span>Tahun / Tingkatan</span><input id="fdTahun" value="${esc(d.tahun||'')}" placeholder="Tahun 6"></label>
-      <label class="fld"><span>Subjek</span><input id="fdSubjek" value="${esc(d.subjek||'')}" placeholder="Bahasa Melayu" list="lsSubjek">
-        <datalist id="lsSubjek">${S.subjek.map(s=>`<option>${esc(s.nama)}</option>`).join('')}</datalist></label>
+function formRpt(id){
+  const r = S.rpt.find(x => x.id === id) || {};
+  modal(id?'Edit baris RPT':'Tambah baris RPT', `
+    <div class="grid3">
+      <label class="fld"><span>Minggu</span><input id="frMinggu" value="${esc(r.minggu||'')}" placeholder="12"></label>
+      <label class="fld"><span>Tahun / Tingkatan</span><input id="frTahun" value="${esc(r.tahun||'')}" placeholder="Tahun 6"></label>
+      <label class="fld"><span>Subjek</span><input id="frSubjek" value="${esc(r.subjek||'')}" list="lsSubjekRpt">
+        <datalist id="lsSubjekRpt">${S.subjek.map(x=>`<option>${esc(x.nama)}</option>`).join('')}</datalist></label>
     </div>
     <div class="grid2">
-      <label class="fld"><span>Bidang</span><input id="fdBidang" value="${esc(d.bidang||'')}"></label>
-      <label class="fld"><span>Tajuk</span><input id="fdTajuk" value="${esc(d.tajuk||'')}"></label>
+      <label class="fld"><span>Tema / Bidang</span><input id="frTema" value="${esc(r.tema||'')}"></label>
+      <label class="fld"><span>Tajuk / Kemahiran</span><input id="frTajuk" value="${esc(r.tajuk||'')}"></label>
     </div>
     <div class="grid2">
-      <label class="fld"><span>Kod SK</span><input id="fdKodSk" value="${esc(d.kodSk||'')}" placeholder="1.1"></label>
-      <label class="fld"><span>Kod SP</span><input id="fdKodSp" value="${esc(d.kodSp||'')}" placeholder="1.1.1"></label>
+      <label class="fld"><span>Kod SK</span><input id="frKodSk" value="${esc(r.kodSk||'')}" placeholder="5.1"></label>
+      <label class="fld"><span>Kod SP</span><input id="frKodSp" value="${esc(r.kodSp||'')}" placeholder="5.1.1"></label>
     </div>
-    <label class="fld"><span>Standard Kandungan</span><textarea id="fdSk">${esc(d.sk||'')}</textarea></label>
-    <label class="fld"><span>Standard Pembelajaran</span><textarea id="fdSp">${esc(d.sp||'')}</textarea></label>
-    <label class="fld"><span>Standard Prestasi (TP)</span><textarea id="fdTp" placeholder="TP1: … TP2: …">${esc(d.tp||'')}</textarea></label>`,
-    `<button class="btn" onclick="tutupModal()">Batal</button><button class="btn btn-primary" onclick="simpanDskp('${id||''}')">Simpan</button>`);
+    <label class="fld"><span>Standard Kandungan</span><textarea id="frSk" style="min-height:64px">${esc(r.sk||'')}</textarea></label>
+    <label class="fld"><span>Standard Pembelajaran</span><textarea id="frSp" style="min-height:64px">${esc(r.sp||'')}</textarea></label>
+    <div class="grid2">
+      <label class="fld"><span>Standard Prestasi (TP)</span><input id="frTp" value="${esc(r.tp||'')}"></label>
+      <label class="fld"><span>Catatan</span><input id="frCatatan" value="${esc(r.catatan||'')}"></label>
+    </div>`,
+    `<button class="btn" onclick="tutupModal()">Batal</button>
+     <button class="btn btn-primary" onclick="simpanRpt('${id||''}')">Simpan</button>`);
 }
-async function simpanDskp(id){
-  const d = { tahun:$('#fdTahun').value.trim(), subjek:$('#fdSubjek').value.trim(), bidang:$('#fdBidang').value.trim(),
-    tajuk:$('#fdTajuk').value.trim(), kodSk:$('#fdKodSk').value.trim(), kodSp:$('#fdKodSp').value.trim(),
-    sk:$('#fdSk').value.trim(), sp:$('#fdSp').value.trim(), tp:$('#fdTp').value.trim() };
-  if(!d.subjek || !d.sp) return toast('Subjek dan Standard Pembelajaran diperlukan','salah');
+async function simpanRpt(id){
+  const d = { minggu:$('#frMinggu').value.trim(), tahun:$('#frTahun').value.trim(), subjek:$('#frSubjek').value.trim(),
+    tema:$('#frTema').value.trim(), tajuk:$('#frTajuk').value.trim(), kodSk:$('#frKodSk').value.trim(),
+    kodSp:$('#frKodSp').value.trim(), sk:$('#frSk').value.trim(), sp:$('#frSp').value.trim(),
+    tp:$('#frTp').value.trim(), catatan:$('#frCatatan').value.trim(), emel:S.user.email };
+  if(!d.subjek || !d.minggu) return toast('Subjek dan minggu diperlukan','salah');
   sibuk(true,'Menyimpan…');
-  id ? await rujuk('dskp').doc(id).update(d) : await rujuk('dskp').add(d);
-  await muatData(); sibuk(false); tutupModal(); pergi('dskp'); toast('DSKP disimpan','jaya');
+  id ? await rujuk('rpt').doc(id).update(d) : await rujuk('rpt').add(d);
+  S.rptAda = true; await muatRpt(); sibuk(false); tutupModal(); pergi('rpt'); toast('Baris RPT disimpan','jaya');
 }
-function importDskp(){
+
+function templatRpt(){
+  templatExcel('templat-rpt.xlsx', TEMPLAT.rpt, [
+    ['1','Tahun 6','Bahasa Melayu','Kemahiran Mendengar dan Bertutur','Perbualan Harian','1.1',
+     'Mendengar dan memberikan respons terhadap pelbagai bahan bukan sastera','1.1.1',
+     'Mendengar dan memberikan respons dengan betul terhadap arahan mengikut situasi','TP3','Minggu orientasi'],
+    ['2','Tahun 6','Bahasa Melayu','Kemahiran Membaca','Bacaan Mekanis','2.1',
+     'Membaca pelbagai bahan bacaan bukan sastera','2.1.1',
+     'Membaca dan memahami maklumat tersurat daripada pelbagai bahan','TP3','']
+  ]);
+}
+
+function importRpt(){
   pilihFail('.csv,.txt', teks => {
     let rows = parseCSV(teks);
-    if(rows[0] && /tahun/i.test(rows[0][0])) rows = rows.slice(1);
-    rows = rows.filter(r => r.length >= 8 && r[1] && r[7]);
-    if(!rows.length) return toast('Tiada baris sah dijumpai','salah');
-    window._dskpRows = rows;
+    if(rows[0] && /minggu/i.test(rows[0][0])) rows = rows.slice(1);
+    rows = rows.filter(r => r.length >= 3 && (r[0]||'').trim() && (r[2]||'').trim());
+    if(!rows.length) return toast('Tiada baris sah. Pastikan lajur pertama Minggu dan ketiga Subjek.','salah');
+    window._rptRows = rows;
     const kira = {};
-    rows.forEach(r => kira[r[1]] = (kira[r[1]]||0) + 1);
-    const senarai = Object.entries(kira).sort((a,b)=> b[1]-a[1]);
-    const guna = new Set(S.jadual.map(x=>x.subjek));
-    modal('Pilih subjek untuk diimport', `
+    rows.forEach(r => { const k = (r[2]||'').trim()+' · '+((r[1]||'').trim()||'—'); kira[k] = (kira[k]||0)+1; });
+    modal('Sahkan muat naik RPT', `
       <p style="font-size:13px;color:var(--teks-2);margin-bottom:12px">
-        Fail ini ada <b>${rows.length}</b> baris daripada <b>${senarai.length}</b> subjek.
-        Import subjek yang diajar di sekolah anda sahaja — setiap baris jadi satu dokumen Firestore.</p>
-      <div class="toolbar" style="margin-bottom:10px">
-        <button class="btn btn-sm" onclick="tandaSubjek(true)">Tanda semua</button>
-        <button class="btn btn-sm" onclick="tandaSubjek(false)">Buang semua</button></div>
-      <div style="max-height:44vh;overflow:auto">${senarai.map(([nama,n],i)=>`
-        <label style="display:flex;gap:9px;align-items:center;padding:7px 4px;border-bottom:1px solid var(--garis);font-size:13.5px">
-          <input type="checkbox" class="dsPilih" value="${esc(nama)}" ${guna.has(nama)?'checked':''} style="width:auto">
-          <span style="flex:1">${esc(nama)}</span>
-          <span class="pil kelabu">${n}</span></label>`).join('')}</div>
-      <p id="dsKiraan" style="margin-top:10px;font-size:12.5px;color:var(--teks-3)"></p>`,
+        <b>${rows.length}</b> baris dikesan:</p>
+      <div style="max-height:40vh;overflow:auto">${Object.entries(kira).map(([k,n])=>`
+        <div style="display:flex;gap:9px;padding:7px 4px;border-bottom:1px solid var(--garis);font-size:13.5px">
+          <span style="flex:1">${esc(k)}</span><span class="pil kelabu">${n} minggu</span></div>`).join('')}</div>
+      <label class="fld" style="margin-top:14px"><span>Sebelum import</span>
+        <select id="rtGanti">
+          <option value="tambah">Tambah kepada RPT sedia ada</option>
+          <option value="ganti">Ganti — padam RPT subjek yang sama dahulu</option>
+        </select></label>`,
       `<button class="btn" onclick="tutupModal()">Batal</button>
-       <button class="btn btn-primary" onclick="jalankanImportDskp()">Import subjek dipilih</button>`);
+       <button class="btn btn-primary" onclick="jalankanImportRpt()">Muat naik</button>`);
   });
 }
-function tandaSubjek(on){ $$('.dsPilih').forEach(c => c.checked = on); }
-
-async function jalankanImportDskp(){
-  const pilih = new Set($$('.dsPilih').filter(c => c.checked).map(c => c.value));
-  if(!pilih.size) return toast('Tanda sekurang-kurangnya satu subjek','salah');
-  const rows = (window._dskpRows||[]).filter(r => pilih.has(r[1]));
-  if(!rows.length) return toast('Tiada baris untuk subjek dipilih','salah');
-  tutupModal();
-  if(rows.length > 8000 && !confirm(rows.length+' rekod akan ditulis ke Firestore. Ini mungkin mengambil masa dan menggunakan kuota harian. Teruskan?')) return;
-  let siap = 0;
-  for(let i=0;i<rows.length;i+=400){
-    sibuk(true,`Mengimport ${siap}/${rows.length} rekod…`);
-    const b = db.batch();
-    rows.slice(i,i+400).forEach(r => b.set(rujuk('dskp').doc(), {
-      tahun:(r[0]||'').trim(), subjek:(r[1]||'').trim(), bidang:(r[2]||'').trim(), tajuk:(r[3]||'').trim(),
-      kodSk:(r[4]||'').trim(), sk:(r[5]||'').trim(), kodSp:(r[6]||'').trim(), sp:(r[7]||'').trim(), tp:(r[8]||'').trim() }));
-    await b.commit(); siap += Math.min(400, rows.length - i);
-  }
-  S.dskpAda = true;
-  await muatDskpJadual(); sibuk(false); pergi('dskp');
-  toast(rows.length+' rekod DSKP diimport','jaya');
-}
-
-/* ================= BUKU TEKS ================= */
-function halBuku(){
-  $('#kandungan').innerHTML = `
-    <div class="toolbar"><button class="btn btn-primary" onclick="formBuku()">+ Tambah bab/unit</button>
-      <button class="btn btn-ungu" onclick="formPdfBuku()">📄 Import PDF buku teks</button>
-      <button class="btn" onclick="importBuku()">📥 Import Excel/CSV</button>
-      <button class="btn" onclick="templatExcel('templat-bukuteks.xlsx',TEMPLAT.buku)">⬇️ Templat</button></div>
-    <div class="kad" style="margin-bottom:14px"><p style="font-size:12.5px;color:var(--teks-2)">
-      Format CSV: <code>tahun,subjek,buku,bab,unit,tajuk,kandungan</code><br>
-      Masukkan hanya bahan yang anda ada hak untuk gunakan. AI hanya merujuk kandungan yang dimasukkan di sini.</p></div>
-    <div class="senarai">${S.buku.length ? S.buku.map(b => `
-      <div class="baris"><div class="baris-t"><b>${esc(b.tajuk||b.unit||'—')}</b>
-        <small>${esc(b.subjek)} ${esc(b.tahun)} · ${esc(b.buku||'')} ${b.bab?'· Bab '+esc(b.bab):''} ${b.unit?'· '+esc(b.unit):''}</small></div>
-        ${b.pautan?`<a class="btn btn-sm" href="${esc(b.pautan)}" target="_blank" rel="noopener">🔗</a>`:''}
-        <button class="btn btn-sm" onclick="formBuku('${b.id}')">Edit</button>
-        <button class="btn btn-sm btn-danger" onclick="hapusItem('buku','${b.id}')">✕</button></div>`).join('')
-      : `<div class="kosong"><b>Belum ada rujukan buku teks</b>Tambah bab/unit supaya AI boleh merujuk kandungan sebenar.</div>`}
-    </div>`;
-}
-function formBuku(id){
-  const b = S.buku.find(x => x.id === id) || {};
-  modal(id?'Edit rujukan':'Tambah rujukan buku teks', `
-    <div class="grid2">
-      <label class="fld"><span>Tahun / Tingkatan</span><input id="fbTahun" value="${esc(b.tahun||'')}"></label>
-      <label class="fld"><span>Subjek</span><input id="fbSubjek" value="${esc(b.subjek||'')}" list="lsSubjek2">
-        <datalist id="lsSubjek2">${S.subjek.map(s=>`<option>${esc(s.nama)}</option>`).join('')}</datalist></label>
-    </div>
-    <div class="grid3">
-      <label class="fld"><span>Buku</span><input id="fbBuku" value="${esc(b.buku||'')}"></label>
-      <label class="fld"><span>Bab</span><input id="fbBab" value="${esc(b.bab||'')}"></label>
-      <label class="fld"><span>Unit</span><input id="fbUnit" value="${esc(b.unit||'')}"></label>
-    </div>
-    <label class="fld"><span>Tajuk</span><input id="fbTajuk" value="${esc(b.tajuk||'')}"></label>
-    <label class="fld"><span>Pautan rujukan <em>(pilihan — buku teks digital, video, bahan)</em></span>
-      <input id="fbPautan" value="${esc(b.pautan||'')}" placeholder="https://…"></label>
-    <label class="fld"><span>Ringkasan kandungan</span><textarea id="fbIsi" placeholder="Isi pelajaran, aktiviti dalam buku, latihan…">${esc(b.kandungan||'')}</textarea></label>`,
-    `<button class="btn" onclick="tutupModal()">Batal</button><button class="btn btn-primary" onclick="simpanBuku('${id||''}')">Simpan</button>`);
-}
-async function simpanBuku(id){
-  const d = { tahun:$('#fbTahun').value.trim(), subjek:$('#fbSubjek').value.trim(), buku:$('#fbBuku').value.trim(),
-    bab:$('#fbBab').value.trim(), unit:$('#fbUnit').value.trim(), tajuk:$('#fbTajuk').value.trim(),
-    pautan:$('#fbPautan').value.trim(), kandungan:$('#fbIsi').value.trim() };
-  if(!d.subjek) return toast('Subjek diperlukan','salah');
-  sibuk(true,'Menyimpan…');
-  id ? await rujuk('buku').doc(id).update(d) : await rujuk('buku').add(d);
-  await muatData(); sibuk(false); tutupModal(); pergi('buku'); toast('Rujukan disimpan','jaya');
-}
-function importBuku(){
-  pilihFail('.csv,.txt', async teks => {
-    let rows = parseCSV(teks);
-    if(rows[0] && /tahun/i.test(rows[0][0])) rows = rows.slice(1);
-    rows = rows.filter(r => r.length >= 6 && r[1]);
-    if(!rows.length) return toast('Tiada baris sah dijumpai','salah');
-    sibuk(true,'Mengimport…');
+async function jalankanImportRpt(){
+  const rows = window._rptRows || [];
+  const ganti = $('#rtGanti').value === 'ganti';
+  tutupModal(); sibuk(true,'Memuat naik RPT…');
+  try{
+    if(ganti){
+      const subj = [...new Set(rows.map(r => (r[2]||'').trim()))];
+      for(const sj of subj){
+        const lama = await rujuk('rpt').where('subjek','==',sj).limit(1000).get();
+        for(let i=0;i<lama.docs.length;i+=400){
+          const b = db.batch();
+          lama.docs.slice(i,i+400).forEach(d => b.delete(d.ref));
+          await b.commit();
+        }
+      }
+    }
     for(let i=0;i<rows.length;i+=400){
+      sibuk(true,`Menyimpan ${Math.min(i+400,rows.length)}/${rows.length} baris…`);
       const b = db.batch();
-      rows.slice(i,i+400).forEach(r => b.set(rujuk('buku').doc(), {
-        tahun:r[0], subjek:r[1], buku:r[2], bab:r[3], unit:r[4], tajuk:r[5], kandungan:r[6]||'' }));
+      rows.slice(i,i+400).forEach(r => b.set(rujuk('rpt').doc(), {
+        minggu:(r[0]||'').trim(), tahun:(r[1]||'').trim(), subjek:(r[2]||'').trim(),
+        tema:(r[3]||'').trim(), tajuk:(r[4]||'').trim(), kodSk:(r[5]||'').trim(), sk:(r[6]||'').trim(),
+        kodSp:(r[7]||'').trim(), sp:(r[8]||'').trim(), tp:(r[9]||'').trim(), catatan:(r[10]||'').trim(),
+        emel:S.user.email, dicipta:Date.now() }));
       await b.commit();
     }
-    await muatData(); sibuk(false); pergi('buku'); toast(rows.length+' rekod diimport','jaya');
-  });
+    S.rptAda = true; await muatRpt(); sibuk(false); pergi('rpt');
+    toast(rows.length+' baris RPT dimuat naik','jaya');
+  }catch(e){ sibuk(false); toast('Gagal: '+e.message,'salah'); }
 }
 
 /* ---------- Import PDF buku teks ---------- */

@@ -22,7 +22,7 @@ js/ai.js
 js/rph.js
 js/admin.js
 js/boot.js
-contoh-dskp.csv
+contoh-rpt.csv
 contoh-cuti.csv
 ```
 
@@ -67,14 +67,16 @@ Model lalai:
 ## 5. Aliran penggunaan
 
 ```
-Takwim → Minggu persekolahan → Jadual waktu → Kelas + Subjek → DSKP → Buku teks
+Takwim → Minggu persekolahan → Jadual waktu → Kelas + Subjek → RPT → Buku teks
 → Jana RPH AI → Semakan kualiti → Guru edit → Simpan → Cetak/PDF
 ```
 
 ## 6. Import data
 
-**DSKP (CSV):**
-`tahun,subjek,bidang,tajuk,kod_sk,standard_kandungan,kod_sp,standard_pembelajaran,tp`
+**RPT — Rancangan Pengajaran Tahunan (Excel/CSV):**
+`minggu,tahun_tingkatan,subjek,tema_bidang,tajuk_kemahiran,kod_sk,standard_kandungan,kod_sp,standard_pembelajaran,tp,catatan`
+
+Satu baris untuk satu minggu persekolahan. Muat turun templat terus dari menu RPT.
 
 **Buku teks (CSV):**
 `tahun,subjek,buku,bab,unit,tajuk,kandungan`
@@ -82,7 +84,7 @@ Takwim → Minggu persekolahan → Jadual waktu → Kelas + Subjek → DSKP → 
 **Cuti takwim (CSV):**
 `nama,mula,tamat` (format tarikh `YYYY-MM-DD`)
 
-Lihat `contoh-dskp.csv` dan `contoh-cuti.csv`.
+Lihat `contoh-rpt.csv` dan `contoh-cuti.csv`.
 
 ## 7. Logo & tandatangan (tiada Firebase Storage)
 
@@ -98,7 +100,7 @@ Had dokumen Firestore ialah 1 MB; logo terkecil jauh di bawah had itu.
 
 ## 8. Nota penting
 
-- AI **tidak** mencipta Standard Pembelajaran sendiri. Jika DSKP tiada dalam pangkalan data, sistem akan tandakan amaran dan minta guru masukkan sumber rasmi.
+- AI **tidak** mencipta Standard Pembelajaran sendiri. Ia mengambil SK/SP tepat daripada baris RPT bagi minggu berkenaan. Jika RPT minggu itu kosong, sistem tandakan amaran dan minta guru lengkapkan RPT.
 - Semakan kualiti (%) adalah bantuan sistem, **bukan** pengesahan rasmi KPM.
 - Struktur Firestore:
 

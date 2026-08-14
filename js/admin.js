@@ -53,11 +53,11 @@ async function halAdmin(){
       <div class="stat-grid">
         <div class="stat"><b>${S.kelas.length}</b><small>Kelas</small></div>
         <div class="stat"><b>${S.subjek.length}</b><small>Subjek</small></div>
-        <div class="stat"><b>${S.dskp.length}</b><small>Rekod DSKP</small></div>
+        <div class="stat"><b>${S.rpt.length}</b><small>Baris RPT</small></div>
         <div class="stat"><b>${S.buku.length}</b><small>Rujukan buku teks</small></div>
       </div>
       <div class="toolbar" style="margin:0">
-        <button class="btn" onclick="pergi('dskp')">Urus DSKP</button>
+        <button class="btn" onclick="pergi('rpt')">Urus RPT</button>
         <button class="btn" onclick="pergi('buku')">Urus buku teks</button>
         <button class="btn" onclick="pergi('takwim')">Urus takwim</button>
         <button class="btn" onclick="sandarData()">⬇️ Sandaran JSON</button>
@@ -135,7 +135,7 @@ async function simpanPengguna(id){
 }
 function sandarData(){
   const data = { sekolah:S.sekolah, kelas:S.kelas, subjek:S.subjek, jadual:S.jadual,
-                 takwim:S.takwim, dskp:S.dskp, buku:S.buku, rph:S.rph, tarikh:new Date().toISOString() };
+                 takwim:S.takwim, rpt:S.rpt, buku:S.buku, rph:S.rph, tarikh:new Date().toISOString() };
   const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = 'sandaran-erph-'+tarikhISO()+'.json'; a.click();
