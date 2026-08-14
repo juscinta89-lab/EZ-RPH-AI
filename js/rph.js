@@ -107,15 +107,20 @@ function segarRptJana(){
   const mgg = mingguUntuk(t);
   const rpt = rptUntuk(slot.subjek, kelas?.tahun || '', mgg);
   window._janaRpt = rpt.minggu;
-  if(!rpt.semua.length){
-    kotak.innerHTML = `<div class="kosong" style="padding:14px;margin-bottom:13px"><b>Tiada RPT untuk ${esc(slot.subjek)}</b>
-      Muat naik RPT subjek ini dahulu supaya AI ikut perancangan sebenar.
-      <br><br><button class="btn btn-sm" onclick="pergi('rpt')">Buka menu RPT</button></div>`;
-    return;
-  }
   if(!rpt.minggu.length){
-    kotak.innerHTML = `<div class="kosong" style="padding:14px;margin-bottom:13px"><b>RPT ${esc(slot.subjek)} tiada baris untuk ${esc(mgg||'minggu ini')}</b>
-      Semak nombor minggu dalam RPT atau tarikh mula takwim.</div>`;
+    const sebab = rpt.semua.length
+      ? `RPT ${esc(slot.subjek)} tiada baris untuk ${esc(mgg||'minggu ini')}`
+      : `Tiada RPT untuk ${esc(slot.subjek)}`;
+    kotak.innerHTML = `
+      <div class="kad" style="background:var(--ungu-t);border-color:#ddd3fb;margin-bottom:13px">
+        <b style="font-size:13.5px">${sebab}</b>
+        <p style="font-size:12.5px;color:var(--teks-2);margin:6px 0 10px">AI akan <b>mencadangkan</b> SK & SP yang paling sesuai
+          berdasarkan tajuk yang anda beri, tahun dan minggu pembelajaran. Cadangan ini ditandakan jelas dalam RPH —
+          <b>sila sahkan dengan DSKP rasmi</b> sebelum guna.</p>
+        <label class="fld" style="margin:0"><span>Tajuk / kemahiran untuk PdP ini</span>
+          <input id="jgTajukManual" placeholder="Cth: Ayat aktif dan ayat pasif"></label>
+        <button class="btn btn-sm" style="margin-top:8px" onclick="pergi('rpt')">📗 Atau muat naik RPT subjek ini</button>
+      </div>`;
     return;
   }
   kotak.innerHTML = `<label class="fld"><span>Kandungan RPT ${esc(mgg)} — pilih fokus PdP</span></label>
@@ -143,9 +148,12 @@ async function janaSatu(){
   const sel = $('#jgPilih'); if(!sel) return toast('Tiada slot pada tarikh ini','salah');
   const slot = S.jadual.find(x => x.id === sel.value);
   const idx = document.querySelector('input[name="jgRptPilih"]:checked');
-  const fokus = idx && window._janaRpt ? window._janaRpt[+idx.value] : null;
+  const fokus = idx && window._janaRpt && window._janaRpt.length ? window._janaRpt[+idx.value] : null;
+  const tajukManual = $('#jgTajukManual') ? $('#jgTajukManual').value.trim() : '';
   const ctx = ctxDaripadaSlot(slot, $('#jgTarikh').value,
-    { arahan:$('#jgArahan').value.trim(), rptFokus:fokus, tajuk:fokus?(fokus.tajuk||fokus.tema||''):'' });
+    { arahan:$('#jgArahan').value.trim(), rptFokus:fokus,
+      tajuk: fokus ? (fokus.tajuk||fokus.tema||'') : tajukManual,
+      cadangSp: !fokus });
   sibuk(true,'AI sedang membina RPH…');
   try{
     const rph = await janaRphAI(ctx);
@@ -158,6 +166,7 @@ async function janaSlot(slotId, tarikh){
   const ctx = ctxDaripadaSlot(slot, tarikh);
   const rpt = rptUntuk(slot.subjek, ctx.tahun, ctx.minggu);
   if(rpt.minggu.length){ ctx.rptFokus = rpt.minggu[0]; ctx.tajuk = rpt.minggu[0].tajuk || rpt.minggu[0].tema || ''; }
+  else ctx.cadangSp = true;
   sibuk(true,'AI sedang membina RPH…');
   try{
     const rph = await janaRphAI(ctx);
@@ -190,7 +199,7 @@ async function janaMingguan(){
         ctx.rptFokus = rpt.minggu[Math.min(g, rpt.minggu.length-1)];
         ctx.tajuk = ctx.rptFokus.tajuk || ctx.rptFokus.tema || '';
         giliran[k]++;
-      }
+      } else ctx.cadangSp = true;
       const rph = await janaRphAI(ctx);
       await rujuk('rph').add(rph); siap++;
     }catch(e){ gagal++; }
@@ -545,7 +554,7 @@ function htmlRph(r){
     <tr><th>PAK21 / KBAT</th><td>${p(r.pak21)} · ${p(r.kbat)}</td>
         <th>EMK / Nilai</th><td>${p(r.emk)} · ${p(r.nilai)}</td></tr>
     <tr><th>Pentaksiran</th><td colspan="3">${p(r.pentaksiran)}</td></tr>
-    <tr><th>Refleksi</th><td colspan="3" style="min-height:26pt;height:26pt">${esc(r.refleksi||'')}</td></tr>
+    <tr><th>Refleksi</th><td colspan="3">${r.refleksi ? esc(r.refleksi) : '<div style="height:24pt"></div>'}</td></tr>
   </table>
   <div class="tandatangan">
     <div>Disediakan oleh:${tandatanganSaya() ? `<br><img src="${tandatanganSaya()}" class="ttd">` : '<br><br>'}
