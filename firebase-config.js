@@ -19,7 +19,7 @@ const FIREBASE_CONFIG = {
    E-mel ini automatik jadi 'pemilik' pada log masuk pertama.
    ========================================================= */
 const EMEL_PEMILIK = [
-  "emel.anda@gmail.com"
+  "juscinta89@gmail.com"
 ];
 
 /* Tetapan lain */
