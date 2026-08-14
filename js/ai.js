@@ -1,43 +1,118 @@
 /* ================= e-RPH AI — ENJIN AI ================= */
 
+/* ---------- Penyedia AI ----------
+   Sebarang perkhidmatan yang serasi OpenAI boleh digunakan dengan menetapkan baseUrl. */
+const PENYEDIA = {
+  gemini:     { nama:'Google Gemini', jenis:'gemini', model:'gemini-2.0-flash',
+                nota:'Free tier: ~15 permintaan/minit, 1,500/hari. Paling sesuai untuk sekolah.',
+                daftar:'https://aistudio.google.com/apikey' },
+  groq:       { nama:'Groq', jenis:'openai', base:'https://api.groq.com/openai/v1', model:'llama-3.3-70b-versatile',
+                nota:'Free tier laju (~30 permintaan/minit). Model Llama & Qwen.',
+                daftar:'https://console.groq.com/keys' },
+  openrouter: { nama:'OpenRouter', jenis:'openai', base:'https://openrouter.ai/api/v1', model:'meta-llama/llama-3.3-70b-instruct:free',
+                nota:'Model berakhiran ":free" percuma sepenuhnya (had 50–1000/hari).',
+                daftar:'https://openrouter.ai/keys' },
+  cerebras:   { nama:'Cerebras', jenis:'openai', base:'https://api.cerebras.ai/v1', model:'llama-3.3-70b',
+                nota:'Free tier sangat laju, ~1 juta token/hari.',
+                daftar:'https://cloud.cerebras.ai' },
+  mistral:    { nama:'Mistral AI', jenis:'openai', base:'https://api.mistral.ai/v1', model:'mistral-small-latest',
+                nota:'Free tier melalui La Plateforme.',
+                daftar:'https://console.mistral.ai/api-keys' },
+  deepseek:   { nama:'DeepSeek', jenis:'openai', base:'https://api.deepseek.com/v1', model:'deepseek-chat',
+                nota:'Berbayar tetapi antara termurah di pasaran.',
+                daftar:'https://platform.deepseek.com' },
+  openai:     { nama:'OpenAI', jenis:'openai', base:'https://api.openai.com/v1', model:'gpt-4o-mini',
+                nota:'Berbayar mengikut penggunaan.',
+                daftar:'https://platform.openai.com/api-keys' },
+  claude:     { nama:'Anthropic Claude', jenis:'claude', model:'claude-sonnet-4-6',
+                nota:'Berbayar. Kualiti penulisan RPH paling baik.',
+                daftar:'https://console.anthropic.com' },
+  ollama:     { nama:'Ollama (komputer sendiri)', jenis:'openai', base:'http://localhost:11434/v1', model:'llama3.1',
+                nota:'Betul-betul percuma & tanpa had, tetapi hanya berfungsi jika app dibuka melalui http://localhost, bukan GitHub Pages (pelayar sekat campuran HTTP/HTTPS).',
+                daftar:'https://ollama.com' },
+  custom:     { nama:'Lain-lain (serasi OpenAI)', jenis:'openai', base:'', model:'',
+                nota:'Masukkan Base URL perkhidmatan anda, contoh: https://api.contoh.com/v1',
+                daftar:'' }
+};
+
+function infoPenyedia(id){ return PENYEDIA[id] || PENYEDIA.gemini; }
+
+function alamatAsas(){
+  const t = tetapanAI();
+  const p = infoPenyedia(t.prov);
+  let b = (t.baseUrl || p.base || '').trim().replace(/\/+$/,'');
+  if(b && !/\/v\d+$/.test(b) && !/openai\/v1$/.test(b)) { /* biarkan seperti diberi pengguna */ }
+  return b;
+}
+
 async function panggilAI(prompt, sistem){
   const t = tetapanAI();
-  if(!t.key) throw new Error('API key belum ditetapkan. Buka Tetapan > Enjin AI.');
+  const p = infoPenyedia(t.prov);
+  if(!t.key && t.prov !== 'ollama') throw new Error('API key belum ditetapkan. Buka Tetapan > Enjin AI.');
   const sys = sistem || 'Anda pembantu guru Malaysia yang pakar kurikulum KPM. Jawab dalam Bahasa Melayu baku.';
 
-  if(t.prov === 'gemini'){
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${t.model}:generateContent?key=${encodeURIComponent(t.key)}`,{
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({
-        systemInstruction:{ parts:[{text:sys}] },
-        contents:[{ role:'user', parts:[{text:prompt}] }],
-        generationConfig:{ temperature:0.6, maxOutputTokens:8192 }
-      })
-    });
-    const j = await r.json();
-    if(j.error) throw new Error(j.error.message);
-    return (j.candidates?.[0]?.content?.parts||[]).map(p=>p.text||'').join('');
-  }
+  try{
+    if(p.jenis === 'gemini'){
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${t.model}:generateContent?key=${encodeURIComponent(t.key)}`,{
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          systemInstruction:{ parts:[{text:sys}] },
+          contents:[{ role:'user', parts:[{text:prompt}] }],
+          generationConfig:{ temperature:0.6, maxOutputTokens:8192 }
+        })
+      });
+      const j = await r.json();
+      if(j.error) throw new Error(j.error.message);
+      return (j.candidates?.[0]?.content?.parts||[]).map(x=>x.text||'').join('');
+    }
 
-  if(t.prov === 'openai'){
-    const r = await fetch('https://api.openai.com/v1/chat/completions',{
-      method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+t.key},
-      body: JSON.stringify({ model:t.model, temperature:0.6,
+    if(p.jenis === 'claude'){
+      const r = await fetch('https://api.anthropic.com/v1/messages',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-api-key':t.key,'anthropic-version':'2023-06-01',
+                 'anthropic-dangerous-direct-browser-access':'true'},
+        body: JSON.stringify({ model:t.model, max_tokens:8000, system:sys, messages:[{role:'user',content:prompt}] })
+      });
+      const j = await r.json();
+      if(j.error) throw new Error(j.error.message);
+      return (j.content||[]).map(c => c.text || '').join('');
+    }
+
+    /* Serasi OpenAI — Groq, OpenRouter, Cerebras, Mistral, DeepSeek, Ollama, dll. */
+    const base = alamatAsas();
+    if(!base) throw new Error('Base URL belum ditetapkan untuk penyedia ini.');
+    const kepala = { 'Content-Type':'application/json' };
+    if(t.key) kepala['Authorization'] = 'Bearer ' + t.key;
+    if(t.prov === 'openrouter'){ kepala['HTTP-Referer'] = location.origin; kepala['X-Title'] = 'e-RPH AI'; }
+    const r = await fetch(base + '/chat/completions',{
+      method:'POST', headers:kepala,
+      body: JSON.stringify({ model:t.model, temperature:0.6, max_tokens:8000,
         messages:[{role:'system',content:sys},{role:'user',content:prompt}] })
     });
-    const j = await r.json();
-    if(j.error) throw new Error(j.error.message);
+    const teks = await r.text();
+    let j; try{ j = JSON.parse(teks); }catch(e){ throw new Error('Balasan tidak sah daripada pelayan: ' + teks.slice(0,120)); }
+    if(j.error) throw new Error(j.error.message || JSON.stringify(j.error));
+    if(!r.ok) throw new Error('HTTP ' + r.status);
     return j.choices?.[0]?.message?.content || '';
-  }
 
-  const r = await fetch('https://api.anthropic.com/v1/messages',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','x-api-key':t.key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-    body: JSON.stringify({ model:t.model, max_tokens:8000, system:sys, messages:[{role:'user',content:prompt}] })
-  });
+  }catch(e){
+    if(e instanceof TypeError && /fetch|network/i.test(e.message||'')){
+      throw new Error('Sambungan disekat pelayar (CORS) atau tiada internet. Penyedia ini mungkin tidak membenarkan panggilan terus dari pelayar — cuba Gemini, Groq atau OpenRouter.');
+    }
+    throw e;
+  }
+}
+
+/* Senarai model daripada penyedia serasi OpenAI */
+async function senaraiModel(){
+  const t = tetapanAI(), p = infoPenyedia(t.prov);
+  if(p.jenis !== 'openai') throw new Error('Senarai model hanya untuk penyedia serasi OpenAI.');
+  const base = alamatAsas();
+  const kepala = {}; if(t.key) kepala['Authorization'] = 'Bearer ' + t.key;
+  const r = await fetch(base + '/models', { headers:kepala });
   const j = await r.json();
-  if(j.error) throw new Error(j.error.message);
-  return (j.content||[]).map(c => c.text || '').join('');
+  if(j.error) throw new Error(j.error.message || 'Gagal mendapatkan senarai model');
+  return (j.data || []).map(x => x.id).sort();
 }
 
 function ambilJSON(teks){

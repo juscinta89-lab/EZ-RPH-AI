@@ -1087,17 +1087,22 @@ function halTetapan(){
     <div class="kad">
       <div class="kad-h"><h3>Enjin AI</h3><small>Kunci disimpan dalam peranti ini sahaja</small></div>
       <label class="fld"><span>Penyedia</span><select id="aiProv" onchange="tukarProv()">
-        <option value="gemini" ${ai.prov==='gemini'?'selected':''}>Google Gemini</option>
-        <option value="openai" ${ai.prov==='openai'?'selected':''}>OpenAI</option>
-        <option value="claude" ${ai.prov==='claude'?'selected':''}>Anthropic Claude</option>
+        ${Object.entries(PENYEDIA).map(([k,v])=>`<option value="${k}" ${ai.prov===k?'selected':''}>${esc(v.nama)}</option>`).join('')}
       </select></label>
-      <label class="fld"><span>Model</span><input id="aiModel" value="${esc(ai.model)}"></label>
+      <div id="aiNota" style="background:var(--biru-t);border-radius:var(--r-sm);padding:11px 13px;font-size:12.5px;color:var(--teks-2);margin-bottom:13px"></div>
+      <label class="fld" id="aiBaseKotak"><span>Base URL</span><input id="aiBase" value="${esc(ai.baseUrl)}" placeholder="https://api.contoh.com/v1"></label>
+      <label class="fld"><span>Model</span>
+        <input id="aiModel" value="${esc(ai.model)}" list="lsModel">
+        <datalist id="lsModel"></datalist></label>
       <label class="fld"><span>API Key</span><input id="aiKey" type="password" value="${esc(ai.key)}" placeholder="Tampal kunci API di sini"></label>
       <div class="toolbar" style="margin:0">
         <button class="btn btn-primary" onclick="simpanAI()">Simpan tetapan AI</button>
         <button class="btn" onclick="ujiAI()">Uji sambungan</button>
+        <button class="btn" onclick="muatModel()">Muat senarai model</button>
       </div>
-      <p style="font-size:12px;color:var(--teks-3);margin-top:10px">Aplikasi ini statik (GitHub Pages), jadi panggilan AI dibuat terus dari pelayar. Gunakan kunci berkuota terhad dan jangan kongsi peranti.</p>
+      <p style="font-size:12px;color:var(--teks-3);margin-top:10px">
+        Aplikasi ini statik (GitHub Pages), jadi panggilan AI dibuat terus dari pelayar.
+        Sesetengah penyedia menyekat panggilan dari pelayar (CORS) — Gemini, Groq dan OpenRouter disahkan berfungsi.</p>
     </div>
 
     <div class="kad">
@@ -1110,6 +1115,7 @@ function halTetapan(){
           <button class="btn btn-sm" onclick="kosongkanCache()">Bersihkan</button></div>
       </div>
     </div>`;
+  lukisNotaAI();
 }
 function pilihImej(fn){
   const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*';
@@ -1157,22 +1163,57 @@ async function simpanProfil(){
 }
 function tetapanAI(){
   const t = JSON.parse(localStorage.getItem('erph_ai') || '{}');
-  const model = { gemini:'gemini-2.0-flash', openai:'gpt-4o-mini', claude:'claude-sonnet-4-6' };
-  return { prov:t.prov||'gemini', key:t.key||'', model:t.model || model[t.prov||'gemini'] };
+  const prov = t.prov || 'gemini';
+  const p = (typeof PENYEDIA !== 'undefined' ? PENYEDIA[prov] : null) || {};
+  return { prov, key:t.key||'', model:t.model || p.model || '', baseUrl:t.baseUrl || p.base || '' };
 }
 function tukarProv(){
-  const m = { gemini:'gemini-2.0-flash', openai:'gpt-4o-mini', claude:'claude-sonnet-4-6' };
-  $('#aiModel').value = m[$('#aiProv').value];
+  const id = $('#aiProv').value, p = infoPenyedia(id);
+  $('#aiModel').value = p.model || '';
+  $('#aiBase').value = p.base || '';
+  $('#lsModel').innerHTML = '';
+  lukisNotaAI();
+}
+function lukisNotaAI(){
+  const id = $('#aiProv').value, p = infoPenyedia(id);
+  $('#aiNota').innerHTML = `${esc(p.nota||'')}${p.daftar?` <a href="${esc(p.daftar)}" target="_blank" rel="noopener">Dapatkan kunci →</a>`:''}`;
+  $('#aiBaseKotak').style.display = (p.jenis === 'openai') ? '' : 'none';
 }
 function simpanAI(){
-  localStorage.setItem('erph_ai', JSON.stringify({ prov:$('#aiProv').value, key:$('#aiKey').value.trim(), model:$('#aiModel').value.trim() }));
+  localStorage.setItem('erph_ai', JSON.stringify({
+    prov:$('#aiProv').value, key:$('#aiKey').value.trim(),
+    model:$('#aiModel').value.trim(), baseUrl:$('#aiBase').value.trim() }));
   toast('Tetapan AI disimpan','jaya');
 }
 async function ujiAI(){
-  sibuk(true,'Menguji sambungan AI…');
-  try{ const r = await panggilAI('Jawab satu perkataan sahaja: OK'); sibuk(false); toast('AI bersambung: '+r.slice(0,40),'jaya'); }
-  catch(e){ sibuk(false); toast('Gagal: '+e.message,'salah'); }
+  simpanAI(); sibuk(true,'Menguji sambungan AI…');
+  try{ const r = await panggilAI('Jawab satu perkataan sahaja: OK'); sibuk(false); toast('Berjaya: '+r.trim().slice(0,40),'jaya'); }
+  catch(e){ sibuk(false); modal('Ujian gagal', `<p style="font-size:13.5px;color:var(--merah)">${esc(e.message)}</p>
+    <p style="font-size:12.5px;color:var(--teks-2);margin-top:10px">Semak API key, nama model dan Base URL. Jika ralat CORS, penyedia itu tidak membenarkan panggilan terus dari pelayar.</p>`); }
 }
+async function muatModel(){
+  simpanAI(); sibuk(true,'Mendapatkan senarai model…');
+  try{
+    const senarai = await senaraiModel();
+    sibuk(false);
+    window._modelSenarai = senarai;
+    $('#lsModel').innerHTML = senarai.map(m=>`<option value="${esc(m)}"></option>`).join('');
+    modal('Pilih model', `<input placeholder="Cari model…" oninput="tapisModel(this.value)" style="margin-bottom:10px">
+      <div id="mdSenarai" class="senarai" style="max-height:52vh;overflow:auto">
+      ${senarai.map((m,i)=>`<div class="baris" onclick="pakaiModel(${i})" style="cursor:pointer">
+        <div class="baris-t"><b style="font-size:13px">${esc(m)}</b></div>
+        ${/:free|free$/i.test(m)?'<span class="pil hijau">Percuma</span>':''}</div>`).join('')}</div>`);
+  }catch(e){ sibuk(false); toast(e.message,'salah'); }
+}
+function tapisModel(q){
+  q = q.toLowerCase();
+  Array.from($('#mdSenarai').children).forEach(el => el.style.display = el.textContent.toLowerCase().includes(q) ? '' : 'none');
+}
+function pakaiModel(i){
+  $('#aiModel').value = (window._modelSenarai||[])[i] || '';
+  simpanAI(); tutupModal(); toast('Model dipilih','jaya');
+}
+
 async function kosongkanCache(){
   if('caches' in window){ const k = await caches.keys(); await Promise.all(k.map(x => caches.delete(x))); }
   if('serviceWorker' in navigator){ const r = await navigator.serviceWorker.getRegistrations(); await Promise.all(r.map(x => x.unregister())); }

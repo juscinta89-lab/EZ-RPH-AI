@@ -176,6 +176,16 @@ tr:last-child td{border-bottom:0}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
 .toolbar input,.toolbar select{width:auto;flex:1;min-width:130px}
 
+/* ---------- Toolbar lekat & kumpulan RPH ---------- */
+.lekat{position:sticky;top:57px;z-index:15;background:var(--bg);padding:10px 0 8px;margin:-10px 0 4px}
+@media(max-width:900px){.lekat{top:55px}}
+.grp-minggu{font-family:var(--disp);font-size:13px;font-weight:800;letter-spacing:.02em;
+  color:var(--ungu);margin:20px 0 8px;padding-bottom:6px;border-bottom:2px solid var(--ungu-t);
+  display:flex;align-items:center;gap:8px}
+.grp-minggu:first-child{margin-top:4px}
+.grp-hari{font-size:12px;font-weight:700;color:var(--teks-2);margin:12px 0 6px;display:flex;align-items:center;gap:8px}
+.grp-hari small{font-weight:500;color:var(--teks-3)}
+
 /* ---------- Kalendar ---------- */
 .kal{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
 .kal-hari{text-align:center;font-size:11px;font-weight:700;color:var(--teks-3);padding:6px 0}
@@ -254,8 +264,13 @@ tr:last-child td{border-bottom:0}
     padding:2.6pt 4pt;vertical-align:top;font-size:8.8pt;word-wrap:break-word}
   .lp-tbl th{font-weight:700;font-size:8.3pt;text-align:left;background:#fff}
   .lp-tbl tr{page-break-inside:avoid}
+  .lp-tbl tr.lp-pecah{page-break-inside:auto}
+  .lp-tbl tr.lp-pecah>td{page-break-inside:auto}
+  .lp-seksyen{page-break-after:avoid}
+  .lp-isi{page-break-inside:auto}
+  .lp-bar2{page-break-after:avoid}
   .lp-tbl td:empty:after{content:"\00a0"}
-  .lp-subjek{font-size:10.5pt;display:block;margin-top:2pt}
+  .lp-subjek{font-size:8.6pt;display:block;margin-top:2pt;word-wrap:break-word;overflow-wrap:break-word;line-height:1.25}
   .lp-tgh b{font-size:8.3pt}
   .lp-tbl p{margin:1.5pt 0}
   .lp-tbl ol,.lp-tbl ul{margin:1.5pt 0;padding-left:13pt}
