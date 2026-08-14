@@ -242,10 +242,13 @@ tr:last-child td{border-bottom:0}
   .cetak-h span{font-size:7.6pt}
   .cetak-tajuk{text-align:center;font-size:11pt;font-weight:700;margin:0 0 5px;letter-spacing:.4px}
 
-  .cetak-tbl{width:100%;border-collapse:collapse;table-layout:fixed}
-  .cetak-tbl td,.cetak-tbl th{border:.6pt solid #555;padding:2.4pt 4pt;vertical-align:top;font-size:9pt;word-wrap:break-word}
+  .cetak-tbl{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;
+    border-left:.8pt solid #444;border-top:.8pt solid #444}
+  .cetak-tbl td,.cetak-tbl th{border-right:.8pt solid #444;border-bottom:.8pt solid #444;
+    padding:2.4pt 4pt;vertical-align:top;font-size:9pt;word-wrap:break-word}
   .cetak-tbl th{background:#ececec;text-align:left;font-weight:700;font-size:7.9pt;width:30mm;overflow-wrap:break-word;hyphens:auto}
   .cetak-tbl tr{page-break-inside:avoid}
+  .cetak-tbl td:empty:after{content:"\00a0"}
   .cetak-tbl p{margin:1.5pt 0}
   .cetak-tbl ol,.cetak-tbl ul{margin:1.5pt 0;padding-left:13pt}
   .cetak-tbl li{margin:0;padding:0}

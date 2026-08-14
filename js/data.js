@@ -31,30 +31,42 @@ async function muatRph(){
 }
 
 /* ---------- RPT (Rancangan Pengajaran Tahunan) ---------- */
+/* Semua RPT sekolah dimuat sekali dan dicache dalam peranti.
+   Dibaca semula dari Firestore hanya apabila RPT dikemas kini (jimat kuota Spark). */
+function norma(t){ return String(t==null?'':t).toLowerCase().replace(/\s+/g,' ').trim(); }
+
 async function muatRpt(){
-  const subj = [...new Set(S.jadual.map(x => x.subjek).filter(Boolean))];
+  if(!S.sid) return;
+  const kunci = 'erph_rpt_' + S.sid;
+  let meta = 0;
+  try{ const m = await rujuk('tetapan').doc('rptMeta').get(); meta = m.exists ? (m.data().dikemas||0) : 0; }catch(e){}
+  try{
+    const cache = JSON.parse(localStorage.getItem(kunci) || 'null');
+    if(cache && cache.meta === meta && Array.isArray(cache.data)){
+      S.rpt = cache.data; S.rptAda = S.rpt.length > 0; susunRpt(); return;
+    }
+  }catch(e){}
   S.rpt = [];
-  if(!subj.length){
-    const q = await rujuk('rpt').limit(600).get();
-    S.rpt = q.docs.map(d => ({id:d.id, ...d.data()}));
-    return susunRpt();
+  let last = null;
+  for(let pusingan=0; pusingan<5; pusingan++){
+    let q = rujuk('rpt').orderBy(firebase.firestore.FieldPath.documentId()).limit(1500);
+    if(last) q = q.startAfter(last);
+    const snap = await q.get();
+    S.rpt.push(...snap.docs.map(d => ({id:d.id, ...d.data()})));
+    if(snap.docs.length < 1500) break;
+    last = snap.docs[snap.docs.length-1];
   }
-  for(let i=0;i<subj.length;i+=10){
-    const q = await rujuk('rpt').where('subjek','in', subj.slice(i,i+10)).limit(2000).get();
-    S.rpt.push(...q.docs.map(d => ({id:d.id, ...d.data()})));
-  }
-  susunRpt();
+  S.rptAda = S.rpt.length > 0; susunRpt();
+  try{ localStorage.setItem(kunci, JSON.stringify({ meta, data:S.rpt })); }
+  catch(e){ /* cache penuh — abaikan, data tetap dalam memori */ }
+}
+async function tandaRptBerubah(){
+  await rujuk('tetapan').doc('rptMeta').set({ dikemas: Date.now() });
+  localStorage.removeItem('erph_rpt_' + S.sid);
 }
 async function muatRptSubjek(subjek, tahun){
-  if(!subjek) return [];
-  let q = rujuk('rpt').where('subjek','==',subjek);
-  if(tahun) q = q.where('tahun','==',tahun);
-  const snap = await q.limit(800).get();
-  const hasil = snap.docs.map(d => ({id:d.id, ...d.data()}));
-  const ada = new Set(S.rpt.map(x=>x.id));
-  hasil.forEach(x => { if(!ada.has(x.id)) S.rpt.push(x); });
-  susunRpt();
-  return hasil;
+  const sn = norma(subjek), tn = norma(tahun);
+  return S.rpt.filter(r => norma(r.subjek) === sn && (!tn || !r.tahun || norma(r.tahun) === tn));
 }
 function noMinggu(v){ const m = String(v==null?'':v).match(/\d+/); return m ? +m[0] : 999; }
 function susunRpt(){ S.rpt.sort((a,b)=> noMinggu(a.minggu) - noMinggu(b.minggu)); }
@@ -62,7 +74,8 @@ function susunRpt(){ S.rpt.sort((a,b)=> noMinggu(a.minggu) - noMinggu(b.minggu))
 /* Cari baris RPT untuk sesi tertentu */
 function rptUntuk(subjek, tahun, minggu){
   const n = noMinggu(minggu);
-  const sama = S.rpt.filter(r => r.subjek === subjek && (!tahun || !r.tahun || r.tahun === tahun));
+  const sn = norma(subjek), tn = norma(tahun);
+  const sama = S.rpt.filter(r => norma(r.subjek) === sn && (!tn || !r.tahun || norma(r.tahun) === tn));
   return {
     minggu: sama.filter(r => noMinggu(r.minggu) === n),
     sekitar: sama.filter(r => Math.abs(noMinggu(r.minggu) - n) <= 2 && noMinggu(r.minggu) !== n),
@@ -479,7 +492,9 @@ function hapusSlot(id){
 }
 async function hapusItem(koleksi, id){
   sahkan('Padam rekod ini?', async () => {
-    sibuk(true,'Memadam…'); await rujuk(koleksi).doc(id).delete(); await muatData();
+    sibuk(true,'Memadam…'); await rujuk(koleksi).doc(id).delete();
+    if(koleksi === 'rpt') await tandaRptBerubah();
+    await muatData();
     sibuk(false); pergi(S.hal); toast('Rekod dipadam');
   });
 }
@@ -596,10 +611,9 @@ function halRpt(){
 }
 async function cariRpt(){
   const sj = $('#rtSubjek').value, th = $('#rtTahun').value;
-  if(!sj){ rptHasil = S.rpt.filter(r => !th || r.tahun === th); return lukisRpt(); }
-  sibuk(true,'Memuatkan RPT…');
-  rptHasil = await muatRptSubjek(sj, th);
-  sibuk(false); lukisRpt();
+  rptHasil = sj ? await muatRptSubjek(sj, th)
+                : S.rpt.filter(r => !th || norma(r.tahun) === norma(th));
+  lukisRpt();
   if(!rptHasil.length) toast('Tiada baris RPT untuk pilihan ini','salah');
 }
 function lukisRpt(){
@@ -662,6 +676,7 @@ async function simpanRpt(id){
   if(!d.subjek || !d.minggu) return toast('Subjek dan minggu diperlukan','salah');
   sibuk(true,'Menyimpan…');
   id ? await rujuk('rpt').doc(id).update(d) : await rujuk('rpt').add(d);
+  await tandaRptBerubah();
   S.rptAda = true; await muatRpt(); sibuk(false); tutupModal(); pergi('rpt'); toast('Baris RPT disimpan','jaya');
 }
 
@@ -726,6 +741,7 @@ async function jalankanImportRpt(){
         emel:S.user.email, dicipta:Date.now() }));
       await b.commit();
     }
+    await tandaRptBerubah();
     S.rptAda = true; await muatRpt(); sibuk(false); pergi('rpt');
     toast(rows.length+' baris RPT dimuat naik','jaya');
   }catch(e){ sibuk(false); toast('Gagal: '+e.message,'salah'); }

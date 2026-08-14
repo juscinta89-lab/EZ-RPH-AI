@@ -49,8 +49,8 @@ function ambilJSON(teks){
 
 /* ---------- Kumpul konteks daripada pangkalan data ---------- */
 function kontekBuku(subjek, tahun){
-  const s = (subjek||'').toLowerCase();
-  return S.buku.filter(x => (x.subjek||'').toLowerCase() === s).slice(0,40);
+  const sn = norma(subjek);
+  return S.buku.filter(x => norma(x.subjek) === sn).slice(0,40);
 }
 function rphSebelum(subjek, kelas, tarikh, n){
   return S.rph.filter(r => r.subjek === subjek && r.kelas === kelas && r.tarikh < tarikh)
@@ -65,9 +65,11 @@ function barisRpt(r){
 }
 function promptRph(ctx){
   const rpt = rptUntuk(ctx.subjek, ctx.tahun, ctx.minggu);
-  const rptTeks = rpt.minggu.length
-    ? rpt.minggu.map(barisRpt).join('\n')
-    : 'TIADA BARIS RPT UNTUK MINGGU INI.';
+  let fokus = ctx.rptFokus || null;
+  let lain = rpt.minggu.filter(r => !fokus || r.id !== fokus.id);
+  const rptTeks = fokus
+    ? barisRpt(fokus) + (lain.length ? '\n\nBARIS LAIN MINGGU INI (rujukan sahaja):\n' + lain.map(barisRpt).join('\n') : '')
+    : (rpt.minggu.length ? rpt.minggu.map(barisRpt).join('\n') : 'TIADA BARIS RPT UNTUK MINGGU INI.');
   const rptSekitar = rpt.sekitar.length
     ? rpt.sekitar.map(barisRpt).join('\n') : 'Tiada.';
   const buku = kontekBuku(ctx.subjek, ctx.tahun);
@@ -93,7 +95,7 @@ Tempoh sebenar: ${ctx.tempoh} minit
 ${ctx.tajuk ? 'Tajuk dikehendaki guru: '+ctx.tajuk : ''}
 ${ctx.arahan ? 'Arahan khas guru: '+ctx.arahan : ''}
 
-RPT MINGGU INI — SUMBER RASMI, GUNA TEPAT SEPERTI DI BAWAH
+${fokus ? 'BARIS RPT DIPILIH GURU — INI FOKUS PdP, GUNA SK/SP/TAJUK TEPAT DARIPADANYA' : 'RPT MINGGU INI — SUMBER RASMI, GUNA TEPAT SEPERTI DI BAWAH'}
 ${rptTeks}
 
 RPT MINGGU BERHAMPIRAN (konteks kesinambungan sahaja, jangan guna standardnya)
@@ -159,7 +161,7 @@ function semakKualiti(r){
     ['Standard Kandungan tersedia', !!r.sk && !/lengkapkan rpt|belum tersedia/i.test(r.sk)],
     ['Standard Pembelajaran tersedia', !!r.sp && !/lengkapkan rpt|belum tersedia/i.test(r.sp)],
     ['SP sepadan dengan RPT minggu ini', !!S.rpt.find(d => d.sp && r.sp && d.sp.trim() === r.sp.trim()
-        && d.subjek === r.subjek && noMinggu(d.minggu) === noMinggu(r.minggu))],
+        && norma(d.subjek) === norma(r.subjek) && noMinggu(d.minggu) === noMinggu(r.minggu))],
     ['Objektif pembelajaran ada', (r.objektif||'').trim().length > 10],
     ['Kriteria kejayaan ada', (r.kriteria||'').trim().length > 5],
     ['Aktiviti PdP ada', stripHtml(r.aktiviti).length > 60],

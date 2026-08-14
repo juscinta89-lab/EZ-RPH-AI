@@ -56,13 +56,16 @@ function halJana(){
   const mggIni = janaMinggu(S.takwim).find(m => hariIni >= m.mula && hariIni <= m.tamat);
   $('#kandungan').innerHTML = `
     <div class="kad">
-      <div class="kad-h"><h3>Jana satu RPH</h3><small>Slot tunggal</small></div>
-      <label class="fld"><span>Tarikh</span><input id="jgTarikh" type="date" value="${hariIni}" onchange="lukisSlotJana()"></label>
+      <div class="kad-h"><h3>Jana satu RPH</h3><small>Pilih tarikh — sistem cari minggu & RPT sendiri</small></div>
+      <div class="grid2">
+        <label class="fld"><span>Tarikh</span><input id="jgTarikh" type="date" value="${hariIni}" onchange="segarJana()"></label>
+        <label class="fld"><span>Minggu persekolahan</span>
+          <div id="jgMingguPapar" style="padding:11px 13px;border:1px solid var(--garis);border-radius:var(--r-sm);background:var(--bg);font-weight:600">—</div></label>
+      </div>
       <div id="jgSlot"></div>
-      <label class="fld"><span>Tajuk / topik <em>(kosongkan untuk ikut RPT minggu ini)</em></span>
-        <input id="jgTajuk" placeholder="Cth: Kata Kerja Transitif"></label>
+      <div id="jgRpt"></div>
       <label class="fld"><span>Arahan khas kepada AI <em>(pilihan)</em></span>
-        <input id="jgArahan" placeholder="Cth: banyakkan aktiviti kumpulan PAK21"></label>
+        <input id="jgArahan" placeholder="Cth: banyakkan aktiviti kumpulan, murid tahap sederhana"></label>
       <button class="btn btn-primary btn-block" onclick="janaSatu()">✨ Jana RPH dengan AI</button>
     </div>
 
@@ -74,30 +77,75 @@ function halJana(){
       <label class="fld"><span>Tapis subjek <em>(pilihan)</em></span><select id="jgTapis">
         <option value="">Semua subjek</option>${S.subjek.map(s=>`<option>${esc(s.nama)}</option>`).join('')}</select></label>
       <button class="btn btn-ungu btn-block" onclick="janaMingguan()">✨ Jana RPH minggu ini</button>
-      <p style="font-size:12px;color:var(--teks-3);margin-top:10px">Slot yang sudah ada RPH akan dilangkau. Semua hasil disimpan sebagai <b>draf</b> untuk semakan guru.</p>
+      <p style="font-size:12px;color:var(--teks-3);margin-top:10px">Setiap slot mengikut baris RPT minggu berkenaan secara automatik. Slot yang sudah ada RPH dilangkau; semua hasil disimpan sebagai <b>draf</b>.</p>
     </div>`;
-  lukisSlotJana();
+  segarJana();
 }
-function lukisSlotJana(){
-  const t = $('#jgTarikh').value; const hari = namaHari(t);
-  const slot = S.jadual.filter(s => s.hari === hari).sort((a,b)=> a.mula.localeCompare(b.mula));
+
+function segarJana(){
+  const t = $('#jgTarikh').value;
+  const hari = namaHari(t);
+  const mgg = mingguUntuk(t);
   const cuti = cutiPada(t);
-  $('#jgSlot').innerHTML = `<label class="fld"><span>Slot PdP · ${hari}${cuti?' · '+esc(cuti.nama):''}</span>
-    ${slot.length ? `<select id="jgPilih">${slot.map(s=>`<option value="${s.id}">${esc(s.mula)}-${esc(s.tamat)} · ${esc(s.subjek)} · ${esc(s.kelas)} (${minit(s.mula,s.tamat)} min)</option>`).join('')}</select>`
+  $('#jgMingguPapar').innerHTML = mgg
+    ? `<span class="pil biru">${esc(mgg)}</span>${cuti ? ' <span class="pil merah">'+esc(cuti.nama)+'</span>' : ''}`
+    : '<span style="color:var(--merah);font-weight:500">Takwim belum meliputi tarikh ini</span>';
+  const slot = S.jadual.filter(x => x.hari === hari).sort((a,b)=> a.mula.localeCompare(b.mula));
+  $('#jgSlot').innerHTML = `<label class="fld"><span>Slot PdP · ${hari}</span>
+    ${slot.length ? `<select id="jgPilih" onchange="segarRptJana()">${slot.map(x=>`<option value="${x.id}">${esc(x.mula)}-${esc(x.tamat)} · ${esc(x.subjek)} · ${esc(x.kelas)} (${minit(x.mula,x.tamat)} min)</option>`).join('')}</select>`
       : `<div class="kosong" style="padding:16px">Tiada slot pada ${hari}.</div>`}</label>`;
+  segarRptJana();
 }
+
+function segarRptJana(){
+  const kotak = $('#jgRpt'); if(!kotak) return;
+  const sel = $('#jgPilih');
+  if(!sel){ kotak.innerHTML = ''; return; }
+  const slot = S.jadual.find(x => x.id === sel.value);
+  const t = $('#jgTarikh').value;
+  const kelas = S.kelas.find(k => norma(k.nama) === norma(slot.kelas));
+  const mgg = mingguUntuk(t);
+  const rpt = rptUntuk(slot.subjek, kelas?.tahun || '', mgg);
+  window._janaRpt = rpt.minggu;
+  if(!rpt.semua.length){
+    kotak.innerHTML = `<div class="kosong" style="padding:14px;margin-bottom:13px"><b>Tiada RPT untuk ${esc(slot.subjek)}</b>
+      Muat naik RPT subjek ini dahulu supaya AI ikut perancangan sebenar.
+      <br><br><button class="btn btn-sm" onclick="pergi('rpt')">Buka menu RPT</button></div>`;
+    return;
+  }
+  if(!rpt.minggu.length){
+    kotak.innerHTML = `<div class="kosong" style="padding:14px;margin-bottom:13px"><b>RPT ${esc(slot.subjek)} tiada baris untuk ${esc(mgg||'minggu ini')}</b>
+      Semak nombor minggu dalam RPT atau tarikh mula takwim.</div>`;
+    return;
+  }
+  kotak.innerHTML = `<label class="fld"><span>Kandungan RPT ${esc(mgg)} — pilih fokus PdP</span></label>
+    <div class="senarai" style="margin:-6px 0 14px">
+    ${rpt.minggu.map((r,i)=>`
+      <label class="baris" style="cursor:pointer;align-items:flex-start">
+        <input type="radio" name="jgRptPilih" value="${i}" ${i===0?'checked':''} style="width:auto;margin-top:3px">
+        <div class="baris-t">
+          <b>${esc((r.tajuk||r.tema||'Tanpa tajuk').slice(0,80))}</b>
+          <small>${r.kodSp?esc(r.kodSp)+' · ':''}${esc((r.sp||r.tema||'').slice(0,110))}${r.catatan?' · '+esc(r.catatan.slice(0,60)):''}</small>
+        </div></label>`).join('')}
+    </div>`;
+}
+
 function ctxDaripadaSlot(slot, tarikh, extra){
-  const kelas = S.kelas.find(k => k.nama === slot.kelas);
+  const kelas = S.kelas.find(k => norma(k.nama) === norma(slot.kelas));
   return Object.assign({
     slotId:slot.id, tarikh, subjek:slot.subjek, kelas:slot.kelas,
     tahun:kelas?.tahun || '', mula:slot.mula, tamat:slot.tamat,
     tempoh:minit(slot.mula, slot.tamat), minggu:mingguUntuk(tarikh)
   }, extra||{});
 }
+
 async function janaSatu(){
   const sel = $('#jgPilih'); if(!sel) return toast('Tiada slot pada tarikh ini','salah');
-  const slot = S.jadual.find(s => s.id === sel.value);
-  const ctx = ctxDaripadaSlot(slot, $('#jgTarikh').value, { tajuk:$('#jgTajuk').value.trim(), arahan:$('#jgArahan').value.trim() });
+  const slot = S.jadual.find(x => x.id === sel.value);
+  const idx = document.querySelector('input[name="jgRptPilih"]:checked');
+  const fokus = idx && window._janaRpt ? window._janaRpt[+idx.value] : null;
+  const ctx = ctxDaripadaSlot(slot, $('#jgTarikh').value,
+    { arahan:$('#jgArahan').value.trim(), rptFokus:fokus, tajuk:fokus?(fokus.tajuk||fokus.tema||''):'' });
   sibuk(true,'AI sedang membina RPH…');
   try{
     const rph = await janaRphAI(ctx);
@@ -106,10 +154,13 @@ async function janaSatu(){
   }catch(e){ sibuk(false); toast('Gagal: '+e.message,'salah'); }
 }
 async function janaSlot(slotId, tarikh){
-  const slot = S.jadual.find(s => s.id === slotId);
+  const slot = S.jadual.find(x => x.id === slotId);
+  const ctx = ctxDaripadaSlot(slot, tarikh);
+  const rpt = rptUntuk(slot.subjek, ctx.tahun, ctx.minggu);
+  if(rpt.minggu.length){ ctx.rptFokus = rpt.minggu[0]; ctx.tajuk = rpt.minggu[0].tajuk || rpt.minggu[0].tema || ''; }
   sibuk(true,'AI sedang membina RPH…');
   try{
-    const rph = await janaRphAI(ctxDaripadaSlot(slot, tarikh));
+    const rph = await janaRphAI(ctx);
     const ref = await rujuk('rph').add(rph);
     await muatRph(); sibuk(false); toast('RPH dijana','jaya'); bukaRph(ref.id);
   }catch(e){ sibuk(false); toast('Gagal: '+e.message,'salah'); }
@@ -121,15 +172,26 @@ async function janaMingguan(){
   for(let i=0;i<7;i++){
     const d = new Date(mula+'T00:00:00'); d.setDate(d.getDate()+i);
     const iso = tarikhISO(d); if(cutiPada(iso)) continue;
-    S.jadual.filter(s => s.hari === namaHari(iso) && (!tapis || s.subjek === tapis))
-      .forEach(s => { if(!S.rph.some(r => r.tarikh === iso && r.slotId === s.id)) tugas.push({slot:s, tarikh:iso}); });
+    S.jadual.filter(x => x.hari === namaHari(iso) && (!tapis || norma(x.subjek) === norma(tapis)))
+      .forEach(x => { if(!S.rph.some(r => r.tarikh === iso && r.slotId === x.id)) tugas.push({slot:x, tarikh:iso}); });
   }
   if(!tugas.length) return toast('Semua slot minggu ini sudah ada RPH','jaya');
+  // agih baris RPT minggu itu mengikut giliran slot subjek yang sama (kesinambungan)
+  const giliran = {};
   let siap = 0, gagal = 0;
   for(const t of tugas){
-    sibuk(true,`Menjana ${siap+1}/${tugas.length} · ${t.slot.subjek} ${t.tarikh}…`);
+    sibuk(true,`Menjana ${siap+gagal+1}/${tugas.length} · ${t.slot.subjek} ${t.tarikh}…`);
     try{
-      const rph = await janaRphAI(ctxDaripadaSlot(t.slot, t.tarikh));
+      const ctx = ctxDaripadaSlot(t.slot, t.tarikh);
+      const rpt = rptUntuk(t.slot.subjek, ctx.tahun, ctx.minggu);
+      if(rpt.minggu.length){
+        const k = norma(t.slot.subjek)+'|'+norma(t.slot.kelas);
+        const g = giliran[k] = (giliran[k]||0);
+        ctx.rptFokus = rpt.minggu[Math.min(g, rpt.minggu.length-1)];
+        ctx.tajuk = ctx.rptFokus.tajuk || ctx.rptFokus.tema || '';
+        giliran[k]++;
+      }
+      const rph = await janaRphAI(ctx);
       await rujuk('rph').add(rph); siap++;
     }catch(e){ gagal++; }
   }
@@ -483,7 +545,7 @@ function htmlRph(r){
     <tr><th>PAK21 / KBAT</th><td>${p(r.pak21)} · ${p(r.kbat)}</td>
         <th>EMK / Nilai</th><td>${p(r.emk)} · ${p(r.nilai)}</td></tr>
     <tr><th>Pentaksiran</th><td colspan="3">${p(r.pentaksiran)}</td></tr>
-    <tr><th>Refleksi</th><td colspan="3">${esc(r.refleksi||'')}</td></tr>
+    <tr><th>Refleksi</th><td colspan="3" style="min-height:26pt;height:26pt">${esc(r.refleksi||'')}</td></tr>
   </table>
   <div class="tandatangan">
     <div>Disediakan oleh:${tandatanganSaya() ? `<br><img src="${tandatanganSaya()}" class="ttd">` : '<br><br>'}
