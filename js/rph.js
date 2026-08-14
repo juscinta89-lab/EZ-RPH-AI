@@ -568,112 +568,94 @@ function pecahAktiviti(html){
 }
 
 function htmlRph(r, tunjukSemakan){
-  const p = v => esc(String(v||'').trim() || '-');
-  const tempoh = r.tempoh || minit(r.mula, r.tamat);
+  const p = v => { const t = String(v||'').trim(); return (t && t !== '-') ? esc(t) : '-'; };
+  const nilai = v => { const t = String(v||'').trim(); return (t && t !== '-') ? t : ''; };
+  const [gelap, cerah] = warnaSubjek(r.subjek);
   const kelasInfo = S.kelas.find(k => norma(k.nama) === norma(r.kelas));
-  const bilMurid = kelasInfo?.bilangan || '';
+  const bil = kelasInfo?.bilangan || '____';
+  const tempoh = r.tempoh || minit(r.mula, r.tamat);
+  const obj = (r.objektif||'').split('\n').map(x=>x.trim().replace(/^\d+[.)]\s*/,'')).filter(x=>x && x!=='-');
+  const kk  = (r.kriteria||'').split('\n').map(x=>x.trim().replace(/^\d+[.)]\s*/,'')).filter(x=>x && x!=='-');
   const akt = pecahAktiviti(r.aktiviti);
-  const objektif = senaraiNombor(r.objektif);
-  const kriteria = senaraiNombor(r.kriteria);
+  const th = `style="background:${cerah}"`;
+  const band = (t, span) => `<tr class="pd-band" style="background:${gelap}"><td colspan="${span||6}">${t}</td></tr>`;
+  const refleksiKanan = r.refleksi ? esc(r.refleksi) : `
+    ___ / ${bil} murid dapat mencapai objektif pembelajaran dengan baik dan diberi latihan pengayaan.<br><br>
+    ___ / ${bil} murid dapat mencapai objektif pembelajaran dengan bimbingan dan diberi latihan pengukuhan.<br><br>
+    ___ / ${bil} murid tidak dapat mencapai objektif pembelajaran dan diberi latihan pemulihan.<br><br>
+    <b>PdPC pada hari ini:</b>
+    <table style="width:100%;border-collapse:collapse;margin-top:2pt">
+      <tr><td style="border:.7pt solid #444;padding:1.6pt 3pt">Memuaskan</td><td style="border:.7pt solid #444;width:9mm"></td></tr>
+      <tr><td style="border:.7pt solid #444;padding:1.6pt 3pt">Tidak memuaskan</td><td style="border:.7pt solid #444"></td></tr>
+    </table>`;
+
   return `
-  <div class="lp-kepala">
-    ${(S.logo || S.sekolah?.logo) ? `<img src="${S.logo || esc(S.sekolah.logo)}">` : ''}
-    <div><b>${esc((S.sekolah?.nama||'').toUpperCase())}</b>
-    ${S.sekolah?.alamat||S.sekolah?.kod ? `<br><span>${esc(S.sekolah?.alamat||'')}${S.sekolah?.kod?' · '+esc(S.sekolah.kod):''}</span>` : ''}</div>
-  </div>
-
-  <div class="lp-bar">RANCANGAN PENGAJARAN HARIAN / <i>LESSON PLAN</i></div>
-
-  <table class="lp-tbl">
-    <colgroup><col style="width:26mm"><col style="width:74mm"><col style="width:20mm"><col></colgroup>
-    <tr>
-      <th rowspan="3" style="text-align:center;vertical-align:middle">Mata Pelajaran<br><b class="lp-subjek">${p(r.subjek).toUpperCase()}</b></th>
-      <td class="lp-tgh"><b>Tema:</b> ${p(r.tema)}</td>
-      <th>Kelas</th><td>${p(r.kelas)}</td></tr>
-    <tr><td class="lp-tgh"><b>Tajuk:</b> ${p(r.tajuk)}</td>
-      <th>Hari / Tarikh</th><td>${esc(namaHari(r.tarikh))}, ${tarikhCantik(r.tarikh).split(', ')[1]||r.tarikh}</td></tr>
-    <tr><td class="lp-tgh"><b>Minggu:</b> ${p(r.minggu)}</td>
-      <th>Masa</th><td>${esc(r.mula)} – ${esc(r.tamat)} (${tempoh} minit)</td></tr>
-  </table>
-
-  <table class="lp-tbl">
-    <colgroup><col style="width:26mm"><col><col style="width:42mm"></colgroup>
-    <tr><th colspan="2" class="lp-sub">Kod Standard Pembelajaran / <i>Learning Standard</i></th>
-        <th class="lp-sub">EMK / <i>Cross Curricular</i></th></tr>
-    <tr><th>SK</th><td>${esc(kodTeks(r.kodSk, r.sk))}</td>
-        <td rowspan="2" style="text-align:center;vertical-align:middle">${p(r.emk)}<br><br><b>Nilai Murni:</b><br>${p(r.nilai)}</td></tr>
-    <tr><th>SP</th><td>${esc(kodTeks(r.kodSp, r.sp))}${r.tp&&r.tp!=='-'?'<br><b>TP:</b> '+esc(r.tp):''}</td></tr>
-  </table>
-
-  <table class="lp-tbl">
-    <colgroup><col style="width:50%"><col></colgroup>
-    <tr><th class="lp-sub">Objektif Pembelajaran / <i>Learning Objectives</i></th>
-        <th class="lp-sub">Kriteria Kejayaan / <i>Success Criteria</i></th></tr>
-    <tr><td>Pada akhir PdP, murid dapat:<br>${objektif}</td>
-        <td>Murid dapat:<br>${kriteria}</td></tr>
-    <tr><th class="lp-sub">Strategi · PAK21 · KBAT</th><th class="lp-sub">BBM / <i>Resources</i></th></tr>
-    <tr><td>${p(r.strategi)}${r.pak21&&r.pak21!=='-'?' · '+esc(r.pak21):''}${r.kbat&&r.kbat!=='-'?' · '+esc(r.kbat):''}</td>
-        <td>${p(r.bbm)}</td></tr>
-  </table>
-
-  <table class="lp-tbl">
-    <colgroup><col><col style="width:46mm"></colgroup>
-    <tr><th class="lp-bar2">Rangka Pengajaran / <i>Lesson Outline</i></th>
-        <th class="lp-bar2">Impak / Refleksi</th></tr>
-    <tr class="lp-pecah">
-      <td style="padding:0">
-        ${akt.starter ? `<div class="lp-seksyen">Set Induksi / <i>Starter</i></div>
-        <div class="lp-isi">${akt.starter}</div>
-        <div class="lp-seksyen">Aktiviti Utama / <i>Main Activities</i></div>` :
-        `<div class="lp-seksyen">Aktiviti PdP / <i>Activities</i></div>`}
-        <div class="lp-isi">${akt.utama || '-'}</div>
-        <div class="lp-seksyen">Penutup / <i>Plenary</i></div>
-        <div class="lp-isi">${p(r.penutup)}</div>
-        <div class="lp-seksyen">Pentaksiran</div>
-        <div class="lp-isi">${p(r.pentaksiran)}</div>
+  ${(S.logo || S.sekolah?.logo) ? `<div class="lp-kepala"><img src="${S.logo || esc(S.sekolah.logo)}">
+    <div><b>${esc((S.sekolah?.nama||'').toUpperCase())}</b></div></div>` : ''}
+  <table class="pd-tbl">
+    <colgroup><col style="width:34mm"><col style="width:56mm"><col style="width:16mm"><col style="width:34mm"><col style="width:16mm"><col></colgroup>
+    ${band('<div style="text-align:center;font-size:9.5pt">RANCANGAN PENGAJARAN HARIAN (PdPC)</div>')}
+    <tr><th ${th}>MATA PELAJARAN</th>
+        <td colspan="5" style="background:${cerah}"><b>${p(r.subjek).toUpperCase()} ${nilai(r.tahun)?esc(r.tahun.toUpperCase()):''}</b></td></tr>
+    <tr><th ${th}>TEMA</th><td>${p(r.tema)}</td>
+        <th ${th}>KELAS</th><td><b>${p(r.kelas)}</b></td>
+        <th ${th}>MINGGU</th><td>${p((r.minggu||'').replace('Minggu ',''))}</td></tr>
+    <tr><th ${th}>UNIT / TOPIK</th><td>${p(r.tajuk)}</td>
+        <th ${th}>MASA</th><td>${esc(r.mula)} – ${esc(r.tamat)}</td>
+        <th ${th}>TARIKH</th><td>${esc(r.tarikh)}</td></tr>
+    <tr><th ${th}>TEMPOH</th><td>${tempoh} minit</td>
+        <th ${th}>HARI</th><td>${esc(namaHari(r.tarikh))}</td>
+        <th ${th}>TAHUN</th><td>${p(r.tahun)}</td></tr>
+    <tr><th ${th}>Kod SK</th><td style="text-align:center"><b>${p(r.kodSk)}</b></td>
+        <th ${th}>Kod SP</th><td style="text-align:center"><b>${p(r.kodSp)}</b></td>
+        <th ${th}>Nilai Murni</th><td>${p(r.nilai)}</td></tr>
+    <tr><th ${th}>Std. Kandungan</th><td colspan="3">${p(r.sk)}</td>
+        <th ${th}>EMK</th><td>${p(r.emk)}</td></tr>
+    <tr><th ${th}>Std. Pembelajaran</th><td colspan="3">${p(r.sp)}</td>
+        <th ${th}>TP</th><td>${p(r.tp)}</td></tr>
+    ${band('ASPIRASI MURID')}
+    <tr><td colspan="6" style="padding:0"><table style="width:100%;border-collapse:collapse;table-layout:fixed">
+      <tr>${['Pengetahuan','Kemahiran Berfikir','Kemahiran Memimpin','Kemahiran Dwibahasa','Etika dan Kerohanian','Identiti Nasional']
+        .map((x,i)=>`<td style="${i<5?'border-right:.7pt solid #444;':''}padding:1.6pt 3pt;font-size:7.6pt;text-align:center">☐ ${x}</td>`).join('')}</tr>
+    </table></td></tr>
+    <tr class="pd-band" style="background:${gelap}"><td colspan="3">OBJEKTIF PEMBELAJARAN (OP)</td>
+        <td colspan="3">KRITERIA KEJAYAAN (KK)</td></tr>
+    <tr><td colspan="3">Pada akhir PdPC, murid dapat:<br>${obj.map((x,i)=>(i+1)+'. '+esc(x)).join('<br>')||'-'}</td>
+        <td colspan="3">Murid berjaya:<br>${kk.map((x,i)=>(i+1)+'. '+esc(x)).join('<br>')||'-'}</td></tr>
+    <tr><th ${th}>Strategi / Kaedah</th><td colspan="2">${p(r.strategi)}</td>
+        <th ${th}>BBB / SUMBER</th><td colspan="2">${p(r.bbm)}</td></tr>
+    <tr class="pd-band" style="background:${gelap}"><td colspan="4">STRATEGI PEMBELAJARAN DAN PEMUDAHCARAAN</td>
+        <td colspan="2">IMPAK / REFLEKSI</td></tr>
+    <tr class="pd-boleh">
+      <td colspan="4" style="padding:0">
+        ${akt.starter?`<div class="pd-sek">Pengenalan:-</div><div class="pd-isi2">${akt.starter}</div>`:''}
+        <div class="pd-sek">Aktiviti:-</div><div class="pd-isi2">${akt.utama||'-'}</div>
+        <div class="pd-sek">Penutup:-</div><div class="pd-isi2">${p(r.penutup)}</div>
       </td>
-      <td class="lp-refleksi">
-        ${r.refleksi
-          ? esc(r.refleksi)
-          : `☐ ___ / ${bilMurid||'___'} orang murid dapat menguasai objektif pembelajaran dan diberi latihan pengayaan / pengukuhan.
-             <br><br>☐ ___ / ${bilMurid||'___'} orang murid tidak menguasai objektif dan diberi latihan pemulihan.
-             <br><br>☐ Aktiviti PdP ditangguhkan kerana:<br><br>_______________________`}
-      </td>
-    </tr>
+      <td colspan="2" class="pd-ref">${refleksiKanan}</td></tr>
+    <tr><th ${th}>KBAT</th><td>${p(r.kbat)}</td>
+        <th ${th}>PAK-21</th><td>${p(r.pak21)}</td>
+        <th ${th}>PBD</th><td>${p(r.pentaksiran)}</td></tr>
+    ${band('TINDAKAN SUSULAN UNTUK MURID')}
+    <tr><th ${th}>Pemulihan</th><td>${p(r.pemulihan)}</td>
+        <th ${th}>Pengukuhan</th><td>-</td>
+        <th ${th}>Pengayaan</th><td>${p(r.pengayaan)}</td></tr>
+    ${band('REFLEKSI / TINDAKAN')}
+    <tr><td colspan="6" style="padding:0"><table style="width:100%;border-collapse:collapse">
+      ${['PdPC akan diteruskan dengan topik baharu.','PdPC akan diulang semula pada pembelajaran akan datang.',
+         'PdPC tidak dilaksanakan kerana: ________________________________________']
+        .map(x=>`<tr><td style="border-bottom:.7pt solid #444;width:8mm;text-align:center;padding:1.6pt">☐</td>
+          <td style="border-bottom:.7pt solid #444;padding:1.6pt 3pt">${x}</td></tr>`).join('')}
+    </table></td></tr>
   </table>
-
-  <table class="lp-tbl">
-    <colgroup><col style="width:50%"><col></colgroup>
-    <tr><th class="lp-sub">Pemulihan / <i>Remedial</i></th>
-        <th class="lp-sub">Pengayaan / <i>Enrichment</i></th></tr>
-    <tr><td>${p(r.pemulihan)}</td><td>${p(r.pengayaan)}</td></tr>
-  </table>
-
   ${tunjukSemakan === false ? '' : `
-  <table class="lp-tbl lp-semakan">
+  <table class="pd-tbl lp-semakan">
     <colgroup><col style="width:26mm"><col><col style="width:60mm"></colgroup>
-    <tr><th class="lp-sub2">SEMAKAN</th>
+    <tr><th style="background:#cfe3f7;text-align:center;vertical-align:middle;font-size:9pt">SEMAKAN</th>
       <td>Disediakan oleh:${tandatanganSaya() ? `<br><img src="${tandatanganSaya()}" class="ttd">` : '<br><br><br>'}
         <b>${esc(S.profil.nama||'')}</b><br>${esc(S.profil.jawatan||'Guru')}</td>
       <td>Disemak oleh:<br><br><br><b>${esc(S.profil.pengesah||'')}</b></td></tr>
   </table>`}`;
-}
-
-const WARNA_SUBJEK = [
-  [/melayu|bm\b/i,        ['#f9c97e','#fdeeda']],
-  [/inggeris|english/i,    ['#9ec5f5','#e7f0fd']],
-  [/matematik/i,           ['#a7c9f2','#e3edfb']],
-  [/sains/i,               ['#9edcb2','#e4f6ea']],
-  [/jasmani|\bpj\b/i,    ['#f5a9a9','#fde7e7']],
-  [/kesihatan|\bpk\b/i,  ['#f5b9d0','#fdeaf2']],
-  [/seni|psv/i,            ['#c9b3f0','#efe9fc']],
-  [/muzik/i,               ['#f5e07e','#fcf6d9']],
-  [/islam|arab/i,          ['#8fd4c8','#e2f5f1']],
-  [/moral|sivik|sejarah/i, ['#d9c49a','#f5ede0']],
-];
-function warnaSubjek(nama){
-  for(const [rx, w] of WARNA_SUBJEK) if(rx.test(nama||'')) return w;
-  return ['#c9cfdd','#eceff5'];
 }
 
 function gayaCetak(){ return localStorage.getItem('erph_gaya_cetak') || 'padat'; }

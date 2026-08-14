@@ -1,5 +1,5 @@
 /* e-RPH AI — Service Worker */
-const CACHE = 'erph-v19';
+const CACHE = 'erph-v20';
 const FAIL = [
   './','./index.html','./styles.css','./manifest.json',
   './firebase-config.js','./js/core.js','./js/data.js','./js/ai.js',
