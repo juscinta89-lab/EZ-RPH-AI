@@ -71,11 +71,45 @@ function parseCSV(teks){
     sel.push(cur); return sel.map(x => x.trim());
   });
 }
+/* Terima .xlsx / .xls / .csv / .txt — Excel ditukar auto kepada CSV */
 function pilihFail(terima, fn){
-  const i = document.createElement('input'); i.type = 'file'; i.accept = terima;
-  i.onchange = () => { const f = i.files[0]; if(!f) return; const r = new FileReader(); r.onload = () => fn(r.result, f.name); r.readAsText(f); };
+  const i = document.createElement('input'); i.type = 'file';
+  i.accept = (terima || '') + ',.xlsx,.xls';
+  i.onchange = () => {
+    const f = i.files[0]; if(!f) return;
+    const excel = /\.(xlsx|xls)$/i.test(f.name);
+    const r = new FileReader();
+    r.onload = () => {
+      if(!excel) return fn(r.result, f.name);
+      if(typeof XLSX === 'undefined') return toast('Pustaka Excel gagal dimuat. Guna CSV.','salah');
+      try{
+        const wb = XLSX.read(new Uint8Array(r.result), { type:'array' });
+        fn(XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]]), f.name);
+      }catch(e){ toast('Gagal membaca fail Excel','salah'); }
+    };
+    excel ? r.readAsArrayBuffer(f) : r.readAsText(f);
+  };
   i.click();
 }
+
+/* Muat turun templat Excel */
+function templatExcel(namaFail, kepala, contoh){
+  if(typeof XLSX === 'undefined') return toast('Pustaka Excel belum dimuat','salah');
+  const ws = XLSX.utils.aoa_to_sheet([kepala, ...(contoh||[])]);
+  ws['!cols'] = kepala.map(k => ({ wch: Math.max(14, k.length + 4) }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Data');
+  XLSX.writeFile(wb, namaFail);
+  toast('Templat dimuat turun','jaya');
+}
+const TEMPLAT = {
+  kelas:  ['nama_kelas','tahun_tingkatan','bilangan_murid','tahap','nota'],
+  subjek: ['nama_subjek','kod','peringkat'],
+  dskp:   ['tahun','subjek','bidang','tajuk','kod_sk','standard_kandungan','kod_sp','standard_pembelajaran','tp'],
+  buku:   ['tahun','subjek','buku','bab','unit','tajuk','kandungan'],
+  cuti:   ['nama','mula','tamat'],
+  jadual: ['hari','masa_mula','masa_tamat','subjek','kelas','bilik','catatan']
+};
 
 /* ================= DASHBOARD ================= */
 function halDashboard(){
@@ -107,7 +141,8 @@ function halDashboard(){
     </div>
 
     <div class="kad">
-      <div class="kad-h"><h3>Hari ini · ${hari.toUpperCase()}</h3><small>${slotHariIni.length} slot PdP</small></div>
+      <div class="kad-h"><h3>Hari ini · ${hari.toUpperCase()}</h3><small>${slotHariIni.length} slot PdP</small>
+        ${S.rph.some(r=>r.tarikh===hariIni)?`<button class="btn btn-sm" onclick="cetakHari('${hariIni}')">🖨️ Cetak semua</button>`:''}</div>
       ${cuti ? `<div class="kosong"><b>${esc(cuti.nama)}</b>Tiada sesi PdP pada tarikh ini.</div>`
         : slotHariIni.length ? slotHariIni.map(s => {
         const ada = S.rph.find(r => r.tarikh === hariIni && r.slotId === s.id);
@@ -152,7 +187,11 @@ function kadWizard(){
 /* ================= KELAS ================= */
 function halKelas(){
   $('#kandungan').innerHTML = `
-    <div class="toolbar"><button class="btn btn-primary" onclick="formKelas()">+ Tambah kelas</button></div>
+    <div class="toolbar">
+      <button class="btn btn-primary" onclick="formKelas()">+ Tambah kelas</button>
+      <button class="btn" onclick="importKelas()">📥 Import Excel/CSV</button>
+      <button class="btn" onclick="templatExcel('templat-kelas.xlsx',TEMPLAT.kelas,[['Tahun 1 Iltizam','Tahun 1',28,'Campuran','']])">⬇️ Templat Excel</button>
+    </div>
     <div class="senarai">${S.kelas.length ? S.kelas.map(k => `
       <div class="baris">
         <div class="baris-t"><b>${esc(k.nama)}</b><small>${esc(k.tahap||'')} · ${k.bilangan||0} murid${k.nota?' · '+esc(k.nota):''}</small></div>
@@ -184,6 +223,61 @@ async function simpanKelas(id){
   await muatData(); sibuk(false); tutupModal(); pergi('kelas'); toast('Kelas disimpan','jaya');
 }
 
+function importKelas(){
+  pilihFail('.csv,.txt', async teks => {
+    let rows = parseCSV(teks);
+    if(rows[0] && /nama|kelas/i.test(rows[0][0])) rows = rows.slice(1);
+    rows = rows.filter(r => r[0] && r[0].trim());
+    if(!rows.length) return toast('Tiada baris sah dijumpai','salah');
+    sibuk(true,'Mengimport '+rows.length+' kelas…');
+    const b = db.batch(); let tambah = 0;
+    rows.forEach(r => {
+      const nama = r[0].trim();
+      if(S.kelas.some(k => k.nama.toLowerCase() === nama.toLowerCase())) return;
+      b.set(rujuk('kelas').doc(), { nama, tahun:(r[1]||'').trim(), bilangan:+(r[2]||0)||0,
+        tahap:(r[3]||'Campuran').trim(), nota:(r[4]||'').trim() });
+      tambah++;
+    });
+    await b.commit(); await muatData(); sibuk(false); pergi('kelas');
+    toast(tambah+' kelas diimport'+(rows.length-tambah?', '+(rows.length-tambah)+' dilangkau (sudah ada)':''),'jaya');
+  });
+}
+
+function importSubjek(){
+  pilihFail('.csv,.txt', async teks => {
+    let rows = parseCSV(teks);
+    if(rows[0] && /nama|subjek/i.test(rows[0][0])) rows = rows.slice(1);
+    rows = rows.filter(r => r[0] && r[0].trim());
+    if(!rows.length) return toast('Tiada baris sah dijumpai','salah');
+    sibuk(true,'Mengimport…');
+    const b = db.batch(); let tambah = 0;
+    rows.forEach(r => {
+      const nama = r[0].trim();
+      if(S.subjek.some(x => x.nama.toLowerCase() === nama.toLowerCase())) return;
+      b.set(rujuk('subjek').doc(), { nama, kod:(r[1]||'').trim(), peringkat:(r[2]||'Rendah').trim() });
+      tambah++;
+    });
+    await b.commit(); await muatData(); sibuk(false); pergi('subjek'); toast(tambah+' subjek diimport','jaya');
+  });
+}
+
+function importJadual(){
+  pilihFail('.csv,.txt', async teks => {
+    let rows = parseCSV(teks);
+    if(rows[0] && /hari/i.test(rows[0][0])) rows = rows.slice(1);
+    rows = rows.filter(r => r.length >= 5 && r[0] && r[1]);
+    if(!rows.length) return toast('Tiada baris sah dijumpai','salah');
+    const jam = t => { const m = String(t).match(/(\d{1,2})[:.](\d{2})/); return m ? String(m[1]).padStart(2,'0')+':'+m[2] : ''; };
+    const baru = rows.map(r => ({ id:uid(), hari:r[0].trim(), mula:jam(r[1]), tamat:jam(r[2]),
+      subjek:(r[3]||'').trim(), kelas:(r[4]||'').trim(), bilik:(r[5]||'').trim(), nota:(r[6]||'').trim() }))
+      .filter(x => x.mula && x.tamat);
+    sibuk(true,'Mengimport…');
+    S.jadual = [...S.jadual, ...baru];
+    await rujuk('jadual').doc(S.user.email).set({ slot:S.jadual, emel:S.user.email, dikemas:Date.now() });
+    sibuk(false); pergi('jadual'); toast(baru.length+' slot diimport','jaya');
+  });
+}
+
 /* ================= SUBJEK ================= */
 const SUBJEK_RENDAH = ['Bahasa Melayu','Bahasa Inggeris','Matematik','Sains','Pendidikan Islam','Pendidikan Moral','Sejarah','Pendidikan Jasmani dan Kesihatan','Pendidikan Seni Visual','Pendidikan Muzik','Reka Bentuk dan Teknologi','Bahasa Arab'];
 const SUBJEK_MENENGAH = ['Bahasa Melayu','Bahasa Inggeris','Matematik','Matematik Tambahan','Sains','Fizik','Kimia','Biologi','Sejarah','Geografi','Pendidikan Islam','Pendidikan Moral','Reka Bentuk dan Teknologi','Asas Sains Komputer','Prinsip Perakaunan','Ekonomi','Perniagaan'];
@@ -194,6 +288,8 @@ function halSubjek(){
       <button class="btn btn-primary" onclick="formSubjek()">+ Tambah subjek</button>
       <button class="btn" onclick="pratetapSubjek('rendah')">Muat pratetap rendah</button>
       <button class="btn" onclick="pratetapSubjek('menengah')">Muat pratetap menengah</button>
+      <button class="btn" onclick="importSubjek()">📥 Import Excel/CSV</button>
+      <button class="btn" onclick="templatExcel('templat-subjek.xlsx',TEMPLAT.subjek,[['Bahasa Melayu','BM','Rendah']])">⬇️ Templat</button>
     </div>
     <div class="senarai">${S.subjek.length ? S.subjek.map(s => `
       <div class="baris">
@@ -236,6 +332,8 @@ function halJadual(){
   const hariAjar = ['Ahad','Isnin','Selasa','Rabu','Khamis','Jumaat','Sabtu'];
   $('#kandungan').innerHTML = `
     <div class="toolbar"><button class="btn btn-primary" onclick="formSlot()">+ Tambah slot</button>
+      <button class="btn" onclick="importJadual()">📥 Import Excel/CSV</button>
+      <button class="btn" onclick="templatExcel('templat-jadual.xlsx',TEMPLAT.jadual,[['Isnin','08:00','09:00','Bahasa Melayu','Tahun 6 Iltizam','','']])">⬇️ Templat</button>
       <button class="btn" onclick="pergi('jana')">✨ Jana RPH minggu ini</button></div>
     ${hariAjar.map(h => {
       const slot = S.jadual.filter(s => s.hari === h).sort((a,b)=> a.mula.localeCompare(b.mula));
@@ -311,7 +409,8 @@ function halTakwim(){
     <div class="kad">
       <div class="kad-h"><h3>Cuti & tiada PdP</h3>
         <button class="btn btn-sm" onclick="formCuti()">+ Tambah</button>
-        <button class="btn btn-sm" onclick="importCuti()">Import CSV</button></div>
+        <button class="btn btn-sm" onclick="importCuti()">📥 Import Excel/CSV</button>
+        <button class="btn btn-sm" onclick="templatExcel('templat-cuti.xlsx',TEMPLAT.cuti,[['Cuti Penggal 1','2026-03-21','2026-03-29']])">⬇️ Templat</button></div>
       ${(tw?.cuti||[]).length ? `<div class="senarai">${tw.cuti.sort((a,b)=>a.mula.localeCompare(b.mula)).map((c,i)=>`
         <div class="baris"><div class="baris-t"><b>${esc(c.nama)}</b><small>${tarikhCantik(c.mula)} — ${tarikhCantik(c.tamat)}</small></div>
         <button class="btn btn-sm btn-danger" onclick="hapusCuti(${i})">✕</button></div>`).join('')}</div>`
@@ -375,7 +474,8 @@ function halDskp(){
       <select id="dsSubjek" onchange="lukisDskp()"><option value="">Semua subjek</option>
         ${subjekUnik.map(s=>`<option>${esc(s)}</option>`).join('')}</select>
       <button class="btn btn-primary" onclick="formDskp()">+ Tambah</button>
-      <button class="btn" onclick="importDskp()">Import CSV</button>
+      <button class="btn" onclick="importDskp()">📥 Import Excel/CSV</button>
+      <button class="btn" onclick="templatExcel('templat-dskp.xlsx',TEMPLAT.dskp)">⬇️ Templat</button>
     </div>
     <div class="kad" style="margin-bottom:14px">
       <p style="font-size:12.5px;color:var(--teks-2)">Format CSV DSKP (baris pertama diabaikan jika ia tajuk):<br>
@@ -451,7 +551,8 @@ function importDskp(){
 function halBuku(){
   $('#kandungan').innerHTML = `
     <div class="toolbar"><button class="btn btn-primary" onclick="formBuku()">+ Tambah bab/unit</button>
-      <button class="btn" onclick="importBuku()">Import CSV</button></div>
+      <button class="btn" onclick="importBuku()">📥 Import Excel/CSV</button>
+      <button class="btn" onclick="templatExcel('templat-bukuteks.xlsx',TEMPLAT.buku)">⬇️ Templat</button></div>
     <div class="kad" style="margin-bottom:14px"><p style="font-size:12.5px;color:var(--teks-2)">
       Format CSV: <code>tahun,subjek,buku,bab,unit,tajuk,kandungan</code><br>
       Masukkan hanya bahan yang anda ada hak untuk gunakan. AI hanya merujuk kandungan yang dimasukkan di sini.</p></div>

@@ -20,6 +20,7 @@ function halRph(){
       <select id="rSubjek" onchange="lukisRph()"><option value="">Semua subjek</option>
         ${[...new Set(S.rph.map(r=>r.subjek))].map(s=>`<option>${esc(s)}</option>`).join('')}</select>
       <button class="btn btn-primary" onclick="pergi('jana')">✨ Jana baharu</button>
+      <button class="btn" onclick="cetakTapisan()">🖨️ Cetak hasil tapisan</button>
     </div>
     <div id="rSenarai"></div>`;
   lukisRph();
@@ -32,6 +33,16 @@ function lukisRph(){
   $('#rSenarai').innerHTML = hasil.length
     ? `<div class="senarai">${hasil.map(barisRph).join('')}</div>`
     : `<div class="kosong"><b>Tiada RPH dijumpai</b>Jana RPH pertama anda daripada jadual waktu.</div>`;
+}
+
+function cetakTapisan(){
+  const q = ($('#rCari')?.value||'').toLowerCase();
+  const st = $('#rStatus')?.value || '', sj = $('#rSubjek')?.value || '';
+  const hasil = S.rph.filter(r => (!st || r.status === st) && (!sj || r.subjek === sj) &&
+    (!q || [r.tajuk,r.subjek,r.kelas,r.sp,r.tema,r.tarikh,r.minggu].join(' ').toLowerCase().includes(q)))
+    .sort((a,b)=> (a.tarikh+a.mula).localeCompare(b.tarikh+b.mula));
+  if(hasil.length > 20) return sahkan(hasil.length+' RPH akan dicetak (satu muka surat setiap satu). Teruskan?', ()=> cetakBanyak(hasil));
+  cetakBanyak(hasil);
 }
 
 /* ================= JANA RPH ================= */
@@ -176,7 +187,9 @@ function lihatHari(iso){
         <div class="slot-info"><b>${esc(s.subjek)}</b><small>${esc(s.kelas)}</small></div>
         ${r ? `<button class="btn btn-sm" onclick="tutupModal();bukaRph('${r.id}')">Buka</button>`
             : `<button class="btn btn-sm btn-primary" onclick="tutupModal();janaSlot('${s.id}','${iso}')">✨ Jana</button>`}</div>`;
-    }).join('') : '<div class="kosong">Tiada slot PdP pada hari ini.</div>'));
+    }).join('') : '<div class="kosong">Tiada slot PdP pada hari ini.</div>'),
+    (S.rph.some(r=>r.tarikh===iso) ? `<button class="btn" onclick="tutupModal()">Tutup</button>
+      <button class="btn btn-primary" onclick="tutupModal();cetakHari('${iso}')">🖨️ Cetak semua RPH hari ini</button>` : null));
 }
 
 /* ================= EDITOR RPH ================= */
@@ -425,47 +438,79 @@ Balas teks refleksi sahaja tanpa tajuk atau markdown.`;
 }
 
 /* ---------- Cetak / PDF ---------- */
-function cetakRph(){
-  const r = { ...S.rph.find(x=>x.id===S.editRphId), ...bacaEditor() };
-  const senarai = t => (t||'').split('\n').filter(x=>x.trim()).map((x,i)=>`${i+1}. ${esc(x)}`).join('<br>');
-  const html = `
+function kodTeks(kod, teks){
+  const k = (kod||'').trim(), t = (teks||'').trim();
+  if(!t) return k || '-';
+  if(!k || t.startsWith(k) || k.length > 18 || k === t) return t;
+  return k + ' ' + t;
+}
+function senaraiNombor(t){
+  return (t||'').split('\n').map(x=>x.trim()).filter(Boolean)
+    .map((x,i)=> /^\d+[.)]/.test(x) ? esc(x) : (i+1)+'. '+esc(x)).join('<br>') || '-';
+}
+
+function htmlRph(r){
+  const p = v => esc(String(v||'').trim() || '-');
+  const tempoh = r.tempoh || minit(r.mula, r.tamat);
+  const temaTajuk = [r.tema, r.tajuk].map(x=>(x||'').trim()).filter(Boolean).join(' · ') || '-';
+  return `
   <div class="cetak-h">
     ${S.sekolah?.logo ? `<img src="${esc(S.sekolah.logo)}">` : ''}
-    <div><b style="font-size:14pt">${esc(S.sekolah?.nama||'')}</b><br>
-    <span style="font-size:10pt">${esc(S.sekolah?.alamat||'')} ${S.sekolah?.kod?'· '+esc(S.sekolah.kod):''}</span></div>
+    <div><b>${esc((S.sekolah?.nama||'').toUpperCase())}</b><br>
+    <span>${esc(S.sekolah?.alamat||'')}${S.sekolah?.kod?' · '+esc(S.sekolah.kod):''}</span></div>
   </div>
-  <h2 style="text-align:center;margin:6px 0 12px;font-size:14pt">RANCANGAN PENGAJARAN HARIAN</h2>
+  <div class="cetak-tajuk">RANCANGAN PENGAJARAN HARIAN</div>
   <table class="cetak-tbl">
-    <tr><th>Tarikh / Hari</th><td>${tarikhCantik(r.tarikh)}</td></tr>
-    <tr><th>Minggu</th><td>${esc(r.minggu||'-')}</td></tr>
-    <tr><th>Mata Pelajaran</th><td>${esc(r.subjek)}</td></tr>
-    <tr><th>Kelas</th><td>${esc(r.kelas)}</td></tr>
-    <tr><th>Masa</th><td>${esc(r.mula)} - ${esc(r.tamat)} (${r.tempoh} minit)</td></tr>
-    <tr><th>Tema / Tajuk</th><td>${esc(r.tema||'-')} · ${esc(r.tajuk||'-')}</td></tr>
-    <tr><th>Standard Kandungan</th><td>${esc(r.kodSk||'')} ${esc(r.sk||'-')}</td></tr>
-    <tr><th>Standard Pembelajaran</th><td>${esc(r.kodSp||'')} ${esc(r.sp||'-')}</td></tr>
-    <tr><th>Standard Prestasi</th><td>${esc(r.tp||'-')}</td></tr>
-    <tr><th>Objektif Pembelajaran</th><td>Pada akhir PdP, murid dapat:<br>${senarai(r.objektif)}</td></tr>
-    <tr><th>Kriteria Kejayaan</th><td>${senarai(r.kriteria)}</td></tr>
-    <tr><th>Aktiviti PdP</th><td>${r.aktiviti||'-'}</td></tr>
-    <tr><th>Pengayaan</th><td>${esc(r.pengayaan||'-')}</td></tr>
-    <tr><th>Pemulihan</th><td>${esc(r.pemulihan||'-')}</td></tr>
-    <tr><th>Penutup</th><td>${esc(r.penutup||'-')}</td></tr>
-    <tr><th>Strategi PdP</th><td>${esc(r.strategi||'-')}</td></tr>
-    <tr><th>PAK21 / KBAT</th><td>${esc(r.pak21||'-')} · ${esc(r.kbat||'-')}</td></tr>
-    <tr><th>EMK / Nilai Murni</th><td>${esc(r.emk||'-')} · ${esc(r.nilai||'-')}</td></tr>
-    <tr><th>BBM</th><td>${esc(r.bbm||'-')}</td></tr>
-    <tr><th>Pentaksiran</th><td>${esc(r.pentaksiran||'-')}</td></tr>
-    <tr><th>Refleksi</th><td>${esc(r.refleksi||'')}</td></tr>
+    <colgroup><col style="width:30mm"><col><col style="width:30mm"><col></colgroup>
+    <tr><th>Tarikh / Hari</th><td>${tarikhCantik(r.tarikh)}</td><th>Minggu</th><td>${p(r.minggu)}</td></tr>
+    <tr><th>Mata Pelajaran</th><td>${p(r.subjek)}</td><th>Kelas</th><td>${p(r.kelas)}</td></tr>
+    <tr><th>Masa</th><td>${esc(r.mula)} – ${esc(r.tamat)} (${tempoh} minit)</td>
+        <th>Tema / Tajuk</th><td>${esc(temaTajuk)}</td></tr>
+    <tr><th>Standard Kandungan</th><td colspan="3">${esc(kodTeks(r.kodSk, r.sk))}</td></tr>
+    <tr><th>Standard Pembelajaran</th><td colspan="3">${esc(kodTeks(r.kodSp, r.sp))}</td></tr>
+    <tr><th>Standard Prestasi</th><td>${p(r.tp)}</td><th>Strategi PdP</th><td>${p(r.strategi)}</td></tr>
+    <tr><th>Objektif Pembelajaran</th><td>Pada akhir PdP, murid dapat:<br>${senaraiNombor(r.objektif)}</td>
+        <th>Kriteria Kejayaan</th><td>${senaraiNombor(r.kriteria)}</td></tr>
+    <tr><th>Aktiviti PdP</th><td colspan="3">${r.aktiviti||'-'}</td></tr>
+    <tr><th>Pengayaan</th><td>${p(r.pengayaan)}</td><th>Pemulihan</th><td>${p(r.pemulihan)}</td></tr>
+    <tr><th>Penutup</th><td>${p(r.penutup)}</td><th>BBM</th><td>${p(r.bbm)}</td></tr>
+    <tr><th>PAK21 / KBAT</th><td>${p(r.pak21)} · ${p(r.kbat)}</td>
+        <th>EMK / Nilai</th><td>${p(r.emk)} · ${p(r.nilai)}</td></tr>
+    <tr><th>Pentaksiran</th><td colspan="3">${p(r.pentaksiran)}</td></tr>
+    <tr><th>Refleksi</th><td colspan="3">${esc(r.refleksi||'')}</td></tr>
   </table>
   <div class="tandatangan">
     <div>Disediakan oleh:<br><br>${esc(S.profil.nama||'')}<br>${esc(S.profil.jawatan||'Guru')}</div>
     <div>Disemak oleh:<br><br>${esc(S.profil.pengesah||'')}</div>
   </div>`;
+}
+
+function keluarkanCetak(html){
   let box = document.getElementById('cetak');
   if(!box){ box = document.createElement('div'); box.id = 'cetak'; document.body.appendChild(box); }
   box.innerHTML = html;
-  setTimeout(()=> window.print(), 120);
+  setTimeout(()=> window.print(), 150);
+}
+
+function cetakRph(){
+  const r = { ...S.rph.find(x=>x.id===S.editRphId), ...bacaEditor() };
+  keluarkanCetak(htmlRph(r));
+}
+
+/* Cetak banyak RPH — satu RPH satu muka surat */
+function cetakBanyak(senarai){
+  if(!senarai.length) return toast('Tiada RPH untuk dicetak','salah');
+  keluarkanCetak(senarai.map((r,i) =>
+    `<div style="${i ? 'page-break-before:always;' : ''}">${htmlRph(r)}</div>`).join(''));
+}
+function cetakHari(iso){
+  cetakBanyak(S.rph.filter(r => r.tarikh === iso).sort((a,b)=> (a.mula||'').localeCompare(b.mula||'')));
+}
+function cetakMinggu(mula){
+  const m = janaMinggu(S.takwim).find(w => w.mula === mula);
+  if(!m) return toast('Minggu tidak dijumpai','salah');
+  cetakBanyak(S.rph.filter(r => r.tarikh >= m.mula && r.tarikh <= m.tamat)
+    .sort((a,b)=> (a.tarikh+a.mula).localeCompare(b.tarikh+b.mula)));
 }
 
 /* ================= LAPORAN ================= */
