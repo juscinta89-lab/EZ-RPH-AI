@@ -33,6 +33,26 @@ auth.onAuthStateChanged(async user => {
       return auth.signOut();
     }
 
+    /* --- Semakan langganan (pemilik dikecualikan) --- */
+    if(S.peranan !== 'pemilik'){
+      const st = statusLanggan(S.profil);
+      if(st.jenis === 'tamat'){
+        tunjuk('#authView');
+        $('.auth-card').innerHTML = `
+          <div class="brand" style="margin-bottom:14px">
+            <div class="brand-mark"><img src="icons/icon-192.png" alt=""></div>
+            <div><h1>Langganan tamat</h1><p>e-RPH AI</p></div>
+          </div>
+          <p style="font-size:14px;color:var(--teks-2);line-height:1.6">
+            Langganan akaun <b>${esc(S.user.email)}</b> telah tamat pada <b>${esc(st.tarikh)}</b>.<br><br>
+            Semua RPH dan data anda <b>kekal selamat</b>. Untuk terus menggunakan e-RPH AI,
+            sila hubungi pentadbir sistem anda bagi melanjutkan langganan.</p>
+          <button class="btn btn-block" style="margin-top:18px" onclick="firebase.auth().signOut().then(()=>location.reload())">Log keluar</button>`;
+        return;
+      }
+      S.langganPeringatan = st.jenis === 'hampir' ? st : null;
+    }
+
     /* --- Sekolah --- */
     S.sid = S.profil.sekolahId || null;
     if(S.sid){

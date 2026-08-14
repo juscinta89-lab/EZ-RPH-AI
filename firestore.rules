@@ -10,14 +10,19 @@ service cloud.firestore {
     function admin()    { return log() && peranan() == 'admin'; }
     function sid()      { return pgn().sekolahId; }
     function tukarPeranan() {
-      return request.resource.data.diff(resource.data).affectedKeys().hasAny(['peranan','aktif']);
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['peranan','aktif','langganTamat']);
     }
 
     // --- Pengguna ---
     match /pengguna/{e} {
       allow read:   if log() && (e == emel() || pemilik() || admin());
       allow create: if log() && e == emel();
-      allow update: if log() && (pemilik() || admin() || (e == emel() && !tukarPeranan()));
+      allow update: if log() && (
+        pemilik()
+        || (admin() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['langganTamat']))
+        || (e == emel() && !tukarPeranan())
+      );
       allow delete: if pemilik();
     }
 

@@ -184,6 +184,17 @@ $('#btnKeluar').onclick = () => sahkan('Log keluar daripada e-RPH AI?', () => au
 $('#btnMenu').onclick = () => $('.side').classList.toggle('buka');
 $('#btnAI').onclick = () => pergi('jana');
 
+function statusLanggan(p){
+  const t = (p && p.langganTamat) || '';
+  if(!t) return { jenis:'tiada' };
+  const cantik = t.split('-').reverse().join('/');
+  const hariIni = tarikhISO();
+  if(t < hariIni) return { jenis:'tamat', tarikh:cantik };
+  const baki = Math.ceil((new Date(t+'T00:00:00') - new Date(hariIni+'T00:00:00')) / 86400000);
+  if(baki <= 14) return { jenis:'hampir', tarikh:cantik, baki };
+  return { jenis:'aktif', tarikh:cantik, baki };
+}
+
 function ralat(e){
   const m = {
     'auth/invalid-credential':'E-mel atau kata laluan salah',

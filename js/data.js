@@ -236,6 +236,10 @@ function halDashboard(){
   const perluSetup = !S.jadual.length || !S.kelas.length || !S.subjek.length || !S.takwim;
 
   $('#kandungan').innerHTML = `
+    ${S.langganPeringatan ? `<div class="kad" style="background:#fdf3dd;border-color:#f0dcae;margin-bottom:14px">
+      <b style="font-size:13.5px">⏳ Langganan anda berbaki ${S.langganPeringatan.baki} hari</b>
+      <p style="font-size:12.5px;color:#8a6106;margin-top:4px">Tamat pada ${esc(S.langganPeringatan.tarikh)}. Hubungi pentadbir untuk melanjutkan supaya akses tidak terputus.</p>
+    </div>` : ''}
     ${perluSetup ? kadWizard() : ''}
     <div class="hero">
       <h3>Selamat datang, ${esc((S.profil.nama||'Cikgu').split(' ').slice(0,2).join(' '))} 👋</h3>

@@ -38,11 +38,12 @@ async function halAdmin(){
     <div class="kad">
       <div class="kad-h"><h3>Pengguna</h3><small>${pengguna.length} akaun</small></div>
       <div class="tbl-scroll"><table>
-        <tr><th>Nama</th><th>E-mel</th><th>Peranan</th><th>Sekolah</th><th></th></tr>
+        <tr><th>Nama</th><th>E-mel</th><th>Peranan</th><th>Sekolah</th><th>Langganan</th><th></th></tr>
         ${pengguna.map((p,i)=>`<tr>
           <td>${esc(p.nama||'—')}</td><td style="font-size:12px">${esc(p.emel||p.id)}</td>
           <td><span class="pil ${p.peranan==='pemilik'?'ungu':p.peranan==='admin'?'biru':'kelabu'}">${esc(p.peranan||'guru')}</span></td>
           <td style="font-size:12px">${esc((sekolah.find(s=>s.id===p.sekolahId)||{}).nama || '—')}</td>
+          <td>${pilLanggan(p)}</td>
           <td><button class="btn btn-sm" onclick="formPengguna(${i})">Urus</button></td>
         </tr>`).join('')}
       </table></div>
@@ -108,6 +109,15 @@ async function tukarSekolah(id){
   await db.collection('pengguna').doc(S.user.email).set({ sekolahId:id },{merge:true});
   location.reload();
 }
+function pilLanggan(p){
+  if(p.peranan === 'pemilik') return '<span class="pil ungu">Pemilik</span>';
+  const st = statusLanggan(p);
+  if(st.jenis === 'tiada')  return '<span class="pil kelabu">Tanpa had</span>';
+  if(st.jenis === 'tamat')  return '<span class="pil merah">Tamat '+esc(st.tarikh)+'</span>';
+  if(st.jenis === 'hampir') return '<span class="pil kuning">'+st.baki+' hari lagi</span>';
+  return '<span class="pil hijau">Hingga '+esc(st.tarikh)+'</span>';
+}
+
 function formPengguna(i){
   const p = (window._pgList || [])[i]; if(!p) return;
   db.collection('sekolah').get().then(sn => {
@@ -122,13 +132,36 @@ function formPengguna(i){
       </select></label>
       <label class="fld"><span>Status akaun</span><select id="pgAktif">
         <option value="ya" ${p.aktif!==false?'selected':''}>Aktif</option>
-        <option value="tidak" ${p.aktif===false?'selected':''}>Nyahaktif</option></select></label>`,
+        <option value="tidak" ${p.aktif===false?'selected':''}>Nyahaktif</option></select></label>
+      ${S.peranan === 'pemilik' ? `
+      <div style="border-top:1px dashed var(--garis);margin:6px 0 14px;padding-top:14px">
+        <span style="display:block;font-size:12.5px;font-weight:600;color:var(--teks-2);margin-bottom:6px">Tempoh langganan</span>
+        <div class="toolbar" style="margin:0 0 10px">
+          <button class="btn btn-sm" onclick="tambahLanggan(1)">+1 bulan</button>
+          <button class="btn btn-sm" onclick="tambahLanggan(3)">+3 bulan</button>
+          <button class="btn btn-sm" onclick="tambahLanggan(6)">+6 bulan</button>
+          <button class="btn btn-sm" onclick="tambahLanggan(12)">+1 tahun</button>
+          <button class="btn btn-sm" onclick="$('#pgLanggan').value=''">Tanpa had</button>
+        </div>
+        <label class="fld" style="margin:0"><span>Tamat pada <em>(kosongkan = tanpa had)</em></span>
+          <input id="pgLanggan" type="date" value="${esc(p.langganTamat||'')}"></label>
+        <p style="font-size:12px;color:var(--teks-3);margin-top:8px">
+          Selepas tarikh ini pengguna tidak boleh log masuk sehingga langganan dilanjutkan.
+          Data mereka kekal selamat.</p>
+      </div>` : ''}`,
       `<button class="btn" onclick="tutupModal()">Batal</button>
        <button class="btn btn-primary" onclick="simpanPengguna('${p.id}')">Simpan</button>`);
   });
 }
+function tambahLanggan(bulan){
+  const inp = $('#pgLanggan');
+  const asas = (inp.value && inp.value >= tarikhISO()) ? new Date(inp.value+'T00:00:00') : new Date();
+  asas.setMonth(asas.getMonth() + bulan);
+  inp.value = tarikhISO(asas);
+}
 async function simpanPengguna(id){
   const d = { peranan:$('#pgPeranan').value, sekolahId:$('#pgSekolah').value || null, aktif:$('#pgAktif').value === 'ya' };
+  if(S.peranan === 'pemilik' && $('#pgLanggan')) d.langganTamat = $('#pgLanggan').value || null;
   sibuk(true,'Menyimpan…');
   await db.collection('pengguna').doc(id).set(d,{merge:true});
   sibuk(false); tutupModal(); halAdmin(); toast('Pengguna dikemas kini','jaya');
