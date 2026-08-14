@@ -10,7 +10,7 @@ const S = {
   sekolah: null,       // dok sekolah/{sid}
   sid: null,
   peranan: 'guru',     // pemilik | admin | guru
-  kelas: [], subjek: [], jadual: [], dskp: [], buku: [], takwim: null,
+  kelas: [], subjek: [], jadual: [], dskp: [], dskpAda: false, buku: [], takwim: null, logo: '',
   rph: [],             // cache RPH pengguna
   hal: 'dashboard',
   editRphId: null

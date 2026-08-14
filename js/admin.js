@@ -85,7 +85,7 @@ function formSekolah(id){
       <label class="fld"><span>Status</span><select id="sk_aktif"><option value="ya">Aktif</option><option value="tidak">Nyahaktif</option></select></label>
     </div>
     <label class="fld"><span>Alamat</span><input id="sk_alamat"></label>
-    <label class="fld"><span>URL logo <em>(pilihan, untuk kepala cetakan)</em></span><input id="sk_logo" placeholder="https://…"></label>`,
+    <label class="fld"><span>URL logo <em>(pilihan — atau muat naik terus di Tetapan)</em></span><input id="sk_logo" placeholder="https://…"></label>`,
     `<button class="btn" onclick="tutupModal()">Batal</button><button class="btn btn-primary" onclick="simpanSekolah('${id||''}')">Simpan</button>`);
   isi();
 }

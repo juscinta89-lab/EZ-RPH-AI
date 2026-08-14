@@ -61,6 +61,7 @@ auth.onAuthStateChanged(async user => {
 
     $('#bootMsg').textContent = 'Memuatkan data sekolah…';
     await muatData();
+    muatLogo();
     tunjuk('#app'); binaMenu(); papar(); pergi('dashboard');
 
   }catch(e){

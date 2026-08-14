@@ -5,20 +5,21 @@ function rujuk(sub){ return db.collection('sekolah').doc(S.sid).collection(sub);
 async function muatData(){
   if(!S.sid) return;
   const tahun = new Date().getFullYear();
-  const [k, sj, jd, dk, bk, tw] = await Promise.all([
+  const [k, sj, jd, bk, tw, ada] = await Promise.all([
     rujuk('kelas').get(),
     rujuk('subjek').get(),
     rujuk('jadual').doc(S.user.email).get(),
-    rujuk('dskp').get(),
     rujuk('buku').get(),
-    rujuk('takwim').doc(String(tahun)).get()
+    rujuk('takwim').doc(String(tahun)).get(),
+    rujuk('dskp').limit(1).get()
   ]);
+  S.dskpAda = !ada.empty;
   S.kelas  = k.docs.map(d => ({id:d.id, ...d.data()})).sort((a,b)=> (a.nama||'').localeCompare(b.nama||''));
   S.subjek = sj.docs.map(d => ({id:d.id, ...d.data()})).sort((a,b)=> (a.nama||'').localeCompare(b.nama||''));
   S.jadual = jd.exists ? (jd.data().slot || []) : [];
-  S.dskp   = dk.docs.map(d => ({id:d.id, ...d.data()}));
   S.buku   = bk.docs.map(d => ({id:d.id, ...d.data()}));
   S.takwim = tw.exists ? tw.data() : null;
+  await muatDskpJadual();
   await muatRph();
 }
 
@@ -27,6 +28,26 @@ async function muatRph(){
   q = (S.peranan === 'guru') ? q.where('emel','==',S.user.email) : q;
   const snap = await q.get();
   S.rph = snap.docs.map(d => ({id:d.id, ...d.data()})).sort((a,b)=> (b.tarikh||'').localeCompare(a.tarikh||''));
+}
+
+/* ---------- DSKP dimuat mengikut keperluan (koleksi boleh sangat besar) ---------- */
+async function muatDskpJadual(){
+  const subj = [...new Set(S.jadual.map(x => x.subjek).filter(Boolean))];
+  S.dskp = [];
+  for(let i=0;i<subj.length;i+=10){
+    const q = await rujuk('dskp').where('subjek','in', subj.slice(i,i+10)).limit(3000).get();
+    S.dskp.push(...q.docs.map(d => ({id:d.id, ...d.data()})));
+  }
+}
+async function muatDskpSubjek(subjek, tahun){
+  if(!subjek) return [];
+  let q = rujuk('dskp').where('subjek','==',subjek);
+  if(tahun) q = q.where('tahun','==',tahun);
+  const snap = await q.limit(1500).get();
+  const hasil = snap.docs.map(d => ({id:d.id, ...d.data()}));
+  const idAda = new Set(S.dskp.map(x=>x.id));
+  hasil.forEach(x => { if(!idAda.has(x.id)) S.dskp.push(x); });   // cache untuk AI & semakan
+  return hasil;
 }
 
 /* ---------- Minggu persekolahan ---------- */
@@ -56,6 +77,62 @@ function cutiPada(iso){
   if(!S.takwim) return null;
   return (S.takwim.cuti || []).find(c => iso >= c.mula && iso <= c.tamat) || null;
 }
+
+/* ---------- Imej: kecilkan dalam browser, simpan sebagai base64 ---------- */
+/* Tiada Firebase Storage — kekal pelan Spark. Imej dikecilkan supaya jauh di bawah
+   had 1 MB satu dokumen Firestore, dan dicache dalam peranti. */
+function kecilkanImej(fail, maksPx, kualiti){
+  return new Promise((selesai, gagal) => {
+    const r = new FileReader();
+    r.onerror = () => gagal(new Error('Gagal membaca fail'));
+    r.onload = () => {
+      const img = new Image();
+      img.onerror = () => gagal(new Error('Fail imej tidak sah'));
+      img.onload = () => {
+        const skala = Math.min(1, maksPx / Math.max(img.width, img.height));
+        const w = Math.round(img.width * skala), h = Math.round(img.height * skala);
+        const c = document.createElement('canvas'); c.width = w; c.height = h;
+        const ctx = c.getContext('2d');
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, w, h);
+        // PNG kekalkan latar telus; selain itu JPEG lebih kecil
+        const png = /png|webp/i.test(fail.type);
+        selesai(c.toDataURL(png ? 'image/png' : 'image/jpeg', kualiti || 0.85));
+      };
+      img.src = r.result;
+    };
+    r.readAsDataURL(fail);
+  });
+}
+function saizBase64(d){ return Math.round((d.length * 3 / 4) / 1024); }   // KB
+
+/* Logo sekolah — dikongsi semua guru, disimpan sekali dalam Firestore */
+async function muatLogo(){
+  if(!S.sid) return;
+  const cacheKey = 'erph_logo_' + S.sid;
+  const cache = localStorage.getItem(cacheKey);
+  if(cache){ S.logo = cache; return; }
+  try{
+    const d = await rujuk('tetapan').doc('logo').get();
+    if(d.exists && d.data().data){
+      S.logo = d.data().data;
+      try{ localStorage.setItem(cacheKey, S.logo); }catch(e){}
+    }
+  }catch(e){}
+}
+async function simpanLogo(dataUrl){
+  S.logo = dataUrl;
+  try{ localStorage.setItem('erph_logo_' + S.sid, dataUrl); }catch(e){}
+  await rujuk('tetapan').doc('logo').set({ data:dataUrl, dikemas:Date.now(), oleh:S.user.email });
+}
+async function padamLogo(){
+  S.logo = '';
+  localStorage.removeItem('erph_logo_' + S.sid);
+  await rujuk('tetapan').doc('logo').delete().catch(()=>{});
+}
+
+/* Tandatangan guru — peribadi, simpan dalam peranti sahaja */
+function tandatanganSaya(){ return localStorage.getItem('erph_ttd_' + S.user.email) || ''; }
 
 /* ---------- Helper CSV ---------- */
 function parseCSV(teks){
@@ -171,7 +248,7 @@ function kadWizard(){
     ['Subjek', S.subjek.length > 0, 'subjek'],
     ['Jadual waktu', S.jadual.length > 0, 'jadual'],
     ['Takwim persekolahan', !!S.takwim, 'takwim'],
-    ['DSKP', S.dskp.length > 0, 'dskp'],
+    ['DSKP', !!S.dskpAda, 'dskp'],
     ['Buku teks (pilihan)', S.buku.length > 0, 'buku']
   ];
   const siap = langkah.filter(l => l[1]).length;
@@ -466,40 +543,50 @@ function importCuti(){
 }
 
 /* ================= DSKP ================= */
+let dskpHasil = [];
 function halDskp(){
-  const subjekUnik = [...new Set(S.dskp.map(d => d.subjek))].sort();
+  const sjJadual = [...new Set(S.jadual.map(x=>x.subjek).filter(Boolean))];
+  const senaraiSubjek = [...new Set([...sjJadual, ...S.subjek.map(x=>x.nama)])].sort();
   $('#kandungan').innerHTML = `
-    <div class="toolbar">
-      <input id="dsCari" placeholder="Cari SK, SP atau tajuk…" oninput="lukisDskp()">
-      <select id="dsSubjek" onchange="lukisDskp()"><option value="">Semua subjek</option>
-        ${subjekUnik.map(s=>`<option>${esc(s)}</option>`).join('')}</select>
-      <button class="btn btn-primary" onclick="formDskp()">+ Tambah</button>
-      <button class="btn" onclick="importDskp()">📥 Import Excel/CSV</button>
-      <button class="btn" onclick="templatExcel('templat-dskp.xlsx',TEMPLAT.dskp)">⬇️ Templat</button>
+    <div class="kad">
+      <div class="kad-h"><h3>Cari DSKP</h3><small>${S.dskpAda ? 'Pangkalan data tersedia' : 'Pangkalan data kosong'}</small></div>
+      <div class="toolbar" style="margin:0">
+        <select id="dsSubjek"><option value="">— Pilih subjek —</option>
+          ${senaraiSubjek.map(x=>`<option ${sjJadual.includes(x)?'selected':''}>${esc(x)}</option>`).join('')}</select>
+        <select id="dsTahun"><option value="">Semua tahun</option>
+          ${['Prasekolah','Tahun 1','Tahun 2','Tahun 3','Tahun 4','Tahun 5','Tahun 6'].map(x=>`<option>${x}</option>`).join('')}</select>
+        <button class="btn btn-primary" onclick="cariDskp()">Papar</button>
+      </div>
+      <div class="toolbar" style="margin:12px 0 0">
+        <input id="dsCari" placeholder="Tapis SK, SP atau tajuk…" oninput="lukisDskp()">
+        <button class="btn" onclick="formDskp()">+ Tambah</button>
+        <button class="btn" onclick="importDskp()">📥 Import Excel/CSV</button>
+        <button class="btn" onclick="templatExcel('templat-dskp.xlsx',TEMPLAT.dskp)">⬇️ Templat</button>
+      </div>
     </div>
-    <div class="kad" style="margin-bottom:14px">
-      <p style="font-size:12.5px;color:var(--teks-2)">Format CSV DSKP (baris pertama diabaikan jika ia tajuk):<br>
-      <code>tahun,subjek,bidang,tajuk,kod_sk,standard_kandungan,kod_sp,standard_pembelajaran,tp</code></p>
-    </div>
-    <div id="dsSenarai"></div>`;
-  lukisDskp();
+    <div id="dsSenarai"><div class="kosong"><b>Pilih subjek untuk mula</b>DSKP dimuat mengikut subjek supaya app kekal pantas walaupun ada puluhan ribu rekod.</div></div>`;
+}
+async function cariDskp(){
+  const sj = $('#dsSubjek').value, th = $('#dsTahun').value;
+  if(!sj) return toast('Pilih subjek dahulu','salah');
+  sibuk(true,'Memuatkan DSKP…');
+  dskpHasil = await muatDskpSubjek(sj, th);
+  sibuk(false); lukisDskp();
+  if(!dskpHasil.length) toast('Tiada rekod untuk pilihan ini','salah');
 }
 function lukisDskp(){
   const q = ($('#dsCari')?.value || '').toLowerCase();
-  const sj = $('#dsSubjek')?.value || '';
-  const hasil = S.dskp.filter(d =>
-    (!sj || d.subjek === sj) &&
-    (!q || JSON.stringify(d).toLowerCase().includes(q)));
+  const hasil = dskpHasil.filter(d => !q || JSON.stringify(d).toLowerCase().includes(q));
   $('#dsSenarai').innerHTML = hasil.length ? `<div class="senarai">${hasil.slice(0,300).map(d => `
     <div class="baris"><div class="baris-t">
-      <b>${esc(d.kodSp||d.kodSk||'—')} · ${esc(d.sp||d.sk||'')}</b>
+      <b>${esc(d.kodSp||d.kodSk||'—')} ${esc((d.sp||d.sk||'').slice(0,120))}</b>
       <small>${esc(d.subjek)} ${esc(d.tahun)} · ${esc(d.bidang||'')} ${d.tajuk?'· '+esc(d.tajuk):''}</small></div>
       <button class="btn btn-sm" onclick="formDskp('${d.id}')">Edit</button>
       <button class="btn btn-sm btn-danger" onclick="hapusItem('dskp','${d.id}')">✕</button></div>`).join('')}
     ${hasil.length>300?'<p style="text-align:center;color:var(--teks-3);font-size:12px;padding:10px">Menunjukkan 300 daripada '+hasil.length+' rekod</p>':''}</div>`
-    : `<div class="kosong"><b>Tiada rekod DSKP</b>Import CSV DSKP atau tambah Standard Pembelajaran secara manual.<br>
-       <small>AI tidak akan mencipta Standard Pembelajaran sendiri.</small></div>`;
+    : `<div class="kosong"><b>Tiada rekod dipaparkan</b>Pilih subjek dan tekan Papar, atau import fail DSKP.</div>`;
 }
+
 function formDskp(id){
   const d = S.dskp.find(x => x.id === id) || {};
   modal(id?'Edit DSKP':'Tambah DSKP', `
@@ -531,20 +618,54 @@ async function simpanDskp(id){
   await muatData(); sibuk(false); tutupModal(); pergi('dskp'); toast('DSKP disimpan','jaya');
 }
 function importDskp(){
-  pilihFail('.csv,.txt', async teks => {
+  pilihFail('.csv,.txt', teks => {
     let rows = parseCSV(teks);
     if(rows[0] && /tahun/i.test(rows[0][0])) rows = rows.slice(1);
-    rows = rows.filter(r => r.length >= 8 && r[1]);
+    rows = rows.filter(r => r.length >= 8 && r[1] && r[7]);
     if(!rows.length) return toast('Tiada baris sah dijumpai','salah');
-    sibuk(true,'Mengimport '+rows.length+' rekod…');
-    for(let i=0;i<rows.length;i+=400){
-      const b = db.batch();
-      rows.slice(i,i+400).forEach(r => b.set(rujuk('dskp').doc(), {
-        tahun:r[0], subjek:r[1], bidang:r[2], tajuk:r[3], kodSk:r[4], sk:r[5], kodSp:r[6], sp:r[7], tp:r[8]||'' }));
-      await b.commit();
-    }
-    await muatData(); sibuk(false); pergi('dskp'); toast(rows.length+' rekod DSKP diimport','jaya');
+    window._dskpRows = rows;
+    const kira = {};
+    rows.forEach(r => kira[r[1]] = (kira[r[1]]||0) + 1);
+    const senarai = Object.entries(kira).sort((a,b)=> b[1]-a[1]);
+    const guna = new Set(S.jadual.map(x=>x.subjek));
+    modal('Pilih subjek untuk diimport', `
+      <p style="font-size:13px;color:var(--teks-2);margin-bottom:12px">
+        Fail ini ada <b>${rows.length}</b> baris daripada <b>${senarai.length}</b> subjek.
+        Import subjek yang diajar di sekolah anda sahaja — setiap baris jadi satu dokumen Firestore.</p>
+      <div class="toolbar" style="margin-bottom:10px">
+        <button class="btn btn-sm" onclick="tandaSubjek(true)">Tanda semua</button>
+        <button class="btn btn-sm" onclick="tandaSubjek(false)">Buang semua</button></div>
+      <div style="max-height:44vh;overflow:auto">${senarai.map(([nama,n],i)=>`
+        <label style="display:flex;gap:9px;align-items:center;padding:7px 4px;border-bottom:1px solid var(--garis);font-size:13.5px">
+          <input type="checkbox" class="dsPilih" value="${esc(nama)}" ${guna.has(nama)?'checked':''} style="width:auto">
+          <span style="flex:1">${esc(nama)}</span>
+          <span class="pil kelabu">${n}</span></label>`).join('')}</div>
+      <p id="dsKiraan" style="margin-top:10px;font-size:12.5px;color:var(--teks-3)"></p>`,
+      `<button class="btn" onclick="tutupModal()">Batal</button>
+       <button class="btn btn-primary" onclick="jalankanImportDskp()">Import subjek dipilih</button>`);
   });
+}
+function tandaSubjek(on){ $$('.dsPilih').forEach(c => c.checked = on); }
+
+async function jalankanImportDskp(){
+  const pilih = new Set($$('.dsPilih').filter(c => c.checked).map(c => c.value));
+  if(!pilih.size) return toast('Tanda sekurang-kurangnya satu subjek','salah');
+  const rows = (window._dskpRows||[]).filter(r => pilih.has(r[1]));
+  if(!rows.length) return toast('Tiada baris untuk subjek dipilih','salah');
+  tutupModal();
+  if(rows.length > 8000 && !confirm(rows.length+' rekod akan ditulis ke Firestore. Ini mungkin mengambil masa dan menggunakan kuota harian. Teruskan?')) return;
+  let siap = 0;
+  for(let i=0;i<rows.length;i+=400){
+    sibuk(true,`Mengimport ${siap}/${rows.length} rekod…`);
+    const b = db.batch();
+    rows.slice(i,i+400).forEach(r => b.set(rujuk('dskp').doc(), {
+      tahun:(r[0]||'').trim(), subjek:(r[1]||'').trim(), bidang:(r[2]||'').trim(), tajuk:(r[3]||'').trim(),
+      kodSk:(r[4]||'').trim(), sk:(r[5]||'').trim(), kodSp:(r[6]||'').trim(), sp:(r[7]||'').trim(), tp:(r[8]||'').trim() }));
+    await b.commit(); siap += Math.min(400, rows.length - i);
+  }
+  S.dskpAda = true;
+  await muatDskpJadual(); sibuk(false); pergi('dskp');
+  toast(rows.length+' rekod DSKP diimport','jaya');
 }
 
 /* ================= BUKU TEKS ================= */
@@ -726,6 +847,31 @@ function halTetapan(){
     </div>
 
     <div class="kad">
+      <div class="kad-h"><h3>Logo & tandatangan</h3><small>Untuk kepala cetakan RPH</small></div>
+      <div class="grid2">
+        <div>
+          <span class="fld"><span style="display:block;font-size:12.5px;font-weight:600;color:var(--teks-2);margin-bottom:6px">Logo sekolah ${['pemilik','admin'].includes(S.peranan)?'':'<em style="font-weight:400;color:var(--teks-3)">(admin sahaja)</em>'}</span></span>
+          <div style="border:1px dashed var(--garis);border-radius:var(--r-sm);padding:14px;text-align:center;background:var(--bg);min-height:96px;display:grid;place-content:center">
+            ${S.logo ? `<img src="${S.logo}" style="max-height:70px;max-width:100%">` : '<span style="color:var(--teks-3);font-size:12.5px">Belum ada logo</span>'}
+          </div>
+          ${['pemilik','admin'].includes(S.peranan) ? `<div class="toolbar" style="margin:10px 0 0">
+            <button class="btn btn-sm" onclick="pilihLogo()">Muat naik logo</button>
+            ${S.logo?`<button class="btn btn-sm btn-danger" onclick="buangLogo()">Buang</button>`:''}</div>` : ''}
+        </div>
+        <div>
+          <span class="fld"><span style="display:block;font-size:12.5px;font-weight:600;color:var(--teks-2);margin-bottom:6px">Tandatangan digital <em style="font-weight:400;color:var(--teks-3)">(peranti ini sahaja)</em></span></span>
+          <div style="border:1px dashed var(--garis);border-radius:var(--r-sm);padding:14px;text-align:center;background:var(--bg);min-height:96px;display:grid;place-content:center">
+            ${tandatanganSaya() ? `<img src="${tandatanganSaya()}" style="max-height:60px;max-width:100%">` : '<span style="color:var(--teks-3);font-size:12.5px">Belum ada tandatangan</span>'}
+          </div>
+          <div class="toolbar" style="margin:10px 0 0">
+            <button class="btn btn-sm" onclick="pilihTtd()">Muat naik</button>
+            ${tandatanganSaya()?`<button class="btn btn-sm btn-danger" onclick="buangTtd()">Buang</button>`:''}</div>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--teks-3);margin-top:12px">Imej dikecilkan automatik dalam pelayar sebelum disimpan — tiada Firebase Storage diperlukan, jadi projek kekal pada pelan Spark percuma.</p>
+    </div>
+
+    <div class="kad">
       <div class="kad-h"><h3>Enjin AI</h3><small>Kunci disimpan dalam peranti ini sahaja</small></div>
       <label class="fld"><span>Penyedia</span><select id="aiProv" onchange="tukarProv()">
         <option value="gemini" ${ai.prov==='gemini'?'selected':''}>Google Gemini</option>
@@ -752,6 +898,42 @@ function halTetapan(){
       </div>
     </div>`;
 }
+function pilihImej(fn){
+  const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*';
+  i.onchange = () => { const f = i.files[0]; if(f) fn(f); };
+  i.click();
+}
+function pilihLogo(){
+  pilihImej(async f => {
+    sibuk(true,'Memproses logo…');
+    try{
+      let d = await kecilkanImej(f, 400, 0.9);
+      if(saizBase64(d) > 300) d = await kecilkanImej(f, 260, 0.8);
+      if(saizBase64(d) > 700){ sibuk(false); return toast('Imej terlalu besar. Cuba fail lain.','salah'); }
+      await simpanLogo(d);
+      sibuk(false); pergi('tetapan'); toast('Logo disimpan ('+saizBase64(d)+' KB)','jaya');
+    }catch(e){ sibuk(false); toast(e.message,'salah'); }
+  });
+}
+function buangLogo(){
+  sahkan('Buang logo sekolah? Semua guru akan terkesan.', async () => {
+    sibuk(true,'Membuang…'); await padamLogo(); sibuk(false); pergi('tetapan'); toast('Logo dibuang');
+  });
+}
+function pilihTtd(){
+  pilihImej(async f => {
+    sibuk(true,'Memproses tandatangan…');
+    try{
+      const d = await kecilkanImej(f, 320, 0.85);
+      localStorage.setItem('erph_ttd_' + S.user.email, d);
+      sibuk(false); pergi('tetapan'); toast('Tandatangan disimpan dalam peranti ini','jaya');
+    }catch(e){ sibuk(false); toast(e.message,'salah'); }
+  });
+}
+function buangTtd(){
+  localStorage.removeItem('erph_ttd_' + S.user.email); pergi('tetapan'); toast('Tandatangan dibuang');
+}
+
 async function simpanProfil(){
   const d = { nama:$('#ptNama').value.trim(), jawatan:$('#ptJawatan').value.trim(),
               opsyen:$('#ptOpsyen').value.trim(), pengesah:$('#ptPengesah').value.trim() };

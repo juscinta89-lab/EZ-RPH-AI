@@ -346,9 +346,12 @@ async function buatSalinan(){
   sibuk(true,'Menyalin…'); const ref = await rujuk('rph').add(baru);
   await muatRph(); sibuk(false); tutupModal(); bukaRph(ref.id); toast('RPH disalin','jaya');
 }
-function pilihSpDb(){
-  const r = S.rph.find(x => x.id === S.editRphId);
-  const d = kontekDskp($('#eSubjek').value, '');
+async function pilihSpDb(){
+  const subjek = $('#eSubjek').value;
+  if(!kontekDskp(subjek,'').length){
+    sibuk(true,'Memuatkan DSKP…'); await muatDskpSubjek(subjek, ''); sibuk(false);
+  }
+  const d = kontekDskp(subjek, '');
   window._spList = d;
   modal('Pilih Standard Pembelajaran', d.length
     ? `<input placeholder="Cari…" oninput="tapisSp(this.value)" style="margin-bottom:10px">
@@ -455,7 +458,7 @@ function htmlRph(r){
   const temaTajuk = [r.tema, r.tajuk].map(x=>(x||'').trim()).filter(Boolean).join(' · ') || '-';
   return `
   <div class="cetak-h">
-    ${S.sekolah?.logo ? `<img src="${esc(S.sekolah.logo)}">` : ''}
+    ${(S.logo || S.sekolah?.logo) ? `<img src="${S.logo || esc(S.sekolah.logo)}">` : ''}
     <div><b>${esc((S.sekolah?.nama||'').toUpperCase())}</b><br>
     <span>${esc(S.sekolah?.alamat||'')}${S.sekolah?.kod?' · '+esc(S.sekolah.kod):''}</span></div>
   </div>
@@ -480,8 +483,9 @@ function htmlRph(r){
     <tr><th>Refleksi</th><td colspan="3">${esc(r.refleksi||'')}</td></tr>
   </table>
   <div class="tandatangan">
-    <div>Disediakan oleh:<br><br>${esc(S.profil.nama||'')}<br>${esc(S.profil.jawatan||'Guru')}</div>
-    <div>Disemak oleh:<br><br>${esc(S.profil.pengesah||'')}</div>
+    <div>Disediakan oleh:${tandatanganSaya() ? `<br><img src="${tandatanganSaya()}" class="ttd">` : '<br><br>'}
+      <br>${esc(S.profil.nama||'')}<br>${esc(S.profil.jawatan||'Guru')}</div>
+    <div>Disemak oleh:<br><br><br>${esc(S.profil.pengesah||'')}</div>
   </div>`;
 }
 
@@ -529,7 +533,7 @@ function halLaporan(){
       <div class="stat b"><b>${S.rph.length}</b><small>Jumlah RPH</small></div>
       <div class="stat h"><b>${S.rph.filter(r=>r.status==='lengkap').length}</b><small>Lengkap</small></div>
       <div class="stat k"><b>${S.rph.filter(r=>r.status==='draf').length}</b><small>Draf</small></div>
-      <div class="stat"><b>${spSemua.length ? Math.round((spSemua.length-spBelum.length)/spSemua.length*100) : 0}%</b><small>Liputan DSKP</small></div>
+      <div class="stat"><b>${spSemua.length ? Math.round((spSemua.length-spBelum.length)/spSemua.length*100) : 0}%</b><small>Liputan DSKP (subjek anda)</small></div>
     </div>
 
     <div class="kad"><div class="kad-h"><h3>RPH mengikut minggu</h3></div>

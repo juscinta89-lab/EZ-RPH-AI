@@ -84,7 +84,19 @@ Takwim → Minggu persekolahan → Jadual waktu → Kelas + Subjek → DSKP → 
 
 Lihat `contoh-dskp.csv` dan `contoh-cuti.csv`.
 
-## 7. Nota penting
+## 7. Logo & tandatangan (tiada Firebase Storage)
+
+Projek kekal pada **pelan Spark percuma** — Cloud Storage tidak digunakan langsung.
+
+- **Logo sekolah** — Tetapan → Muat naik logo. Imej dikecilkan dalam pelayar (maks 400px, ~50 KB)
+  dan disimpan sebagai base64 dalam `sekolah/{sid}/tetapan/logo`. Dikongsi semua guru,
+  dicache dalam `localStorage` supaya tidak dibaca berulang kali. Admin/pemilik sahaja boleh tukar.
+- **Tandatangan digital** — peribadi, disimpan dalam `localStorage` peranti itu sahaja
+  (kunci `erph_ttd_{emel}`). Tidak dihantar ke Firestore.
+
+Had dokumen Firestore ialah 1 MB; logo terkecil jauh di bawah had itu.
+
+## 8. Nota penting
 
 - AI **tidak** mencipta Standard Pembelajaran sendiri. Jika DSKP tiada dalam pangkalan data, sistem akan tandakan amaran dan minta guru masukkan sumber rasmi.
 - Semakan kualiti (%) adalah bantuan sistem, **bukan** pengesahan rasmi KPM.
@@ -103,7 +115,7 @@ sekolah/{sid}/rph/{id}
 sekolah/{sid}/rph/{id}/versi/{vid}    sejarah versi
 ```
 
-## 8. Kemas kini versi
+## 9. Kemas kini versi
 
 Selepas upload fail baharu, tukar `const CACHE = 'erph-v1'` dalam `sw.js` kepada `erph-v2`
 supaya service worker muat semula fail terkini. Pengguna juga boleh tekan
