@@ -731,6 +731,70 @@ async function jalankanImportRpt(){
   }catch(e){ sibuk(false); toast('Gagal: '+e.message,'salah'); }
 }
 
+/* ================= BUKU TEKS ================= */
+function halBuku(){
+  $('#kandungan').innerHTML = `
+    <div class="toolbar"><button class="btn btn-primary" onclick="formBuku()">+ Tambah bab/unit</button>
+      <button class="btn btn-ungu" onclick="formPdfBuku()">📄 Import PDF buku teks</button>
+      <button class="btn" onclick="importBuku()">📥 Import Excel/CSV</button>
+      <button class="btn" onclick="templatExcel('templat-bukuteks.xlsx',TEMPLAT.buku)">⬇️ Templat</button></div>
+    <div class="kad" style="margin-bottom:14px"><p style="font-size:12.5px;color:var(--teks-2)">
+      Format: <code>tahun,subjek,buku,bab,unit,tajuk,kandungan</code><br>
+      Masukkan hanya bahan yang anda ada hak untuk gunakan. AI hanya merujuk kandungan yang dimasukkan di sini.</p></div>
+    <div class="senarai">${S.buku.length ? S.buku.map(b => `
+      <div class="baris"><div class="baris-t"><b>${esc(b.tajuk||b.unit||'—')}</b>
+        <small>${esc(b.subjek)} ${esc(b.tahun)} · ${esc(b.buku||'')} ${b.bab?'· Bab '+esc(b.bab):''} ${b.unit?'· '+esc(b.unit):''}</small></div>
+        ${b.pautan?`<a class="btn btn-sm" href="${esc(b.pautan)}" target="_blank" rel="noopener">🔗</a>`:''}
+        <button class="btn btn-sm" onclick="formBuku('${b.id}')">Edit</button>
+        <button class="btn btn-sm btn-danger" onclick="hapusItem('buku','${b.id}')">✕</button></div>`).join('')
+      : `<div class="kosong"><b>Belum ada rujukan buku teks</b>Tambah bab/unit supaya AI boleh merujuk kandungan sebenar.</div>`}
+    </div>`;
+}
+function formBuku(id){
+  const b = S.buku.find(x => x.id === id) || {};
+  modal(id?'Edit rujukan':'Tambah rujukan buku teks', `
+    <div class="grid2">
+      <label class="fld"><span>Tahun / Tingkatan</span><input id="fbTahun" value="${esc(b.tahun||'')}"></label>
+      <label class="fld"><span>Subjek</span><input id="fbSubjek" value="${esc(b.subjek||'')}" list="lsSubjek2">
+        <datalist id="lsSubjek2">${S.subjek.map(s=>`<option>${esc(s.nama)}</option>`).join('')}</datalist></label>
+    </div>
+    <div class="grid3">
+      <label class="fld"><span>Buku</span><input id="fbBuku" value="${esc(b.buku||'')}"></label>
+      <label class="fld"><span>Bab</span><input id="fbBab" value="${esc(b.bab||'')}"></label>
+      <label class="fld"><span>Unit</span><input id="fbUnit" value="${esc(b.unit||'')}"></label>
+    </div>
+    <label class="fld"><span>Tajuk</span><input id="fbTajuk" value="${esc(b.tajuk||'')}"></label>
+    <label class="fld"><span>Pautan rujukan <em>(pilihan — buku teks digital, video, bahan)</em></span>
+      <input id="fbPautan" value="${esc(b.pautan||'')}" placeholder="https://…"></label>
+    <label class="fld"><span>Ringkasan kandungan</span><textarea id="fbIsi" placeholder="Isi pelajaran, aktiviti dalam buku, latihan…">${esc(b.kandungan||'')}</textarea></label>`,
+    `<button class="btn" onclick="tutupModal()">Batal</button><button class="btn btn-primary" onclick="simpanBuku('${id||''}')">Simpan</button>`);
+}
+async function simpanBuku(id){
+  const d = { tahun:$('#fbTahun').value.trim(), subjek:$('#fbSubjek').value.trim(), buku:$('#fbBuku').value.trim(),
+    bab:$('#fbBab').value.trim(), unit:$('#fbUnit').value.trim(), tajuk:$('#fbTajuk').value.trim(),
+    pautan:$('#fbPautan').value.trim(), kandungan:$('#fbIsi').value.trim() };
+  if(!d.subjek) return toast('Subjek diperlukan','salah');
+  sibuk(true,'Menyimpan…');
+  id ? await rujuk('buku').doc(id).update(d) : await rujuk('buku').add(d);
+  await muatData(); sibuk(false); tutupModal(); pergi('buku'); toast('Rujukan disimpan','jaya');
+}
+function importBuku(){
+  pilihFail('.csv,.txt', async teks => {
+    let rows = parseCSV(teks);
+    if(rows[0] && /tahun/i.test(rows[0][0])) rows = rows.slice(1);
+    rows = rows.filter(r => r.length >= 6 && r[1]);
+    if(!rows.length) return toast('Tiada baris sah dijumpai','salah');
+    sibuk(true,'Mengimport…');
+    for(let i=0;i<rows.length;i+=400){
+      const b = db.batch();
+      rows.slice(i,i+400).forEach(r => b.set(rujuk('buku').doc(), {
+        tahun:r[0], subjek:r[1], buku:r[2], bab:r[3], unit:r[4], tajuk:r[5], kandungan:r[6]||'' }));
+      await b.commit();
+    }
+    await muatData(); sibuk(false); pergi('buku'); toast(rows.length+' rekod diimport','jaya');
+  });
+}
+
 /* ---------- Import PDF buku teks ---------- */
 function formPdfBuku(){
   modal('Import PDF buku teks', `
