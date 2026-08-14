@@ -20,6 +20,7 @@ function halRph(){
       <select id="rSubjek" onchange="lukisRph()"><option value="">Semua subjek</option>
         ${[...new Set(S.rph.map(r=>r.subjek))].map(s=>`<option>${esc(s)}</option>`).join('')}</select>
       <button class="btn btn-primary" onclick="pergi('jana')">✨ Jana baharu</button>
+      <button class="btn btn-ungu" onclick="cetakMingguModal()">🖨️ Cetak seminggu</button>
       <button class="btn" onclick="cetakTapisan()">🖨️ Cetak hasil tapisan</button>
     </div>
     <div id="rSenarai"></div>`;
@@ -537,7 +538,7 @@ function pecahAktiviti(html){
   return { starter: '', utama: t };
 }
 
-function htmlRph(r){
+function htmlRph(r, tunjukSemakan){
   const p = v => esc(String(v||'').trim() || '-');
   const tempoh = r.tempoh || minit(r.mula, r.tamat);
   const kelasInfo = S.kelas.find(k => norma(k.nama) === norma(r.kelas));
@@ -618,13 +619,14 @@ function htmlRph(r){
     <tr><td>${p(r.pemulihan)}</td><td>${p(r.pengayaan)}</td></tr>
   </table>
 
+  ${tunjukSemakan === false ? '' : `
   <table class="lp-tbl lp-semakan">
     <colgroup><col style="width:26mm"><col><col style="width:60mm"></colgroup>
     <tr><th class="lp-sub2">SEMAKAN</th>
       <td>Disediakan oleh:${tandatanganSaya() ? `<br><img src="${tandatanganSaya()}" class="ttd">` : '<br><br><br>'}
         <b>${esc(S.profil.nama||'')}</b><br>${esc(S.profil.jawatan||'Guru')}</td>
       <td>Disemak oleh:<br><br><br><b>${esc(S.profil.pengesah||'')}</b></td></tr>
-  </table>`;
+  </table>`}`;
 }
 
 function keluarkanCetak(html){
@@ -639,12 +641,107 @@ function cetakRph(){
   keluarkanCetak(htmlRph(r));
 }
 
-/* Cetak banyak RPH — satu RPH satu muka surat */
+/* Cetak banyak RPH — satu RPH satu muka surat.
+   Kotak SEMAKAN hanya pada RPH terakhir bagi setiap hari. */
 function cetakBanyak(senarai){
   if(!senarai.length) return toast('Tiada RPH untuk dicetak','salah');
-  keluarkanCetak(senarai.map((r,i) =>
-    `<div style="${i ? 'page-break-before:always;' : ''}">${htmlRph(r)}</div>`).join(''));
+  const susun = [...senarai].sort((a,b)=> (a.tarikh+(a.mula||'')).localeCompare(b.tarikh+(b.mula||'')));
+  const akhirHari = {};
+  susun.forEach((r,i) => akhirHari[r.tarikh] = i);          // indeks terakhir setiap tarikh
+  keluarkanCetak(susun.map((r,i) =>
+    `<div style="${i ? 'page-break-before:always;' : ''}">${htmlRph(r, akhirHari[r.tarikh] === i)}</div>`).join(''));
 }
+function halCetak(){
+  const minggu = janaMinggu(S.takwim).filter(m => m.no);
+  const hariIni = tarikhISO();
+  const mggIni = minggu.find(m => hariIni >= m.mula && hariIni <= m.tamat);
+  const rphHariIni = S.rph.filter(r => r.tarikh === hariIni);
+  $('#kandungan').innerHTML = `
+    <div class="stat-grid">
+      <div class="stat b"><b>${rphHariIni.length}</b><small>RPH hari ini</small></div>
+      <div class="stat h"><b>${mggIni ? S.rph.filter(r=>r.tarikh>=mggIni.mula&&r.tarikh<=mggIni.tamat).length : 0}</b><small>RPH minggu ini</small></div>
+      <div class="stat"><b>${S.rph.length}</b><small>Jumlah RPH</small></div>
+    </div>
+
+    <div class="kad">
+      <div class="kad-h"><h3>Cetak pantas</h3></div>
+      <div class="senarai">
+        <div class="baris"><div class="baris-t"><b>Hari ini</b><small>${tarikhCantik(hariIni)} · ${rphHariIni.length} RPH</small></div>
+          <button class="btn btn-sm btn-primary" onclick="cetakHari('${hariIni}')">🖨️ Cetak</button></div>
+        <div class="baris"><div class="baris-t"><b>Minggu semasa</b>
+          <small>${mggIni ? esc(mggIni.label)+' · '+mggIni.mula+' — '+mggIni.tamat : 'Takwim belum ditetapkan'}</small></div>
+          ${mggIni?`<button class="btn btn-sm btn-primary" onclick="cetakMinggu('${mggIni.mula}')">🖨️ Cetak</button>`:''}</div>
+      </div>
+    </div>
+
+    <div class="kad">
+      <div class="kad-h"><h3>Cetak mengikut minggu</h3><small>Pilih & semak dahulu</small></div>
+      <p style="font-size:13px;color:var(--teks-2);margin-bottom:12px">
+        Satu RPH satu muka surat. Kotak <b>SEMAKAN</b> dicetak sekali sahaja pada RPH terakhir setiap hari —
+        sesuai untuk fail rekod yang disemak pentadbir.</p>
+      <button class="btn btn-primary btn-block" onclick="cetakMingguModal()">🖨️ Pilih minggu untuk dicetak</button>
+    </div>
+
+    <div class="kad">
+      <div class="kad-h"><h3>Tetapan cetakan disyorkan</h3></div>
+      <div class="senarai" style="font-size:13px">
+        <div class="baris"><div class="baris-t"><b>Saiz kertas</b><small>A4 · Portrait</small></div></div>
+        <div class="baris"><div class="baris-t"><b>Margin</b><small>Default · Skala 100%</small></div></div>
+        <div class="baris"><div class="baris-t"><b>Background graphics</b><small>Tandakan — supaya bar kuning & kelabu keluar</small></div></div>
+        <div class="baris"><div class="baris-t"><b>Headers and footers</b><small>Buang tanda — elak URL pada kertas</small></div></div>
+      </div>
+    </div>`;
+}
+
+function cetakMingguModal(){
+  const minggu = janaMinggu(S.takwim).filter(m => m.no);
+  const hariIni = tarikhISO();
+  const mggIni = minggu.find(m => hariIni >= m.mula && hariIni <= m.tamat);
+  if(!minggu.length) return toast('Tetapkan takwim dahulu','salah');
+  modal('Cetak RPH seminggu', `
+    <label class="fld"><span>Minggu persekolahan</span><select id="cmMinggu" onchange="kiraCetakMinggu()">
+      ${minggu.map(m=>`<option value="${m.mula}" ${mggIni&&m.mula===mggIni.mula?'selected':''}>${m.label} (${m.mula} — ${m.tamat})</option>`).join('')}
+    </select></label>
+    <label class="fld"><span>Tapis subjek <em>(pilihan)</em></span>
+      <select id="cmSubjek" onchange="kiraCetakMinggu()"><option value="">Semua subjek</option>
+        ${[...new Set(S.rph.map(r=>r.subjek))].sort().map(x=>`<option>${esc(x)}</option>`).join('')}</select></label>
+    <label class="fld"><span>Status</span>
+      <select id="cmStatus" onchange="kiraCetakMinggu()">
+        <option value="">Lengkap dan draf</option>
+        <option value="lengkap">Lengkap sahaja</option></select></label>
+    <div id="cmKira" class="kad" style="background:var(--bg);padding:12px;margin-top:4px"></div>
+    <p style="font-size:12px;color:var(--teks-3);margin-top:10px">
+      Satu RPH satu muka surat. Kotak <b>SEMAKAN</b> dicetak sekali sahaja pada RPH terakhir setiap hari.</p>`,
+    `<button class="btn" onclick="tutupModal()">Batal</button>
+     <button class="btn btn-primary" onclick="jalankanCetakMinggu()">🖨️ Cetak</button>`);
+  kiraCetakMinggu();
+}
+function senaraiCetakMinggu(){
+  const mula = $('#cmMinggu').value, sj = $('#cmSubjek').value, st = $('#cmStatus').value;
+  const m = janaMinggu(S.takwim).find(w => w.mula === mula);
+  if(!m) return [];
+  return S.rph.filter(r => r.tarikh >= m.mula && r.tarikh <= m.tamat
+      && (!sj || r.subjek === sj) && (!st || r.status === st))
+    .sort((a,b)=> (a.tarikh+(a.mula||'')).localeCompare(b.tarikh+(b.mula||'')));
+}
+function kiraCetakMinggu(){
+  const senarai = senaraiCetakMinggu();
+  const hari = {};
+  senarai.forEach(r => hari[r.tarikh] = (hari[r.tarikh]||0)+1);
+  $('#cmKira').innerHTML = senarai.length
+    ? `<b style="font-size:13.5px">${senarai.length} RPH · ${senarai.length} muka surat</b>
+       <div style="margin-top:8px">${Object.entries(hari).sort().map(([t,n])=>`
+         <div style="display:flex;font-size:12.5px;padding:3px 0;color:var(--teks-2)">
+           <span style="flex:1">${tarikhCantik(t)}</span><span class="pil kelabu">${n} RPH</span></div>`).join('')}</div>`
+    : '<span style="color:var(--merah);font-size:13px">Tiada RPH untuk pilihan ini</span>';
+}
+function jalankanCetakMinggu(){
+  const senarai = senaraiCetakMinggu();
+  if(!senarai.length) return toast('Tiada RPH untuk dicetak','salah');
+  tutupModal();
+  setTimeout(()=> cetakBanyak(senarai), 200);
+}
+
 function cetakHari(iso){
   cetakBanyak(S.rph.filter(r => r.tarikh === iso).sort((a,b)=> (a.mula||'').localeCompare(b.mula||'')));
 }

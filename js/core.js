@@ -65,6 +65,7 @@ const MENU = [
   { id:'buku',      ikon:'📖', nama:'Buku Teks' },
   { id:'takwim',    ikon:'🗓️', nama:'Takwim' },
   { grp:'Lain-lain' },
+  { id:'cetak',     ikon:'🖨️', nama:'Cetak Mingguan' },
   { id:'laporan',   ikon:'📊', nama:'Laporan' },
   { id:'tetapan',   ikon:'⚙️', nama:'Tetapan' },
   { id:'admin',     ikon:'🛡️', nama:'Panel Pentadbir', peranan:['pemilik','admin'] }
@@ -98,6 +99,7 @@ const TAJUK = {
   rpt:['Rancangan Pengajaran Tahunan','Tajuk & standard mengikut minggu persekolahan'],
   buku:['Buku Teks','Rujukan bab & unit buku teks'],
   takwim:['Takwim Persekolahan','Minggu persekolahan & cuti'],
+  cetak:['Cetak Mingguan','Cetak set RPH untuk fail rekod'],
   laporan:['Laporan','Statistik RPH & liputan RPT'],
   tetapan:['Tetapan','Profil, AI dan aplikasi'],
   admin:['Panel Pentadbir','Urus sekolah, guru dan data'],
