@@ -601,6 +601,7 @@ function halRpt(){
         <button class="btn" onclick="formRpt()">+ Tambah baris</button>
         <button class="btn btn-ungu" onclick="importRpt()">📥 Muat naik RPT (Excel)</button>
         <button class="btn" onclick="templatRpt()">⬇️ Templat Excel</button>
+        <button class="btn btn-danger" onclick="padamRptPukal()">🗑️ Padam pukal</button>
       </div>
       <p style="font-size:12px;color:var(--teks-3);margin-top:10px">
         Satu baris untuk satu minggu. Semasa menjana RPH, sistem padankan minggu persekolahan
@@ -678,6 +679,48 @@ async function simpanRpt(id){
   id ? await rujuk('rpt').doc(id).update(d) : await rujuk('rpt').add(d);
   await tandaRptBerubah();
   S.rptAda = true; await muatRpt(); sibuk(false); tutupModal(); pergi('rpt'); toast('Baris RPT disimpan','jaya');
+}
+
+function padamRptPukal(){
+  if(!S.rpt.length) return toast('Tiada RPT untuk dipadam','salah');
+  const kira = {};
+  S.rpt.forEach(r => {
+    const k = (r.subjek||'—') + '|' + (r.tahun||'—');
+    kira[k] = (kira[k]||0) + 1;
+  });
+  const senarai = Object.entries(kira).sort((a,b)=> a[0].localeCompare(b[0]));
+  modal('Padam RPT secara pukal', `
+    <p style="font-size:13px;color:var(--teks-2);margin-bottom:12px">
+      Pilih RPT yang hendak dipadam — sesuai apabila menukar RPT bagi sesi persekolahan baharu.
+      RPH yang telah dijana <b>tidak</b> terjejas.</p>
+    <div class="toolbar" style="margin-bottom:10px">
+      <button class="btn btn-sm" onclick="$$('.rtPadamPilih').forEach(c=>c.checked=true)">Tanda semua</button>
+      <button class="btn btn-sm" onclick="$$('.rtPadamPilih').forEach(c=>c.checked=false)">Buang semua</button></div>
+    <div style="max-height:44vh;overflow:auto">${senarai.map(([k,n])=>{
+      const [sj,th] = k.split('|');
+      return `<label style="display:flex;gap:9px;align-items:center;padding:7px 4px;border-bottom:1px solid var(--garis);font-size:13.5px">
+        <input type="checkbox" class="rtPadamPilih" value="${esc(k)}" style="width:auto">
+        <span style="flex:1">${esc(sj)} <small style="color:var(--teks-3)">· ${esc(th)}</small></span>
+        <span class="pil kelabu">${n} baris</span></label>`;}).join('')}</div>`,
+    `<button class="btn" onclick="tutupModal()">Batal</button>
+     <button class="btn btn-danger" onclick="jalankanPadamRpt()">Padam yang ditanda</button>`);
+}
+async function jalankanPadamRpt(){
+  const pilih = new Set($$('.rtPadamPilih').filter(c => c.checked).map(c => c.value));
+  if(!pilih.size) return toast('Tanda sekurang-kurangnya satu','salah');
+  const sasar = S.rpt.filter(r => pilih.has((r.subjek||'—')+'|'+(r.tahun||'—')));
+  tutupModal();
+  sahkan(sasar.length + ' baris RPT akan dipadam secara kekal. Teruskan?', async () => {
+    let siap = 0;
+    for(let i=0;i<sasar.length;i+=400){
+      sibuk(true,`Memadam ${siap}/${sasar.length}…`);
+      const b = db.batch();
+      sasar.slice(i,i+400).forEach(r => b.delete(rujuk('rpt').doc(r.id)));
+      await b.commit(); siap += Math.min(400, sasar.length - i);
+    }
+    await tandaRptBerubah(); await muatRpt();
+    sibuk(false); pergi('rpt'); toast(sasar.length + ' baris RPT dipadam','jaya');
+  });
 }
 
 function templatRpt(){
