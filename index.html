@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>e-RPH AI — RPH Pintar. PdP Lebih Terancang.</title>
+<meta name="description" content="Sistem AI Pintar Menjana dan Mengurus Rancangan Pengajaran Harian Guru">
+<meta name="theme-color" content="#4a2ae0">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ============ SKRIN MUAT ============ -->
+<div id="boot" class="boot">
+  <img src="icons/icon-192.png" alt="e-RPH AI" class="boot-ikon">
+  <div class="boot-bar"><i></i></div>
+  <p id="bootMsg">Memuatkan sistem…</p>
+</div>
+
+<!-- ============ LOG MASUK ============ -->
+<div id="authView" class="auth hide">
+  <div class="auth-card">
+    <div class="brand">
+      <div class="brand-mark"><img src="icons/icon-192.png" alt=""></div>
+      <div>
+        <h1>e-RPH AI</h1>
+        <p>RPH Pintar. PdP Lebih Terancang.</p>
+      </div>
+    </div>
+
+    <div class="auth-tabs">
+      <button class="tab-btn active" data-authtab="masuk">Log Masuk</button>
+      <button class="tab-btn" data-authtab="daftar">Daftar Baharu</button>
+    </div>
+
+    <div id="tabMasuk">
+      <button id="btnGoogle" class="btn btn-google">
+        <svg viewBox="0 0 24 24" width="18" height="18"><path fill="#4285F4" d="M22.6 12.2c0-.8-.1-1.6-.2-2.3H12v4.5h6c-.3 1.4-1.1 2.6-2.3 3.4v2.8h3.7c2.2-2 3.4-5 3.4-8.4z"/><path fill="#34A853" d="M12 23c3.1 0 5.7-1 7.6-2.8l-3.7-2.8c-1 .7-2.3 1.1-3.9 1.1-3 0-5.5-2-6.4-4.7H1.8v2.9C3.7 20.5 7.5 23 12 23z"/><path fill="#FBBC05" d="M5.6 13.8c-.2-.7-.4-1.4-.4-2.3s.1-1.6.4-2.3V6.3H1.8C1 7.9.5 9.8.5 11.5s.5 3.6 1.3 5.2l3.8-2.9z"/><path fill="#EA4335" d="M12 4.6c1.7 0 3.2.6 4.4 1.7l3.3-3.3C17.7 1.1 15.1 0 12 0 7.5 0 3.7 2.5 1.8 6.3l3.8 2.9C6.5 6.5 9 4.6 12 4.6z"/></svg>
+        Teruskan dengan Google
+      </button>
+      <div class="divider"><span>atau guna e-mel</span></div>
+      <label class="fld"><span>E-mel</span><input id="inEmel" type="email" placeholder="guru@moe.edu.my" autocomplete="username"></label>
+      <label class="fld"><span>Kata laluan</span><input id="inKata" type="password" placeholder="••••••••" autocomplete="current-password"></label>
+      <button id="btnMasuk" class="btn btn-primary btn-block">Log Masuk</button>
+      <button id="btnLupa" class="btn btn-link">Lupa kata laluan?</button>
+    </div>
+
+    <div id="tabDaftar" class="hide">
+      <label class="fld"><span>Nama penuh</span><input id="rgNama" type="text" placeholder="Cikgu Ahmad bin Ali"></label>
+      <label class="fld"><span>E-mel</span><input id="rgEmel" type="email" placeholder="guru@moe.edu.my"></label>
+      <label class="fld"><span>Kata laluan</span><input id="rgKata" type="password" placeholder="Sekurang-kurangnya 6 aksara"></label>
+      <label class="fld"><span>Kod sekolah <em>(minta daripada admin sekolah)</em></span><input id="rgKod" type="text" placeholder="Cth: DBA2164" style="text-transform:uppercase"></label>
+      <button id="btnDaftar" class="btn btn-primary btn-block">Daftar Akaun</button>
+    </div>
+
+    <p class="auth-foot">Data anda disimpan di Firebase sekolah anda sendiri.</p>
+  </div>
+</div>
+
+<!-- ============ APLIKASI ============ -->
+<div id="app" class="app hide">
+
+  <aside class="side">
+    <div class="side-brand">
+      <div class="brand-mark sm"><img src="icons/icon-192.png" alt=""></div>
+      <div class="side-brand-txt"><b>e-RPH AI</b><small id="sideSekolah">—</small></div>
+    </div>
+    <nav class="side-nav" id="sideNav"></nav>
+    <div class="side-user">
+      <div class="avatar" id="avUser">G</div>
+      <div class="side-user-txt"><b id="uNama">—</b><small id="uPeranan">—</small></div>
+      <button id="btnKeluar" title="Log keluar" class="icon-btn">⏻</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <button id="btnMenu" class="icon-btn only-mobile">☰</button>
+      <div class="topbar-txt">
+        <h2 id="tajukHal">Dashboard</h2>
+        <small id="subTajuk">—</small>
+      </div>
+      <button id="btnAI" class="btn btn-primary btn-sm">✨ Jana RPH</button>
+    </header>
+    <div id="kandungan" class="kandungan"></div>
+  </main>
+
+  <nav class="botnav" id="botNav"></nav>
+</div>
+
+<!-- ============ MODAL & TOAST ============ -->
+<div id="modalWrap" class="modal-wrap hide">
+  <div class="modal">
+    <div class="modal-head"><h3 id="modalTajuk">Tajuk</h3><button class="icon-btn" onclick="tutupModal()">✕</button></div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-foot" id="modalFoot"></div>
+  </div>
+</div>
+<div id="toast" class="toast"></div>
+<div id="busy" class="busy hide"><div class="busy-box"><div class="spin"></div><p id="busyMsg">Sedang memproses…</p></div></div>
+
+<!-- ============ SKRIP ============ -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="js/core.js"></script>
+<script src="js/data.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/rph.js"></script>
+<script src="js/admin.js"></script>
+<script src="js/boot.js"></script>
+</body>
+</html>

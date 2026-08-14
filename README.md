@@ -1,0 +1,110 @@
+# e-RPH AI
+
+Sistem AI Pintar Menjana dan Mengurus Rancangan Pengajaran Harian Guru.
+PWA vanilla JS + Firebase (Auth & Firestore) + GitHub Pages. Tiada backend, tiada build step.
+
+---
+
+## 1. Struktur fail
+
+```
+index.html
+styles.css
+firebase-config.js      <-- HANYA fail ini perlu diedit
+manifest.json
+sw.js
+firestore.rules
+icons/icon-192.png
+icons/icon-512.png
+js/core.js
+js/data.js
+js/ai.js
+js/rph.js
+js/admin.js
+js/boot.js
+contoh-dskp.csv
+contoh-cuti.csv
+```
+
+## 2. Langkah pemasangan
+
+**a) Firebase**
+1. Firebase Console → Authentication → Sign-in method → aktifkan **Google** dan **Email/Password**.
+2. Authentication → Settings → Authorized domains → tambah `namauser.github.io`.
+3. Firestore Database → Create database (mod production).
+4. Rules → tampal isi `firestore.rules` → Publish.
+
+**b) firebase-config.js**
+- Tampal `FIREBASE_CONFIG` dari Firebase Console (Project settings → Your apps → Web).
+- Isi `EMEL_PEMILIK` dengan e-mel anda. E-mel dalam senarai ini automatik jadi **pemilik** (akses penuh semua sekolah) pada log masuk pertama.
+
+**c) GitHub Pages**
+1. Cipta repo baharu, upload semua fail (kekalkan folder `js/` dan `icons/`).
+2. Settings → Pages → Branch: `main`, Folder: `/ (root)` → Save.
+3. Buka `https://namauser.github.io/nama-repo/`.
+
+## 3. Peranan
+
+| Peranan | Kebolehan |
+|---|---|
+| **pemilik** | Semua sekolah, cipta/edit sekolah, tukar peranan pengguna, masuk mana-mana sekolah, sandaran data |
+| **admin** | Urus sekolah sendiri, guru sekolah sendiri, DSKP, buku teks, takwim |
+| **guru** | RPH sendiri sahaja, jadual waktu sendiri |
+
+Guru baharu daftar guna **kod sekolah** (ditetapkan oleh pemilik semasa cipta sekolah).
+
+## 4. Enjin AI
+
+Buka **Tetapan → Enjin AI**. Pilih Gemini / OpenAI / Claude, masukkan API key dan model.
+Kunci disimpan dalam `localStorage` peranti tersebut sahaja (aplikasi statik, tiada server).
+Tekan **Uji sambungan** untuk sahkan.
+
+Model lalai:
+- Gemini: `gemini-2.0-flash` (paling murah, ada kuota percuma)
+- OpenAI: `gpt-4o-mini`
+- Claude: `claude-sonnet-4-6`
+
+## 5. Aliran penggunaan
+
+```
+Takwim → Minggu persekolahan → Jadual waktu → Kelas + Subjek → DSKP → Buku teks
+→ Jana RPH AI → Semakan kualiti → Guru edit → Simpan → Cetak/PDF
+```
+
+## 6. Import data
+
+**DSKP (CSV):**
+`tahun,subjek,bidang,tajuk,kod_sk,standard_kandungan,kod_sp,standard_pembelajaran,tp`
+
+**Buku teks (CSV):**
+`tahun,subjek,buku,bab,unit,tajuk,kandungan`
+
+**Cuti takwim (CSV):**
+`nama,mula,tamat` (format tarikh `YYYY-MM-DD`)
+
+Lihat `contoh-dskp.csv` dan `contoh-cuti.csv`.
+
+## 7. Nota penting
+
+- AI **tidak** mencipta Standard Pembelajaran sendiri. Jika DSKP tiada dalam pangkalan data, sistem akan tandakan amaran dan minta guru masukkan sumber rasmi.
+- Semakan kualiti (%) adalah bantuan sistem, **bukan** pengesahan rasmi KPM.
+- Struktur Firestore:
+
+```
+pengguna/{emel}                       peranan, sekolahId, aktif
+sekolah/{sid}                         nama, kod, negeri, daerah, logo
+sekolah/{sid}/kelas/{id}
+sekolah/{sid}/subjek/{id}
+sekolah/{sid}/jadual/{emel}           slot[]
+sekolah/{sid}/takwim/{tahun}          mula, tamat, cuti[]
+sekolah/{sid}/dskp/{id}
+sekolah/{sid}/buku/{id}
+sekolah/{sid}/rph/{id}
+sekolah/{sid}/rph/{id}/versi/{vid}    sejarah versi
+```
+
+## 8. Kemas kini versi
+
+Selepas upload fail baharu, tukar `const CACHE = 'erph-v1'` dalam `sw.js` kepada `erph-v2`
+supaya service worker muat semula fail terkini. Pengguna juga boleh tekan
+**Tetapan → Kosongkan cache**.

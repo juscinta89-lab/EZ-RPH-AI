@@ -1,0 +1,36 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function log()      { return request.auth != null; }
+    function emel()     { return request.auth.token.email.lower(); }
+    function pgn()      { return get(/databases/$(database)/documents/pengguna/$(emel())).data; }
+    function peranan()  { return pgn().peranan; }
+    function pemilik()  { return log() && peranan() == 'pemilik'; }
+    function admin()    { return log() && peranan() == 'admin'; }
+    function sid()      { return pgn().sekolahId; }
+    function tukarPeranan() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny(['peranan','aktif']);
+    }
+
+    // --- Pengguna ---
+    match /pengguna/{e} {
+      allow read:   if log() && (e == emel() || pemilik() || admin());
+      allow create: if log() && e == emel();
+      allow update: if log() && (pemilik() || admin() || (e == emel() && !tukarPeranan()));
+      allow delete: if pemilik();
+    }
+
+    // --- Sekolah + semua sub-koleksi ---
+    match /sekolah/{s} {
+      allow read:   if log();                       // perlu untuk cari kod sekolah
+      allow create: if pemilik();
+      allow update: if pemilik() || (admin() && s == sid());
+      allow delete: if pemilik();
+
+      match /{dokumen=**} {
+        allow read, write: if log() && (pemilik() || s == sid());
+      }
+    }
+  }
+}
