@@ -71,7 +71,7 @@ function promptRph(ctx){
     : 'TIADA DATA DSKP DALAM PANGKALAN DATA.';
   const buku = kontekBuku(ctx.subjek, ctx.tahun);
   const bukuTeks = buku.length
-    ? buku.map(b => `- ${b.buku||'Buku Teks'} | Bab ${b.bab||'-'} | ${b.unit||''} | ${b.tajuk||''}: ${(b.kandungan||'').slice(0,300)}`).join('\n')
+    ? buku.map(b => `- ${b.buku||'Buku Teks'} | Bab ${b.bab||'-'} | ${b.unit||''} | ${b.tajuk||''}${b.pautan?' | pautan: '+b.pautan:''}: ${(b.kandungan||'').slice(0,300)}`).join('\n')
     : 'TIADA RUJUKAN BUKU TEKS DALAM PANGKALAN DATA.';
   const lalu = rphSebelum(ctx.subjek, ctx.kelas, ctx.tarikh, 3);
   const laluTeks = lalu.length

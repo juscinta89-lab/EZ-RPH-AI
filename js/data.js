@@ -551,6 +551,7 @@ function importDskp(){
 function halBuku(){
   $('#kandungan').innerHTML = `
     <div class="toolbar"><button class="btn btn-primary" onclick="formBuku()">+ Tambah bab/unit</button>
+      <button class="btn btn-ungu" onclick="formPdfBuku()">📄 Import PDF buku teks</button>
       <button class="btn" onclick="importBuku()">📥 Import Excel/CSV</button>
       <button class="btn" onclick="templatExcel('templat-bukuteks.xlsx',TEMPLAT.buku)">⬇️ Templat</button></div>
     <div class="kad" style="margin-bottom:14px"><p style="font-size:12.5px;color:var(--teks-2)">
@@ -559,6 +560,7 @@ function halBuku(){
     <div class="senarai">${S.buku.length ? S.buku.map(b => `
       <div class="baris"><div class="baris-t"><b>${esc(b.tajuk||b.unit||'—')}</b>
         <small>${esc(b.subjek)} ${esc(b.tahun)} · ${esc(b.buku||'')} ${b.bab?'· Bab '+esc(b.bab):''} ${b.unit?'· '+esc(b.unit):''}</small></div>
+        ${b.pautan?`<a class="btn btn-sm" href="${esc(b.pautan)}" target="_blank" rel="noopener">🔗</a>`:''}
         <button class="btn btn-sm" onclick="formBuku('${b.id}')">Edit</button>
         <button class="btn btn-sm btn-danger" onclick="hapusItem('buku','${b.id}')">✕</button></div>`).join('')
       : `<div class="kosong"><b>Belum ada rujukan buku teks</b>Tambah bab/unit supaya AI boleh merujuk kandungan sebenar.</div>`}
@@ -578,12 +580,15 @@ function formBuku(id){
       <label class="fld"><span>Unit</span><input id="fbUnit" value="${esc(b.unit||'')}"></label>
     </div>
     <label class="fld"><span>Tajuk</span><input id="fbTajuk" value="${esc(b.tajuk||'')}"></label>
+    <label class="fld"><span>Pautan rujukan <em>(pilihan — buku teks digital, video, bahan)</em></span>
+      <input id="fbPautan" value="${esc(b.pautan||'')}" placeholder="https://…"></label>
     <label class="fld"><span>Ringkasan kandungan</span><textarea id="fbIsi" placeholder="Isi pelajaran, aktiviti dalam buku, latihan…">${esc(b.kandungan||'')}</textarea></label>`,
     `<button class="btn" onclick="tutupModal()">Batal</button><button class="btn btn-primary" onclick="simpanBuku('${id||''}')">Simpan</button>`);
 }
 async function simpanBuku(id){
   const d = { tahun:$('#fbTahun').value.trim(), subjek:$('#fbSubjek').value.trim(), buku:$('#fbBuku').value.trim(),
-    bab:$('#fbBab').value.trim(), unit:$('#fbUnit').value.trim(), tajuk:$('#fbTajuk').value.trim(), kandungan:$('#fbIsi').value.trim() };
+    bab:$('#fbBab').value.trim(), unit:$('#fbUnit').value.trim(), tajuk:$('#fbTajuk').value.trim(),
+    pautan:$('#fbPautan').value.trim(), kandungan:$('#fbIsi').value.trim() };
   if(!d.subjek) return toast('Subjek diperlukan','salah');
   sibuk(true,'Menyimpan…');
   id ? await rujuk('buku').doc(id).update(d) : await rujuk('buku').add(d);
@@ -604,6 +609,101 @@ function importBuku(){
     }
     await muatData(); sibuk(false); pergi('buku'); toast(rows.length+' rekod diimport','jaya');
   });
+}
+
+/* ---------- Import PDF buku teks ---------- */
+function formPdfBuku(){
+  modal('Import PDF buku teks', `
+    <div class="grid2">
+      <label class="fld"><span>Tahun / Tingkatan</span><input id="pdTahun" placeholder="Tahun 6"></label>
+      <label class="fld"><span>Subjek</span><input id="pdSubjek" list="lsSubjek3" placeholder="Bahasa Melayu">
+        <datalist id="lsSubjek3">${S.subjek.map(x=>`<option>${esc(x.nama)}</option>`).join('')}</datalist></label>
+    </div>
+    <label class="fld"><span>Nama buku</span><input id="pdBuku" placeholder="Buku Teks Bahasa Melayu Tahun 6"></label>
+    <label class="fld"><span>Pautan rujukan <em>(pilihan)</em></span><input id="pdPautan" placeholder="https://…"></label>
+    <label class="fld"><span>Cara pecahan</span><select id="pdPecah">
+      <option value="auto">Auto — ikut tajuk Unit / Bab / Tema</option>
+      <option value="4">Setiap 4 muka surat</option>
+      <option value="8">Setiap 8 muka surat</option>
+    </select></label>
+    <p style="font-size:12px;color:var(--teks-3)">Teks sahaja diekstrak (bukan gambar). PDF hasil imbasan tanpa OCR tidak akan menghasilkan teks.
+    Masukkan hanya bahan yang anda ada hak untuk gunakan.</p>`,
+    `<button class="btn" onclick="tutupModal()">Batal</button>
+     <button class="btn btn-primary" onclick="mulaPdfBuku()">Pilih fail PDF</button>`);
+}
+
+function mulaPdfBuku(){
+  const meta = {
+    tahun:$('#pdTahun').value.trim(), subjek:$('#pdSubjek').value.trim(),
+    buku:$('#pdBuku').value.trim(), pautan:$('#pdPautan').value.trim(), pecah:$('#pdPecah').value
+  };
+  if(!meta.subjek) return toast('Isi subjek dahulu','salah');
+  if(typeof pdfjsLib === 'undefined') return toast('Pustaka PDF belum dimuat. Semak sambungan internet.','salah');
+  tutupModal();
+  const i = document.createElement('input'); i.type = 'file'; i.accept = '.pdf';
+  i.onchange = () => { const f = i.files[0]; if(f) prosesPdfBuku(f, meta); };
+  i.click();
+}
+
+async function prosesPdfBuku(fail, meta){
+  sibuk(true,'Membuka PDF…');
+  try{
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    const buf = await fail.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data:buf }).promise;
+    const muka = [];
+    for(let n=1; n<=pdf.numPages; n++){
+      sibuk(true,`Membaca muka surat ${n}/${pdf.numPages}…`);
+      const t = await (await pdf.getPage(n)).getTextContent();
+      muka.push(t.items.map(x=>x.str).join(' ').replace(/\s+/g,' ').trim());
+    }
+    const rekod = pecahkanMuka(muka, meta);
+    if(!rekod.length){ sibuk(false); return toast('Tiada teks dijumpai. PDF ini mungkin imbasan gambar.','salah'); }
+
+    sibuk(true,`Menyimpan ${rekod.length} rekod…`);
+    for(let i=0;i<rekod.length;i+=300){
+      const b = db.batch();
+      rekod.slice(i,i+300).forEach(x => b.set(rujuk('buku').doc(), x));
+      await b.commit();
+    }
+    await muatData(); sibuk(false); pergi('buku');
+    toast(rekod.length+' bahagian buku teks diimport','jaya');
+  }catch(e){ sibuk(false); toast('Gagal baca PDF: '+e.message,'salah'); }
+}
+
+function pecahkanMuka(muka, meta){
+  const HAD = 2500;                       // aksara maksimum satu rekod
+  const asas = { tahun:meta.tahun, subjek:meta.subjek, buku:meta.buku, pautan:meta.pautan, sumber:'pdf' };
+  const rekod = [];
+  const tolak = t => {
+    if(t.kandungan.trim().length < 80) return;
+    for(let i=0;i<t.kandungan.length;i+=HAD)
+      rekod.push({ ...asas, bab:t.bab, unit:t.unit, tajuk:t.tajuk + (t.kandungan.length>HAD ? ' ('+(i/HAD+1)+')' : ''),
+                   kandungan:t.kandungan.slice(i,i+HAD) });
+  };
+
+  if(meta.pecah === 'auto'){
+    const kepala = /\b(UNIT|BAB|TEMA|MODUL)\s+([0-9]{1,2}|[IVX]{1,4})\b/i;
+    let semasa = { bab:'', unit:'', tajuk:'Bahagian awal', kandungan:'' };
+    muka.forEach((t, n) => {
+      const m = t.slice(0,220).match(kepala);
+      if(m){
+        tolak(semasa);
+        const jenis = m[1].toUpperCase(), no = m[2];
+        semasa = { bab: jenis==='BAB'?no:'', unit: jenis!=='BAB'? jenis+' '+no : '',
+                   tajuk: (jenis+' '+no+' — m/s '+(n+1)), kandungan:'' };
+      }
+      semasa.kandungan += ' ' + t;
+    });
+    tolak(semasa);
+    if(rekod.length) return rekod;
+  }
+
+  const saiz = parseInt(meta.pecah) || 4;
+  for(let i=0;i<muka.length;i+=saiz)
+    tolak({ bab:'', unit:'', tajuk:`Muka surat ${i+1}–${Math.min(i+saiz, muka.length)}`,
+            kandungan: muka.slice(i,i+saiz).join(' ') });
+  return rekod;
 }
 
 /* ================= TETAPAN ================= */
