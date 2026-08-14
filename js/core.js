@@ -117,7 +117,7 @@ function pergi(hal){
   const f = {
     dashboard:halDashboard, rph:halRph, kalendar:halKalendar, jana:halJana,
     jadual:halJadual, kelas:halKelas, subjek:halSubjek, rpt:halRpt,
-    buku:halBuku, takwim:halTakwim, laporan:halLaporan, tetapan:halTetapan,
+    buku:halBuku, takwim:halTakwim, cetak:halCetak, laporan:halLaporan, tetapan:halTetapan,
     admin:halAdmin, editor:halEditor
   }[hal];
   if(f) f(); else $('#kandungan').innerHTML = '<div class="kosong"><b>Halaman tidak dijumpai</b></div>';

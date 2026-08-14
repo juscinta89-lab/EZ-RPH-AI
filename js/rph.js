@@ -652,6 +652,50 @@ function htmlRph(r, tunjukSemakan){
   </table>`}`;
 }
 
+function gayaCetak(){ return localStorage.getItem('erph_gaya_cetak') || 'padat'; }
+function setGayaCetak(g){ localStorage.setItem('erph_gaya_cetak', g); }
+
+function kepalaHari(tarikh){
+  return `<table class="pd-tbl pd-hari">
+    <tr>
+      <td style="width:34mm"><b>${esc((S.profil.nama||'').toUpperCase())}</b><br>${esc(S.profil.jawatan||'Guru')}</td>
+      <td style="text-align:center"><b>${esc((S.sekolah?.nama||'').toUpperCase())}</b><br>RANCANGAN PENGAJARAN HARIAN</td>
+      <td style="width:52mm"><b>TARIKH:</b> ${esc(tarikh)}<br>
+        <b>HARI:</b> ${esc(namaHari(tarikh).toUpperCase())} &nbsp; <b>MINGGU:</b> ${esc((mingguUntuk(tarikh)||'').replace('Minggu ','M'))}</td>
+    </tr></table>`;
+}
+
+function htmlRphPadat(r, noKelas){
+  const p = v => esc(String(v||'').trim() || '-');
+  const kelasInfo = S.kelas.find(k => norma(k.nama) === norma(r.kelas));
+  const bil = kelasInfo?.bilangan || '___';
+  const obj = (r.objektif||'').split('\n').map(x=>x.trim()).filter(Boolean);
+  const objHtml = obj.map(x=>`• Murid dapat ${esc(x.replace(/^\d+[.)]\s*/,'').replace(/^Murid dapat\s*/i,''))}`).join('<br>') || '-';
+  const refleksi = r.refleksi
+    ? esc(r.refleksi)
+    : obj.map(x=>`____ / ${bil} murid dapat ${esc(x.replace(/^\d+[.)]\s*/,'').replace(/^Murid dapat\s*/i,''))}`).join('<br>') || `____ / ${bil} murid mencapai objektif.`;
+  return `<table class="pd-tbl pd-blok">
+    <colgroup><col style="width:24mm"><col></colgroup>
+    <tr class="pd-strip"><td colspan="2"><b>KELAS ${noKelas}</b> · ${esc(r.mula)}–${esc(r.tamat)} ·
+      <b>${p(r.subjek).toUpperCase()}</b> · ${p(r.kelas)} ${r.tahun&&!norma(r.kelas).includes(norma(r.tahun))?'('+esc(r.tahun)+')':''}</td></tr>
+    <tr><th>Tema / Tajuk</th><td>${[r.tema,r.tajuk].map(x=>(x||'').trim()).filter(Boolean).join(' · ')||'-'}</td></tr>
+    <tr><th>Std. Kandungan</th><td>${esc(kodTeks(r.kodSk, r.sk))}</td></tr>
+    <tr><th>Std. Pembelajaran</th><td>${esc(kodTeks(r.kodSp, r.sp))}${r.tp?' &nbsp;<b>TP:</b> '+esc(r.tp):''}</td></tr>
+    <tr><th>Objektif</th><td>Pada akhir PdP, murid dapat:<br>${obj.map(x=>'• '+esc(x.replace(/^\d+[.)]\s*/,''))).join('<br>')||'-'}</td></tr>
+    <tr><th>Aktiviti</th><td>${r.aktiviti||'-'}${r.penutup?'<b>Penutup:</b> '+p(r.penutup):''}</td></tr>
+    <tr><th>EMK · BBM · Taksir</th><td>${p(r.emk)}${r.nilai&&r.nilai!=='-'?' · '+esc(r.nilai):''} &nbsp;|&nbsp; ${p(r.bbm)} &nbsp;|&nbsp; ${p(r.pentaksiran)}</td></tr>
+    <tr><th>Refleksi</th><td class="pd-ref">${refleksi}<br><b>Intervensi:</b> _______________</td></tr>
+  </table>`;
+}
+
+function semakanHari(){
+  return `<table class="pd-tbl pd-blok"><tr>
+    <th style="width:24mm;background:#cfe3f7">SEMAKAN</th>
+    <td>Disediakan oleh: <b>${esc(S.profil.nama||'')}</b>${tandatanganSaya()?` <img src="${tandatanganSaya()}" style="height:22pt;vertical-align:middle">`:''}</td>
+    <td style="width:60mm">Disemak oleh: <b>${esc(S.profil.pengesah||'')}</b><br><br></td>
+  </tr></table>`;
+}
+
 function keluarkanCetak(html){
   let box = document.getElementById('cetak');
   if(!box){ box = document.createElement('div'); box.id = 'cetak'; document.body.appendChild(box); }
@@ -661,7 +705,8 @@ function keluarkanCetak(html){
 
 function cetakRph(){
   const r = { ...S.rph.find(x=>x.id===S.editRphId), ...bacaEditor() };
-  keluarkanCetak(htmlRph(r));
+  if(gayaCetak() === 'penuh') return keluarkanCetak(htmlRph(r));
+  keluarkanCetak(kepalaHari(r.tarikh) + htmlRphPadat(r, 1) + semakanHari());
 }
 
 /* Cetak banyak RPH — satu RPH satu muka surat.
@@ -669,10 +714,26 @@ function cetakRph(){
 function cetakBanyak(senarai){
   if(!senarai.length) return toast('Tiada RPH untuk dicetak','salah');
   const susun = [...senarai].sort((a,b)=> (a.tarikh+(a.mula||'')).localeCompare(b.tarikh+(b.mula||'')));
-  const akhirHari = {};
-  susun.forEach((r,i) => akhirHari[r.tarikh] = i);          // indeks terakhir setiap tarikh
-  keluarkanCetak(susun.map((r,i) =>
-    `<div style="${i ? 'page-break-before:always;' : ''}">${htmlRph(r, akhirHari[r.tarikh] === i)}</div>`).join(''));
+  if(gayaCetak() === 'penuh'){
+    const akhirHari = {};
+    susun.forEach((r,i) => akhirHari[r.tarikh] = i);
+    keluarkanCetak(susun.map((r,i) =>
+      `<div style="${i ? 'page-break-before:always;' : ''}">${htmlRph(r, akhirHari[r.tarikh] === i)}</div>`).join(''));
+    return;
+  }
+  /* Gaya padat: mengalir berterusan, tiada muka surat dibazir */
+  let html = ''; let hariSemasa = ''; let noKelas = 0; let pertama = true;
+  susun.forEach(r => {
+    if(r.tarikh !== hariSemasa){
+      if(hariSemasa) html += semakanHari();
+      html += `<div style="${pertama ? '' : 'page-break-before:always;'}">${kepalaHari(r.tarikh)}</div>`;
+      hariSemasa = r.tarikh; noKelas = 0; pertama = false;
+    }
+    noKelas++;
+    html += htmlRphPadat(r, noKelas);
+  });
+  html += semakanHari();
+  keluarkanCetak(html);
 }
 function halCetak(){
   const hariIni = tarikhISO();
@@ -680,6 +741,18 @@ function halCetak(){
   const mggIni = minggu.find(m => hariIni >= m.mula && hariIni <= m.tamat);
   window._cetakPilih = new Set();
   $('#kandungan').innerHTML = `
+    <div class="kad">
+      <div class="kad-h"><h3>Gaya cetakan</h3></div>
+      <div class="toolbar" style="margin:0">
+        <label class="baris" style="cursor:pointer;flex:1">
+          <input type="radio" name="gayaC" value="padat" ${gayaCetak()==='padat'?'checked':''} onchange="setGayaCetak('padat')" style="width:auto">
+          <div class="baris-t"><b>Padat (jimat kertas)</b><small>Beberapa RPH satu muka surat, mengalir berterusan — gaya buku rekod KPM</small></div></label>
+        <label class="baris" style="cursor:pointer;flex:1">
+          <input type="radio" name="gayaC" value="penuh" ${gayaCetak()==='penuh'?'checked':''} onchange="setGayaCetak('penuh')" style="width:auto">
+          <div class="baris-t"><b>Lesson Plan penuh</b><small>Satu RPH satu muka surat berwarna</small></div></label>
+      </div>
+    </div>
+
     <div class="kad">
       <div class="kad-h"><h3>Cetak pantas</h3></div>
       <div class="toolbar" style="margin:0">
