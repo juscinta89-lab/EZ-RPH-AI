@@ -383,19 +383,26 @@ function halEditor(){
         <p style="font-size:11px;color:var(--teks-3);margin-top:10px">Semakan ini bantuan sistem sahaja, bukan pengesahan rasmi KPM.</p>
       </div>
 
-      <div class="kad">
-        <div class="kad-h"><h3>✨ AI Assistant</h3></div>
-        <div class="ai-cadang">
-          ${['Pendekkan aktiviti','Sesuaikan untuk murid lemah','Tambah aktiviti KBAT','Jadikan lebih PAK21','Buat versi 30 minit','Objektif lebih terukur','Tambah aktiviti pemulihan']
-            .map(t=>`<button onclick="aiUbah('${t}')">${t}</button>`).join('')}
-        </div>
-        <label class="fld"><span>Arahan sendiri</span><textarea id="aiArahan" placeholder="Cth: tukar set induksi kepada permainan teka kata" style="min-height:70px"></textarea></label>
-        <button class="btn btn-ungu btn-block" onclick="aiUbah()">Jalankan arahan</button>
-        <button class="btn btn-block" style="margin-top:8px" onclick="janaSemula()">🔄 Jana semula keseluruhan</button>
-      </div>
     </div>
+  </div>
+
+  <button class="ai-fab" onclick="bukaAiDrawer()" title="AI Assistant">✨</button>
+  <div class="ai-tirai" id="aiTirai" onclick="tutupAiDrawer()"></div>
+  <div class="ai-drawer" id="aiDrawer">
+    <div class="kad-h" style="margin-bottom:10px"><h3>✨ AI Assistant</h3>
+      <button class="icon-btn" onclick="tutupAiDrawer()">✕</button></div>
+    <div class="ai-cadang">
+      ${['Pendekkan aktiviti','Sesuaikan untuk murid lemah','Tambah aktiviti KBAT','Jadikan lebih PAK21','Buat versi 30 minit','Objektif lebih terukur','Tambah aktiviti pemulihan']
+        .map(t=>`<button onclick="aiUbah('${t}')">${t}</button>`).join('')}
+    </div>
+    <label class="fld"><span>Arahan sendiri</span><textarea id="aiArahan" placeholder="Cth: tukar set induksi kepada permainan teka kata" style="min-height:70px"></textarea></label>
+    <button class="btn btn-ungu btn-block" onclick="aiUbah()">Jalankan arahan</button>
+    <button class="btn btn-block" style="margin-top:8px" onclick="janaSemula()">🔄 Jana semula keseluruhan</button>
   </div>`;
 }
+
+function bukaAiDrawer(){ $('#aiDrawer').classList.add('buka'); $('#aiTirai').classList.add('buka'); }
+function tutupAiDrawer(){ $('#aiDrawer').classList.remove('buka'); $('#aiTirai').classList.remove('buka'); }
 
 function bacaEditor(){
   const g = id => $('#'+id) ? $('#'+id).value.trim() : '';
@@ -493,7 +500,7 @@ Balas JSON sahaja dengan medan yang sama (medan yang tidak diubah dikembalikan s
     set('ePengayaan', stripHtml(j.pengayaan)); set('ePemulihan', stripHtml(j.pemulihan)); set('ePenutup', stripHtml(j.penutup));
     set('eStrategi', j.strategi); set('ePak21', j.pak21); set('eKbat', j.kbat); set('eEmk', j.emk);
     set('eNilai', j.nilai); set('eBbm', j.bbm); set('ePentaksiran', j.pentaksiran);
-    sibuk(false); toast('AI selesai. Semak dan simpan.','jaya');
+    sibuk(false); tutupAiDrawer(); toast('AI selesai. Semak dan simpan.','jaya');
   }catch(e){ sibuk(false); toast('Gagal: '+e.message,'salah'); }
 }
 async function janaSemula(){
@@ -652,6 +659,23 @@ function htmlRph(r, tunjukSemakan){
   </table>`}`;
 }
 
+const WARNA_SUBJEK = [
+  [/melayu|bm\b/i,        ['#f9c97e','#fdeeda']],
+  [/inggeris|english/i,    ['#9ec5f5','#e7f0fd']],
+  [/matematik/i,           ['#a7c9f2','#e3edfb']],
+  [/sains/i,               ['#9edcb2','#e4f6ea']],
+  [/jasmani|\bpj\b/i,    ['#f5a9a9','#fde7e7']],
+  [/kesihatan|\bpk\b/i,  ['#f5b9d0','#fdeaf2']],
+  [/seni|psv/i,            ['#c9b3f0','#efe9fc']],
+  [/muzik/i,               ['#f5e07e','#fcf6d9']],
+  [/islam|arab/i,          ['#8fd4c8','#e2f5f1']],
+  [/moral|sivik|sejarah/i, ['#d9c49a','#f5ede0']],
+];
+function warnaSubjek(nama){
+  for(const [rx, w] of WARNA_SUBJEK) if(rx.test(nama||'')) return w;
+  return ['#c9cfdd','#eceff5'];
+}
+
 function gayaCetak(){ return localStorage.getItem('erph_gaya_cetak') || 'padat'; }
 function setGayaCetak(g){ localStorage.setItem('erph_gaya_cetak', g); }
 
@@ -666,25 +690,56 @@ function kepalaHari(tarikh){
 }
 
 function htmlRphPadat(r, noKelas){
-  const p = v => esc(String(v||'').trim() || '-');
+  const p = v => { const t = String(v||'').trim(); return (t && t !== '-') ? esc(t) : '-'; };
+  const nilai = v => { const t = String(v||'').trim(); return (t && t !== '-') ? t : ''; };
+  const [gelap, cerah] = warnaSubjek(r.subjek);
   const kelasInfo = S.kelas.find(k => norma(k.nama) === norma(r.kelas));
-  const bil = kelasInfo?.bilangan || '___';
-  const obj = (r.objektif||'').split('\n').map(x=>x.trim()).filter(Boolean);
-  const objHtml = obj.map(x=>`• Murid dapat ${esc(x.replace(/^\d+[.)]\s*/,'').replace(/^Murid dapat\s*/i,''))}`).join('<br>') || '-';
-  const refleksi = r.refleksi
-    ? esc(r.refleksi)
-    : obj.map(x=>`____ / ${bil} murid dapat ${esc(x.replace(/^\d+[.)]\s*/,'').replace(/^Murid dapat\s*/i,''))}`).join('<br>') || `____ / ${bil} murid mencapai objektif.`;
+  const bil = kelasInfo?.bilangan || '____';
+  const tempoh = r.tempoh || minit(r.mula, r.tamat);
+  const obj = (r.objektif||'').split('\n').map(x=>x.trim().replace(/^\d+[.)]\s*/,'')).filter(x=>x && x!=='-');
+  const kk  = (r.kriteria||'').split('\n').map(x=>x.trim().replace(/^\d+[.)]\s*/,'')).filter(x=>x && x!=='-');
+  const akt = pecahAktiviti(r.aktiviti);
+  const refleksi = r.refleksi ? esc(r.refleksi)
+    : `____ / ${bil} murid dapat mencapai objektif pembelajaran dan diberi latihan pengayaan.<br><br>
+       ____ / ${bil} murid dapat mencapai objektif dengan bimbingan dan diberi latihan pengukuhan.<br><br>
+       ____ / ${bil} murid tidak dapat mencapai objektif dan diberi latihan pemulihan.`;
+  const band = t => `<tr class="pd-band" style="background:${gelap}"><td colspan="6">${t}</td></tr>`;
   return `<table class="pd-tbl pd-blok">
-    <colgroup><col style="width:24mm"><col></colgroup>
-    <tr class="pd-strip"><td colspan="2"><b>KELAS ${noKelas}</b> · ${esc(r.mula)}–${esc(r.tamat)} ·
-      <b>${p(r.subjek).toUpperCase()}</b> · ${p(r.kelas)} ${r.tahun&&!norma(r.kelas).includes(norma(r.tahun))?'('+esc(r.tahun)+')':''}</td></tr>
-    <tr><th>Tema / Tajuk</th><td>${[r.tema,r.tajuk].map(x=>(x||'').trim()).filter(Boolean).join(' · ')||'-'}</td></tr>
-    <tr><th>Std. Kandungan</th><td>${esc(kodTeks(r.kodSk, r.sk))}</td></tr>
-    <tr><th>Std. Pembelajaran</th><td>${esc(kodTeks(r.kodSp, r.sp))}${r.tp?' &nbsp;<b>TP:</b> '+esc(r.tp):''}</td></tr>
-    <tr><th>Objektif</th><td>Pada akhir PdP, murid dapat:<br>${obj.map(x=>'• '+esc(x.replace(/^\d+[.)]\s*/,''))).join('<br>')||'-'}</td></tr>
-    <tr><th>Aktiviti</th><td>${r.aktiviti||'-'}${r.penutup?'<b>Penutup:</b> '+p(r.penutup):''}</td></tr>
-    <tr><th>EMK · BBM · Taksir</th><td>${p(r.emk)}${r.nilai&&r.nilai!=='-'?' · '+esc(r.nilai):''} &nbsp;|&nbsp; ${p(r.bbm)} &nbsp;|&nbsp; ${p(r.pentaksiran)}</td></tr>
-    <tr><th>Refleksi</th><td class="pd-ref">${refleksi}<br><b>Intervensi:</b> _______________</td></tr>
+    <colgroup><col style="width:21mm"><col style="width:47mm"><col style="width:15mm"><col style="width:34mm"><col style="width:15mm"><col></colgroup>
+    <tr class="pd-band" style="background:${gelap}">
+      <td colspan="4"><b>KELAS ${noKelas} · ${p(r.subjek).toUpperCase()}</b></td>
+      <td colspan="2" style="text-align:right">RANCANGAN PENGAJARAN HARIAN</td></tr>
+    <tr><th style="background:${cerah}">Tema / Unit</th><td>${p(r.tema)}</td>
+        <th style="background:${cerah}">Kelas</th><td><b>${p(r.kelas)}</b></td>
+        <th style="background:${cerah}">Minggu</th><td>${p((r.minggu||'').replace('Minggu ','M'))}</td></tr>
+    <tr><th style="background:${cerah}">Tajuk</th><td>${p(r.tajuk)}</td>
+        <th style="background:${cerah}">Masa</th><td>${esc(r.mula)} – ${esc(r.tamat)}</td>
+        <th style="background:${cerah}">Tempoh</th><td>${tempoh} minit</td></tr>
+    <tr><th style="background:${cerah}">Kod SK / SP</th><td><b>${p(r.kodSk)}</b> / <b>${p(r.kodSp)}</b>${nilai(r.tp)?' · '+esc(r.tp):''}</td>
+        <th style="background:${cerah}">Nilai Murni</th><td>${p(r.nilai)}</td>
+        <th style="background:${cerah}">EMK</th><td>${p(r.emk)}</td></tr>
+    <tr><th style="background:${cerah}">Std. Kandungan</th><td colspan="5">${p(r.sk)}</td></tr>
+    <tr><th style="background:${cerah}">Std. Pembelajaran</th><td colspan="5">${p(r.sp)}</td></tr>
+    ${band('OBJEKTIF PEMBELAJARAN (OP)')}
+    <tr><td colspan="6">Pada akhir PdP, murid dapat:<br>${obj.map((x,i)=>(i+1)+'. '+esc(x)).join('<br>')||'-'}</td></tr>
+    ${kk.length?band('KRITERIA KEJAYAAN (KK)')+`<tr><td colspan="6">Murid berjaya:<br>${kk.map((x,i)=>(i+1)+'. '+esc(x)).join('<br>')}</td></tr>`:''}
+    <tr><th style="background:${cerah}">BBB / Sumber</th><td colspan="3">${p(r.bbm)}</td>
+        <th style="background:${cerah}">Strategi</th><td>${p(r.strategi)}</td></tr>
+    <tr class="pd-band" style="background:${gelap}"><td colspan="4">STRATEGI PdP &amp; PEMUDAHCARAAN</td>
+        <td colspan="2">IMPAK / REFLEKSI</td></tr>
+    <tr class="pd-boleh">
+      <td colspan="4" style="padding:0">
+        ${akt.starter?`<div class="pd-sek">Pengenalan / Set Induksi</div><div class="pd-isi2">${akt.starter}</div>`:''}
+        <div class="pd-sek">Aktiviti</div><div class="pd-isi2">${akt.utama||'-'}</div>
+        ${nilai(r.penutup)?`<div class="pd-sek">Penutup</div><div class="pd-isi2">${esc(r.penutup)}</div>`:''}
+      </td>
+      <td colspan="2" class="pd-ref">${refleksi}<br><br><b>Intervensi:</b><br>______________________</td></tr>
+    <tr><th style="background:${cerah}">KBAT</th><td>${p(r.kbat)}</td>
+        <th style="background:${cerah}">PAK-21</th><td>${p(r.pak21)}</td>
+        <th style="background:${cerah}">PBD</th><td>${p(r.pentaksiran)}</td></tr>
+    ${band('TINDAKAN SUSULAN UNTUK MURID')}
+    <tr><th style="background:${cerah}">Pemulihan</th><td colspan="2">${p(r.pemulihan)}</td>
+        <th style="background:${cerah}">Pengayaan</th><td colspan="2">${p(r.pengayaan)}</td></tr>
   </table>`;
 }
 

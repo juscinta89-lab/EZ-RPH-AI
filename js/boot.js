@@ -80,7 +80,7 @@ auth.onAuthStateChanged(async user => {
     }
 
     $('#bootMsg').textContent = 'Memuatkan data sekolah…';
-    await muatData();
+    await Promise.all([muatData(), muatAiAkaun()]);
     muatLogo();
     tunjuk('#app'); binaMenu(); papar(); pergi('dashboard');
 

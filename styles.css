@@ -176,6 +176,20 @@ tr:last-child td{border-bottom:0}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
 .toolbar input,.toolbar select{width:auto;flex:1;min-width:130px}
 
+/* ---------- AI drawer terapung ---------- */
+.ai-fab{position:fixed;right:22px;bottom:26px;width:54px;height:54px;border-radius:50%;
+  border:0;background:var(--gradien);color:#fff;font-size:22px;cursor:pointer;z-index:55;
+  box-shadow:0 10px 26px rgba(74,42,224,.4);transition:.15s}
+.ai-fab:hover{transform:scale(1.07)}
+@media(max-width:900px){.ai-fab{bottom:86px;right:16px}}
+.ai-tirai{position:fixed;inset:0;background:rgba(20,28,48,.35);z-index:64;opacity:0;pointer-events:none;transition:.2s}
+.ai-tirai.buka{opacity:1;pointer-events:auto}
+.ai-drawer{position:fixed;top:0;right:0;bottom:0;width:min(380px,92vw);background:var(--putih);
+  z-index:65;padding:18px;overflow-y:auto;transform:translateX(103%);transition:.24s;
+  box-shadow:-12px 0 40px rgba(20,30,60,.18)}
+.ai-drawer.buka{transform:none}
+@media print{.ai-fab,.ai-drawer,.ai-tirai{display:none !important}}
+
 /* ---------- Toolbar lekat & kumpulan RPH ---------- */
 .lekat{position:sticky;top:57px;z-index:15;background:var(--bg);padding:10px 0 8px;margin:-10px 0 4px}
 @media(max-width:900px){.lekat{top:55px}}
@@ -299,7 +313,12 @@ tr:last-child td{border-bottom:0}
   .pd-tbl p{margin:1pt 0}
   .pd-tbl ol,.pd-tbl ul{margin:1pt 0;padding-left:11pt}
   .pd-tbl li{margin:0}
-  .pd-ref{background:#fdf6e6}
+  .pd-ref{background:#fdf6e6;font-size:7.9pt;line-height:1.4}
+  .pd-band td{font-weight:700;font-size:8pt;padding:2pt 4pt;letter-spacing:.2px}
+  .pd-sek{background:#f0f0f0;border-bottom:.7pt solid #444;font-weight:700;font-size:7.7pt;padding:1.6pt 3.4pt}
+  .pd-isi2{padding:1.8pt 3.4pt;border-bottom:.7pt solid #444}
+  td .pd-isi2:last-child{border-bottom:0}
+  .pd-blok{margin-bottom:5pt}
   .pd-blok+.pd-blok{margin-top:0}
 
   .tandatangan{display:none}

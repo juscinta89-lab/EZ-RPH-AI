@@ -24,6 +24,11 @@ service cloud.firestore {
         || (e == emel() && !tukarPeranan())
       );
       allow delete: if pemilik();
+
+      // Data peribadi (tetapan AI dsb.) — pemilik akaun SAHAJA, admin/pemilik pun tidak boleh baca
+      match /peribadi/{doc} {
+        allow read, write: if log() && e == emel();
+      }
     }
 
     // --- Sekolah + semua sub-koleksi ---

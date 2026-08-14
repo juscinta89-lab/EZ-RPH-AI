@@ -4,21 +4,23 @@ function rujuk(sub){ return db.collection('sekolah').doc(S.sid).collection(sub);
 
 async function muatData(){
   if(!S.sid) return;
-  const tahun = new Date().getFullYear();
   const [k, sj, jd, bk, tw, ada] = await Promise.all([
     rujuk('kelas').get(),
     rujuk('subjek').get(),
     rujuk('jadual').doc(S.user.email).get(),
     rujuk('buku').get(),
-    rujuk('takwim').doc(String(tahun)).get(),
+    rujuk('takwim').get(),                                  // semua sesi
     rujuk('rpt').limit(1).get()
   ]);
   S.rptAda = !ada.empty;
+  S.senaraiSesi = tw.docs.map(d => ({ id:d.id, ...d.data() }))
+                         .sort((a,b)=> (b.mula||b.id||'').localeCompare(a.mula||a.id||''));
   S.kelas  = k.docs.map(d => ({id:d.id, ...d.data()})).sort((a,b)=> (a.nama||'').localeCompare(b.nama||''));
   S.subjek = sj.docs.map(d => ({id:d.id, ...d.data()})).sort((a,b)=> (a.nama||'').localeCompare(b.nama||''));
   S.jadual = jd.exists ? (jd.data().slot || []) : [];
   S.buku   = bk.docs.map(d => ({id:d.id, ...d.data()}));
-  S.takwim = tw.exists ? tw.data() : null;
+  S.takwim = pilihTakwimAktif(S.senaraiSesi);
+  S.sesi = S.takwim ? S.takwim.id : null;
   await muatRpt();
   await muatRph();
 }
@@ -29,6 +31,22 @@ async function muatRph(){
   const snap = await q.get();
   S.rph = snap.docs.map(d => ({id:d.id, ...d.data()})).sort((a,b)=> (b.tarikh||'').localeCompare(a.tarikh||''));
 }
+
+/* ---------- Sesi takwim aktif ---------- */
+function pilihTakwimAktif(senarai){
+  if(!senarai || !senarai.length) return null;
+  const hariIni = tarikhISO();
+  // sesi yang merangkumi hari ini
+  let aktif = senarai.find(t => t.mula && t.tamat && hariIni >= t.mula && hariIni <= t.tamat);
+  if(aktif) return aktif;
+  // sesi akan datang paling hampir (persediaan awal tahun)
+  const akan = senarai.filter(t => t.mula && t.mula > hariIni).sort((a,b)=> a.mula.localeCompare(b.mula));
+  if(akan.length) return akan[0];
+  // jika tiada, sesi terkini
+  return senarai[0];
+}
+function sesiPilihan(){ return window._sesiPilih || S.sesi || String(new Date().getFullYear()); }
+function takwimSesi(id){ return (S.senaraiSesi||[]).find(t => t.id === id) || null; }
 
 /* ---------- RPT (Rancangan Pengajaran Tahunan) ---------- */
 /* Semua RPT sekolah dimuat sekali dan dicache dalam peranti.
@@ -531,20 +549,37 @@ async function hapusItem(koleksi, id){
 
 /* ================= TAKWIM ================= */
 function halTakwim(){
-  const tahun = new Date().getFullYear();
-  const tw = S.takwim;
+  const sesi = sesiPilihan();
+  const tw = takwimSesi(sesi);
   const minggu = janaMinggu(tw);
+  const senarai = S.senaraiSesi || [];
   $('#kandungan').innerHTML = `
     <div class="kad">
-      <div class="kad-h"><h3>Takwim ${tahun}</h3><small>${minggu.filter(m=>m.no).length} minggu persekolahan</small></div>
-      ${!tw ? `<div class="kosong"><b>Takwim belum ditetapkan</b>Muat pratetap KPM di bawah, atau isi sendiri.</div>` : ''}
-      <div class="toolbar" style="margin-bottom:14px">
+      <div class="kad-h"><h3>Sesi persekolahan</h3>
+        ${S.sesi === sesi ? '<span class="pil hijau">Sesi aktif</span>' : '<span class="pil kuning">Bukan sesi aktif</span>'}</div>
+      <div class="toolbar" style="margin:0">
+        <select id="twSesi" onchange="tukarSesi(this.value)" style="flex:1">
+          ${senarai.map(t=>`<option value="${esc(t.id)}" ${t.id===sesi?'selected':''}>Sesi ${esc(t.id)} ${t.mula?'('+t.mula+' — '+t.tamat+')':'(belum lengkap)'} ${t.id===S.sesi?'· AKTIF':''}</option>`).join('')
+            || '<option value="">Tiada sesi lagi</option>'}
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="sesiBaharu()">+ Sesi baharu</button>
+        ${senarai.length>1 && ['pemilik','admin'].includes(S.peranan) ? `<button class="btn btn-danger btn-sm" onclick="padamSesi('${esc(sesi)}')">Padam sesi ini</button>` : ''}
+      </div>
+      <p style="font-size:12px;color:var(--teks-3);margin-top:10px">
+        Untuk tahun hadapan: tekan <b>+ Sesi baharu</b>, isi tarikh & cuti (atau import), dan sistem
+        bertukar ke sesi baharu secara automatik apabila tarikhnya bermula. Data tahun lama kekal untuk rujukan.</p>
+    </div>
+
+    <div class="kad">
+      <div class="kad-h"><h3>Takwim Sesi ${esc(sesi)}</h3><small>${minggu.filter(m=>m.no).length} minggu persekolahan</small></div>
+      ${!tw ? `<div class="kosong"><b>Sesi ini belum ditetapkan</b>Isi tarikh di bawah atau muat pratetap KPM.</div>` : ''}
+      ${sesi === '2026' ? `<div class="toolbar" style="margin-bottom:14px">
         <button class="btn btn-ungu" onclick="muatTakwimKPM('A')">📅 Muat Takwim KPM 2026 — Kumpulan A</button>
         <button class="btn" onclick="muatTakwimKPM('B')">📅 Kumpulan B</button>
       </div>
       <p style="font-size:12px;color:var(--teks-3);margin:-6px 0 14px">
         <b>Kumpulan A:</b> Kedah, Kelantan, Terengganu (Ahad–Khamis) ·
-        <b>Kumpulan B:</b> negeri lain (Isnin–Jumaat). Termasuk cuti penggal & perayaan 2026.</p>
+        <b>Kumpulan B:</b> negeri lain (Isnin–Jumaat).</p>` : ''}
       <div class="grid2">
         <label class="fld"><span>Tarikh mula sesi</span><input id="twMula" type="date" value="${esc(tw?.mula||'')}"></label>
         <label class="fld"><span>Tarikh akhir sesi</span><input id="twTamat" type="date" value="${esc(tw?.tamat||'')}"></label>
@@ -559,22 +594,20 @@ function halTakwim(){
           <option value="ahad" ${tw?.mulaHari!=='isnin'?'selected':''}>Ahad – Khamis (Kumpulan A)</option>
           <option value="isnin" ${tw?.mulaHari==='isnin'?'selected':''}>Isnin – Jumaat (Kumpulan B)</option>
         </select></label>
-      <button class="btn btn-primary" onclick="simpanTakwim()">Simpan takwim</button>
+      <button class="btn btn-primary" onclick="simpanTakwim()">Simpan takwim sesi ${esc(sesi)}</button>
     </div>
 
     <div class="kad">
-      <div class="kad-h"><h3>Cuti & tiada PdP</h3>
+      <div class="kad-h"><h3>Cuti & tiada PdP · Sesi ${esc(sesi)}</h3>
         <button class="btn btn-sm" onclick="formCuti()">+ Tambah</button>
         <button class="btn btn-sm" onclick="importCuti()">📥 Import Excel/CSV</button>
-        <button class="btn btn-sm" onclick="templatExcel('templat-cuti.xlsx',TEMPLAT.cuti,[['Cuti Penggal 1','2026-03-21','2026-03-29']])">⬇️ Templat</button></div>
+        <button class="btn btn-sm" onclick="templatExcel('templat-cuti.xlsx',TEMPLAT.cuti,[['Cuti Penggal 1','2027-03-20','2027-03-28']])">⬇️ Templat</button></div>
       ${(tw?.cuti||[]).length ? `<div class="senarai">${tw.cuti.sort((a,b)=>a.mula.localeCompare(b.mula)).map((c,i)=>`
         <div class="baris"><div class="baris-t"><b>${esc(c.nama)}</b><small>${tarikhCantik(c.mula)} — ${tarikhCantik(c.tamat)}</small></div>
         <button class="btn btn-sm btn-danger" onclick="hapusCuti(${i})">✕</button></div>`).join('')}</div>`
-        : `<div class="kosong">Tiada rekod cuti. Tambah cuti penggal, cuti perayaan atau cuti umum.</div>`}
+        : `<div class="kosong">Tiada rekod cuti. Tambah cuti penggal, cuti perayaan atau cuti umum negeri.</div>`}
       <p style="font-size:12px;color:var(--teks-3);margin-top:10px">
-        Format: <code>nama,mula(YYYY-MM-DD),tamat(YYYY-MM-DD)</code><br>
-        Pratetap KPM merangkumi cuti penggal & perayaan utama sahaja. <b>Sila tambah sendiri cuti umum negeri</b>
-        (Hari Keputeraan Sultan, Wesak, Awal Muharram, Maulidur Rasul, Hari Malaysia dan sebagainya)
+        Format: <code>nama,mula(YYYY-MM-DD),tamat(YYYY-MM-DD)</code>. Sila tambah cuti umum negeri sendiri
         supaya kiraan hari PdP tepat.</p>
     </div>
 
@@ -586,9 +619,32 @@ function halTakwim(){
         <td>${m.no?`<span class="pil biru">${m.label}</span>`:`<span class="pil kelabu">${esc(m.label)}</span>`}</td>
         <td>${m.hariPdP ? m.hariPdP+' hari' : '—'}</td>
         <td>${m.pdpMula||m.mula}</td><td>${m.pdpTamat||m.tamat}</td></tr>`).join('')}</table></div>
-      <p style="font-size:12px;color:var(--teks-3);margin-top:10px">
-        Minggu dikira hanya jika ada sekurang-kurangnya satu hari PdP. Minggu yang penuh cuti tidak diberi nombor.</p>
     </div>` : ''}`;
+}
+function tukarSesi(id){ window._sesiPilih = id; pergi('takwim'); }
+function sesiBaharu(){
+  const cadang = String((parseInt(S.sesi) || new Date().getFullYear()) + 1);
+  modal('Sesi baharu', `
+    <label class="fld"><span>Tahun sesi</span><input id="sbTahun" value="${cadang}" placeholder="2027"></label>
+    <p style="font-size:12.5px;color:var(--teks-2)">Sesi baharu dicipta kosong — isi tarikh mula/akhir dan cuti selepas ini.
+    Semua kelas, subjek, jadual dan RPH sedia ada tidak terjejas.</p>`,
+    `<button class="btn" onclick="tutupModal()">Batal</button>
+     <button class="btn btn-primary" onclick="ciptaSesi()">Cipta sesi</button>`);
+}
+async function ciptaSesi(){
+  const th = $('#sbTahun').value.trim();
+  if(!/^\d{4}$/.test(th)) return toast('Masukkan tahun 4 digit','salah');
+  if(takwimSesi(th)) { window._sesiPilih = th; tutupModal(); return pergi('takwim'); }
+  sibuk(true,'Mencipta sesi…');
+  await rujuk('takwim').doc(th).set({ tahun:th, cuti:[] });
+  await muatData(); window._sesiPilih = th;
+  sibuk(false); tutupModal(); pergi('takwim'); toast('Sesi '+th+' dicipta','jaya');
+}
+function padamSesi(id){
+  sahkan('Padam Sesi '+id+' beserta takwim & cutinya? RPH tidak terjejas.', async () => {
+    sibuk(true,'Memadam…'); await rujuk('takwim').doc(id).delete();
+    window._sesiPilih = null; await muatData(); sibuk(false); pergi('takwim'); toast('Sesi dipadam');
+  });
 }
 const TAKWIM_KPM = {
   A: { nama:'Kumpulan A — Kedah, Kelantan, Terengganu', mulaHari:'ahad',
@@ -616,22 +672,21 @@ const TAKWIM_KPM = {
 };
 function muatTakwimKPM(kump){
   const t = TAKWIM_KPM[kump];
-  sahkan('Muat '+t.nama+'? Takwim sedia ada akan digantikan.', async () => {
+  sahkan('Muat '+t.nama+'? Takwim sesi 2026 akan digantikan.', async () => {
     sibuk(true,'Memuatkan takwim KPM…');
-    const tahun = String(new Date().getFullYear());
-    await rujuk('takwim').doc(tahun).set({ tahun, mula:t.mula, tamat:t.tamat,
+    await rujuk('takwim').doc('2026').set({ tahun:'2026', mula:t.mula, tamat:t.tamat,
       mulaHari:t.mulaHari, kumpulan:kump, cuti:t.cuti });
     await muatData(); sibuk(false); pergi('takwim'); toast('Takwim '+kump+' dimuatkan','jaya');
   });
 }
 
 async function simpanTakwim(){
-  const tahun = String(new Date().getFullYear());
-  const d = { tahun, mula:$('#twMula').value, tamat:$('#twTamat').value, mulaHari:$('#twHari').value,
-              kiraMinggu:$('#twKira').value, cuti:(S.takwim?.cuti||[]) };
+  const sesi = sesiPilihan();
+  const d = { tahun:sesi, mula:$('#twMula').value, tamat:$('#twTamat').value, mulaHari:$('#twHari').value,
+              kiraMinggu:$('#twKira').value };
   if(!d.mula || !d.tamat) return toast('Isi tarikh mula dan akhir sesi','salah');
-  sibuk(true,'Menyimpan…'); await rujuk('takwim').doc(tahun).set(d,{merge:true});
-  await muatData(); sibuk(false); pergi('takwim'); toast('Takwim disimpan','jaya');
+  sibuk(true,'Menyimpan…'); await rujuk('takwim').doc(sesi).set(d,{merge:true});
+  await muatData(); sibuk(false); pergi('takwim'); toast('Takwim sesi '+sesi+' disimpan','jaya');
 }
 function formCuti(){
   modal('Tambah cuti', `
@@ -645,15 +700,17 @@ function formCuti(){
 async function simpanCuti(){
   const c = { nama:$('#fcNama').value.trim(), mula:$('#fcMula').value, tamat:$('#fcTamat').value };
   if(!c.nama || !c.mula || !c.tamat) return toast('Lengkapkan maklumat cuti','salah');
-  const tahun = String(new Date().getFullYear());
-  const cuti = [...(S.takwim?.cuti||[]), c];
-  await rujuk('takwim').doc(tahun).set({ tahun, cuti },{merge:true});
+  const sesi = sesiPilihan();
+  const cuti = [...((takwimSesi(sesi)||{}).cuti||[]), c];
+  await rujuk('takwim').doc(sesi).set({ tahun:sesi, cuti },{merge:true});
   await muatData(); tutupModal(); pergi('takwim'); toast('Cuti ditambah','jaya');
 }
 function hapusCuti(i){
   sahkan('Padam rekod cuti ini?', async () => {
-    const cuti = (S.takwim.cuti||[]).filter((_,x)=> x !== i);
-    await rujuk('takwim').doc(String(new Date().getFullYear())).set({ cuti },{merge:true});
+    const sesi = sesiPilihan();
+    const susun = ((takwimSesi(sesi)||{}).cuti||[]).sort((a,b)=>a.mula.localeCompare(b.mula));
+    const cuti = susun.filter((_,x)=> x !== i);
+    await rujuk('takwim').doc(sesi).set({ cuti },{merge:true});
     await muatData(); pergi('takwim'); toast('Cuti dipadam');
   });
 }
@@ -661,9 +718,10 @@ function importCuti(){
   pilihFail('.csv,.txt', async teks => {
     const rows = parseCSV(teks).filter(r => r.length >= 3 && /^\d{4}-\d{2}-\d{2}$/.test(r[1]));
     if(!rows.length) return toast('Format CSV tidak dikenali','salah');
-    const cuti = [...(S.takwim?.cuti||[]), ...rows.map(r => ({nama:r[0], mula:r[1], tamat:r[2]}))];
+    const sesi = sesiPilihan();
+    const cuti = [...((takwimSesi(sesi)||{}).cuti||[]), ...rows.map(r => ({nama:r[0], mula:r[1], tamat:r[2]}))];
     sibuk(true,'Mengimport…');
-    await rujuk('takwim').doc(String(new Date().getFullYear())).set({ tahun:String(new Date().getFullYear()), cuti },{merge:true});
+    await rujuk('takwim').doc(sesi).set({ tahun:sesi, cuti },{merge:true});
     await muatData(); sibuk(false); pergi('takwim'); toast(rows.length+' rekod cuti diimport','jaya');
   });
 }
@@ -1085,7 +1143,7 @@ function halTetapan(){
     </div>
 
     <div class="kad">
-      <div class="kad-h"><h3>Enjin AI</h3><small>Kunci disimpan dalam peranti ini sahaja</small></div>
+      <div class="kad-h"><h3>Enjin AI</h3><small>Disegerak ke akaun anda — sekali setup, semua peranti</small></div>
       <label class="fld"><span>Penyedia</span><select id="aiProv" onchange="tukarProv()">
         ${Object.entries(PENYEDIA).map(([k,v])=>`<option value="${k}" ${ai.prov===k?'selected':''}>${esc(v.nama)}</option>`).join('')}
       </select></label>
@@ -1180,10 +1238,25 @@ function lukisNotaAI(){
   $('#aiBaseKotak').style.display = (p.jenis === 'openai') ? '' : 'none';
 }
 function simpanAI(){
-  localStorage.setItem('erph_ai', JSON.stringify({
-    prov:$('#aiProv').value, key:$('#aiKey').value.trim(),
-    model:$('#aiModel').value.trim(), baseUrl:$('#aiBase').value.trim() }));
-  toast('Tetapan AI disimpan','jaya');
+  const t = { prov:$('#aiProv').value, key:$('#aiKey').value.trim(),
+              model:$('#aiModel').value.trim(), baseUrl:$('#aiBase').value.trim(), dikemas:Date.now() };
+  localStorage.setItem('erph_ai', JSON.stringify(t));
+  // segerak ke akaun — dibaca semula pada peranti lain semasa log masuk
+  db.collection('pengguna').doc(S.user.email).collection('peribadi').doc('ai')
+    .set({ ...t, dikemas:Date.now() }).catch(()=>{});
+  toast('Tetapan AI disimpan & disegerak ke akaun','jaya');
+}
+async function muatAiAkaun(){
+  try{
+    const d = await db.collection('pengguna').doc(S.user.email).collection('peribadi').doc('ai').get();
+    if(!d.exists) return;
+    const jauh = d.data();
+    const lokal = JSON.parse(localStorage.getItem('erph_ai') || '{}');
+    // guna versi akaun jika peranti ini belum ada tetapan, atau versi akaun lebih baharu
+    if(!lokal.key || (jauh.dikemas||0) > (lokal.dikemas||0)){
+      localStorage.setItem('erph_ai', JSON.stringify({ prov:jauh.prov, key:jauh.key, model:jauh.model, baseUrl:jauh.baseUrl, dikemas:jauh.dikemas }));
+    }
+  }catch(e){}
 }
 async function ujiAI(){
   simpanAI(); sibuk(true,'Menguji sambungan AI…');
