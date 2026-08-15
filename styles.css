@@ -211,6 +211,9 @@ tr:last-child td{border-bottom:0}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
 .toolbar input,.toolbar select{width:auto;flex:1;min-width:130px}
 
+/* Butang tindakan utama */
+.btn-besar{padding:14px 18px;font-size:15px;font-weight:700;border-radius:14px}
+
 /* ---------- Panel penjanaan pukal ---------- */
 .jana-tirai{position:fixed;inset:0;background:rgba(20,28,48,.5);z-index:80;display:grid;place-content:center;padding:20px}
 .jana-kotak{background:var(--putih);border-radius:18px;padding:22px;width:min(420px,92vw);

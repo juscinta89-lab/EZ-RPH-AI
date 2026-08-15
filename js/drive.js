@@ -11,52 +11,67 @@
    Dokumen disusun dalam folder: e-RPH AI / {Sesi} / {Minggu}. */
 
 const SKOP_DRIVE = 'https://www.googleapis.com/auth/drive.file';
-let _tokenGoogle = null, _tokenTamat = 0;
+
+/* ---------------------------------------------------------------
+   CLIENT ID APLIKASI — diisi SEKALI oleh pemilik aplikasi.
+   Ini bukan rahsia; ia memang terdedah dalam kod pelayar dan itu normal.
+   Guru TIDAK perlu buat apa-apa tetapan — mereka hanya tekan butang
+   dan log masuk dengan akaun Google masing-masing.
+   --------------------------------------------------------------- */
+const CLIENT_ID_TERBINA = "";   // <-- tampal Client ID anda di sini
+let _tokenGoogle = null, _tokenTamat = 0, _klienToken = null, _gisSedang = null;
 
 function clientIdGoogle(){
-  return (typeof GOOGLE_CLIENT_ID !== 'undefined' && GOOGLE_CLIENT_ID) ? GOOGLE_CLIENT_ID : '';
+  // keutamaan: tetapan sekolah (jika ada) → Client ID terbina dalam app
+  if(typeof GOOGLE_CLIENT_ID !== 'undefined' && GOOGLE_CLIENT_ID) return GOOGLE_CLIENT_ID;
+  return CLIENT_ID_TERBINA || '';
 }
 function driveSedia(){ return !!clientIdGoogle(); }
+function adaToken(){ return _tokenGoogle && Date.now() < _tokenTamat - 60000; }
 
-function muatSkripGIS(){
-  return new Promise((selesai, gagal) => {
+/* Pramuat pustaka Google seawal halaman dibuka, supaya klik butang nanti
+   boleh terus membuka popup tanpa menunggu (popup akan disekat jika menunggu). */
+function pramuatGIS(){
+  if(!driveSedia()) return Promise.resolve();
+  if(_gisSedang) return _gisSedang;
+  _gisSedang = new Promise((selesai, gagal) => {
     if(window.google?.accounts?.oauth2) return selesai();
     const sk = document.createElement('script');
     sk.src = 'https://accounts.google.com/gsi/client';
     sk.onload = selesai;
     sk.onerror = () => gagal(new Error('Gagal memuat pustaka Google. Semak sambungan internet.'));
     document.head.appendChild(sk);
+  }).then(() => {
+    if(!_klienToken && window.google?.accounts?.oauth2){
+      _klienToken = window.google.accounts.oauth2.initTokenClient({
+        client_id: clientIdGoogle(), scope: SKOP_DRIVE, callback: () => {}
+      });
+    }
   });
+  return _gisSedang;
 }
 
-async function tokenDrive(paksa){
-  if(!driveSedia())
-    throw new Error('Client ID Google belum ditetapkan dalam firebase-config.js. Lihat panduan di halaman ini.');
-  if(!paksa && _tokenGoogle && Date.now() < _tokenTamat - 60000) return _tokenGoogle;
-  await muatSkripGIS();
+/* Minta kebenaran SERTA-MERTA dalam klik pengguna — tiada await sebelum ini,
+   jadi popup tidak disekat pelayar. */
+function mintaTokenSegera(){
   return new Promise((selesai, gagal) => {
-    google.accounts.oauth2.initTokenClient({
-      client_id: clientIdGoogle(),
-      scope: SKOP_DRIVE,
-      callback: r => {
-        if(r.error) return gagal(new Error(huraiRalatOAuth(r)));
-        _tokenGoogle = r.access_token;
-        _tokenTamat = Date.now() + (r.expires_in || 3600) * 1000;
-        selesai(_tokenGoogle);
-      },
-      error_callback: e => gagal(new Error(huraiRalatOAuth(e)))
-    }).requestAccessToken();
+    if(adaToken()) return selesai(_tokenGoogle);
+    if(!_klienToken) return gagal(new Error('Pustaka Google belum siap. Tunggu sebentar dan cuba lagi.'));
+    _klienToken.callback = (r) => {
+      if(r.error) return gagal(new Error(huraiRalatOAuth(r)));
+      _tokenGoogle = r.access_token;
+      _tokenTamat = Date.now() + (r.expires_in || 3600) * 1000;
+      selesai(_tokenGoogle);
+    };
+    _klienToken.error_callback = (e) => gagal(new Error(huraiRalatOAuth(e)));
+    _klienToken.requestAccessToken();      // dipanggil terus dalam gerak isyarat pengguna
   });
 }
 
-function huraiRalatOAuth(e){
-  const t = String(e?.type || e?.error || e?.message || '');
-  if(/popup_closed|popup_failed/.test(t)) return 'Tetingkap kebenaran ditutup sebelum selesai. Cuba lagi.';
-  if(/access_denied/.test(t)) return 'Kebenaran ditolak. Akses Drive diperlukan untuk menyimpan dokumen RPH.';
-  if(/admin_policy|disallowed|blocked/.test(t))
-    return 'Pentadbir domain menyekat aplikasi ini. Cuba guna akaun Google peribadi, atau minta kelulusan pentadbir DELIMa.';
-  if(/idpiframe|origin/.test(t)) return 'Alamat laman tidak sepadan dengan tetapan Client ID. Semak "Authorized JavaScript origins".';
-  return 'Ralat kebenaran Google: ' + (t || 'tidak diketahui');
+async function tokenDrive(){
+  if(adaToken()) return _tokenGoogle;
+  await pramuatGIS();
+  return mintaTokenSegera();
 }
 
 async function apiDrive(url, pilihan){
@@ -121,10 +136,10 @@ function halDrive(){
   const mggIni = minggu.find(m => hariIni >= m.mula && hariIni <= m.tamat);
   const rekod = JSON.parse(localStorage.getItem('erph_drive_log') || '[]');
   $('#kandungan').innerHTML = `
-    ${!driveSedia() ? kadPanduanDrive() : `
+    ${!driveSedia() ? (S.peranan === 'pemilik' ? kadPanduanDrive() : kadBelumSedia()) : `
     <div class="kad">
       <div class="kad-h"><h3>Simpan RPH ke Google Drive</h3>
-        <span id="dvStatus" class="pil kelabu">Belum disambung</span></div>
+        <span id="dvStatus" class="pil ${'' }kelabu"></span></div>
       <p style="font-size:13px;color:var(--teks-2);line-height:1.6;margin-bottom:13px">
         RPH ditukar menjadi dokumen <b>Google Docs</b> dan disimpan kemas dalam folder
         <code>e-RPH AI › Sesi ${esc(S.sesi||'')} › Minggu</code> pada Drive anda sendiri.
@@ -141,7 +156,13 @@ function halDrive(){
           </select></label>
       </div>
       <div id="dvKira" class="kad" style="background:var(--bg);padding:11px;font-size:12.5px;margin-bottom:13px"></div>
-      <button class="btn btn-primary btn-block" onclick="hantarKeDrive()">📤 Simpan ke Google Drive</button>
+      <button class="btn btn-primary btn-block btn-besar" onclick="hantarKeDrive()">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8"
+             stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px">
+          <path d="M8 3h8l5 8.5-4 7H7l-4-7z"/><path d="M8 3 3.5 11.5M16 3l-4.5 8.5M3.5 11.5h17"/></svg>
+        Simpan ke Google Drive</button>
+      <p style="font-size:11.5px;color:var(--teks-3);margin-top:9px;text-align:center">
+        Kali pertama, Google akan minta kebenaran akses Drive.</p>
     </div>
 
     ${rekod.length ? `<div class="kad">
@@ -166,21 +187,48 @@ function halDrive(){
             <small style="display:block">${x[1]}</small></div></div>`).join('')}
       </div>
     </div>`}`;
-  if(driveSedia()) kiraRphDrive();
+  if(driveSedia()){
+    kiraRphDrive();
+    pramuatGIS().then(() => {
+      const el = $('#dvStatus'); if(!el) return;
+      if(adaToken()){ el.className = 'pil hijau'; el.textContent = 'Akaun disambung'; }
+      else { el.className = 'pil kelabu'; el.textContent = 'Sedia'; }
+    }).catch(() => {
+      const el = $('#dvStatus'); if(el){ el.className='pil merah'; el.textContent='Pustaka Google gagal dimuat'; }
+    });
+  }
+}
+
+function kadBelumSedia(){
+  return `<div class="kad" style="text-align:center;padding:28px">
+    <div style="font-size:34px">🔧</div>
+    <h3 style="margin:10px 0 6px">Ciri ini belum diaktifkan</h3>
+    <p style="font-size:13px;color:var(--teks-2);line-height:1.6">
+      Penyelenggara aplikasi belum mengaktifkan simpanan Google Drive.<br>
+      Buat sementara, gunakan menu <b>Cetak Mingguan</b> untuk simpan PDF
+      dan muat naik ke Classroom seperti biasa.</p>
+    <button class="btn" style="margin-top:14px" onclick="pergi('cetak')">Buka Cetak Mingguan</button>
+  </div>`;
 }
 
 function kadPanduanDrive(){
   return `<div class="kad">
     <div class="kad-h"><h3>Sediakan sambungan Google Drive</h3></div>
-    <p style="font-size:13px;color:var(--teks-2);line-height:1.65;margin-bottom:14px">
-      Perlu Client ID Google anda sendiri — percuma, sekali sahaja untuk semua guru sekolah.</p>
+    <p style="font-size:13px;color:var(--teks-2);line-height:1.65;margin-bottom:6px">
+      <b>Untuk pemilik aplikasi sahaja.</b> Anda buat ini <b>sekali sahaja</b> —
+      selepas itu semua guru di semua sekolah hanya perlu tekan butang dan log masuk
+      dengan akaun Google mereka sendiri. Tiada tetapan untuk mereka.</p>
+    <p style="font-size:12.5px;color:var(--teks-3);line-height:1.6;margin-bottom:14px">
+      Client ID bukan kata laluan — ia memang terdedah dalam kod pelayar dan itu selamat.
+      Yang melindungi data ialah kebenaran Google setiap pengguna.</p>
     <div class="senarai" style="font-size:13px">
       ${[
         ['Cipta projek','Buka console.cloud.google.com → cipta projek baharu (contoh: e-RPH AI).'],
         ['Aktifkan API','APIs &amp; Services → Library → aktifkan <b>Google Drive API</b> sahaja.'],
         ['Skrin persetujuan','OAuth consent screen → External → isi nama app dan e-mel. Tambah skop <code>drive.file</code>. Tambah e-mel guru sebagai Test user.'],
         ['Cipta Client ID','Credentials → OAuth client ID → Web application. Dalam "Authorized JavaScript origins" masukkan alamat app anda, contoh https://juscinta89-lab.github.io'],
-        ['Tampal ke app','Salin Client ID ke <code>firebase-config.js</code> pada <code>const GOOGLE_CLIENT_ID = "..."</code> dan muat naik semula.']
+        ['Tampal ke app','Salin Client ID ke <code>js/drive.js</code> pada baris <code>const CLIENT_ID_TERBINA = "..."</code>, kemudian muat naik semula ke GitHub. Siap — semua guru terus boleh guna.'],
+        ['Terbitkan app','OAuth consent screen → tekan <b>Publish app</b>. Semasa dalam mod Testing, hanya 100 akaun yang ditambah sebagai Test user boleh guna.']
       ].map((x,i)=>`<div class="baris"><div class="baris-t"><b>${i+1}. ${x[0]}</b>
         <small style="display:block;margin-top:2px">${x[1]}</small></div></div>`).join('')}
     </div>
@@ -204,15 +252,27 @@ function kiraRphDrive(){
     : '<span style="color:var(--merah)">Tiada RPH untuk minggu ini</span>';
 }
 
-async function hantarKeDrive(){
+function hantarKeDrive(){
   const senarai = rphMingguDrive();
   if(!senarai.length) return toast('Tiada RPH untuk minggu ini','salah');
   const [,,label] = $('#dvMinggu').value.split('|');
   const gaya = $('#dvGaya').value;
+
+  /* Popup Google MESTI dibuka terus dalam klik ini — jangan letak await sebelumnya */
+  const tok = adaToken() ? Promise.resolve(_tokenGoogle) : mintaTokenSegera();
+  tok.then(() => teruskanMuatNaik(senarai, label, gaya))
+     .catch(e => modal('Gagal menyambung', `
+        <p style="font-size:13.5px;color:var(--merah);line-height:1.6">${esc(e.message)}</p>
+        <p style="font-size:12.5px;color:var(--teks-2);margin-top:10px">
+          Jika popup tidak muncul, benarkan pop-up untuk laman ini dalam tetapan pelayar,
+          kemudian cuba sekali lagi.</p>`));
+}
+
+async function teruskanMuatNaik(senarai, label, gaya){
   try{
     sibuk(true,'Menyediakan dokumen…');
     const html = dokumenDrive(senarai, gaya);
-    sibuk(true,'Menyambung ke Google Drive…');
+    sibuk(true,'Menyediakan folder dalam Drive…');
     const folder = await folderRph(S.sesi, label);
     const nama = `RPH ${label} — ${S.profil.nama||''}`.trim().slice(0,120);
     sibuk(true,'Memuat naik dokumen…');
@@ -221,7 +281,7 @@ async function hantarKeDrive(){
     rekod.unshift({ nama:fail.name, pautan:fail.webViewLink, masa:new Date().toLocaleString('ms-MY') });
     localStorage.setItem('erph_drive_log', JSON.stringify(rekod.slice(0,30)));
     sibuk(false);
-    if($('#dvStatus')){ $('#dvStatus').className='pil hijau'; $('#dvStatus').textContent='Disambung'; }
+    if($('#dvStatus')){ $('#dvStatus').className='pil hijau'; $('#dvStatus').textContent='Akaun disambung'; }
     modal('Tersimpan dalam Drive', `
       <p style="font-size:13.5px;color:var(--teks-2);line-height:1.65">
         <b>${senarai.length} RPH</b> disimpan sebagai Google Docs dalam folder
@@ -240,6 +300,33 @@ async function hantarKeDrive(){
       <p style="font-size:12.5px;color:var(--teks-2);margin-top:10px">
         Anda masih boleh cetak RPH sebagai PDF dan muat naik ke Classroom seperti biasa.</p>`);
   }
+}
+
+/* Simpan RPH tunggal terus dari editor — satu klik */
+function simpanRphKeDrive(){
+  if(!driveSedia()) return toast('Ciri Drive belum diaktifkan','salah');
+  const r = { ...S.rph.find(x => x.id === S.editRphId), ...bacaEditor() };
+  const tok = adaToken() ? Promise.resolve(_tokenGoogle) : mintaTokenSegera();
+  tok.then(async () => {
+    try{
+      sibuk(true,'Menyimpan ke Drive…');
+      const html = dokumenDrive([r], gayaCetak());
+      const folder = await folderRph(S.sesi, r.minggu || '');
+      const nama = `RPH ${r.subjek} ${r.kelas} — ${r.tarikh}`.slice(0,120);
+      const fail = await naikDokumen(nama, html, folder);
+      const log = JSON.parse(localStorage.getItem('erph_drive_log') || '[]');
+      log.unshift({ nama:fail.name, pautan:fail.webViewLink, masa:new Date().toLocaleString('ms-MY') });
+      localStorage.setItem('erph_drive_log', JSON.stringify(log.slice(0,30)));
+      sibuk(false);
+      modal('Tersimpan dalam Drive', `
+        <p style="font-size:13.5px;color:var(--teks-2);line-height:1.6">
+          <b>${esc(fail.name)}</b> disimpan dalam folder e-RPH AI.</p>
+        <div class="toolbar" style="margin-top:12px">
+          <a class="btn btn-primary" href="${esc(fail.webViewLink)}" target="_blank" rel="noopener">Buka dokumen</a>
+          <button class="btn" onclick="salinTeks('${esc(fail.webViewLink)}')">Salin pautan</button></div>`,
+        `<button class="btn btn-primary" onclick="tutupModal()">Selesai</button>`);
+    }catch(e){ sibuk(false); toast(e.message,'salah'); }
+  }).catch(e => toast(e.message,'salah'));
 }
 
 function salinTeks(t){

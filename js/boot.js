@@ -88,6 +88,7 @@ auth.onAuthStateChanged(async user => {
     $('#bootMsg').textContent = 'Memuatkan data sekolah…';
     await Promise.all([muatData(), muatAiAkaun()]);
     muatLogo();
+    if(typeof pramuatGIS === 'function') pramuatGIS().catch(()=>{});   // sedia untuk butang Drive
     tunjuk('#app'); binaMenu(); papar(); pergi('dashboard');
 
   }catch(e){

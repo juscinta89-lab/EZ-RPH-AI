@@ -599,6 +599,7 @@ function halEditor(){
         <button class="btn btn-primary" onclick="simpanRph('lengkap')">Simpan sebagai lengkap</button>
         <button class="btn" onclick="simpanRph('draf')">Simpan draf</button>
         <button class="btn" onclick="cetakRph()">🖨️ Cetak / PDF</button>
+      ${driveSedia() ? `<button class="btn" onclick="simpanRphKeDrive()">📁 Simpan ke Drive</button>` : ''}
         <button class="btn" onclick="salinRph()">📋 Salin ke tarikh lain</button>
         <button class="btn btn-danger" onclick="padamRph()">Padam</button>
       </div>
@@ -1095,6 +1096,7 @@ function halCetak(){
       <div class="kad-h"><h3>Cetak pantas</h3></div>
       <div class="toolbar" style="margin:0">
         <button class="btn btn-primary" onclick="cetakHari('${hariIni}')">🖨️ Hari ini (${S.rph.filter(r=>r.tarikh===hariIni).length})</button>
+        ${typeof driveSedia === 'function' && driveSedia() ? `<button class="btn btn-ungu" onclick="pergi('drive')">📁 Simpan ke Drive</button>` : ''}
         ${mggIni?`<button class="btn btn-ungu" onclick="cetakMinggu('${mggIni.mula}')">🖨️ ${esc(mggIni.label)} penuh</button>`:''}
       </div>
     </div>

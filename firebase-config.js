@@ -11,13 +11,12 @@
    ========================================================= */
 
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyD8gOeStzQ4JldXeYHViNFX5dfXi4LNB5A",
-  authDomain: "ez-rph-ai.firebaseapp.com",
-  projectId: "ez-rph-ai",
-  storageBucket: "ez-rph-ai.firebasestorage.app",
-  messagingSenderId: "700098799420",
-  appId: "1:700098799420:web:69f0c0408baaceb4d4e039",
-  measurementId: "G-4YFT645VHG"
+  apiKey: "MASUKKAN_API_KEY",
+  authDomain: "PROJEK.firebaseapp.com",
+  projectId: "PROJEK",
+  storageBucket: "PROJEK.appspot.com",
+  messagingSenderId: "000000000000",
+  appId: "1:000000000000:web:xxxxxxxxxxxx"
 };
 
 /* =========================================================
@@ -26,13 +25,13 @@ const FIREBASE_CONFIG = {
    E-mel ini automatik jadi 'pemilik' pada log masuk pertama.
    ========================================================= */
 const EMEL_PEMILIK = [
-  "juscinta89@gmail.com"
+  "emel.anda@gmail.com"
 ];
 
 /* Tetapan lain */
 const APP = {
   nama: "e-RPH AI",
-  versi: "v12.0",
+  versi: "v1.0",
   tagline: "RPH Pintar. PdP Lebih Terancang."
 };
 
