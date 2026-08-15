@@ -32,6 +32,6 @@ const EMEL_PEMILIK = [
 /* Tetapan lain */
 const APP = {
   nama: "e-RPH AI",
-  versi: "v1.0",
+  versi: "v5.9",
   tagline: "RPH Pintar. PdP Lebih Terancang."
 };
