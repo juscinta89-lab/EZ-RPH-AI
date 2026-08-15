@@ -5,11 +5,11 @@
  * Penggunaan, pengedaran atau pengubahsuaian tanpa kebenaran bertulis adalah dilarang.
  */
 /* e-RPH AI — Service Worker */
-const CACHE = 'erph-v28';
+const CACHE = 'erph-v30';
 const FAIL = [
   './','./index.html','./styles.css','./manifest.json',
   './firebase-config.js','./js/core.js','./js/data.js','./js/ai.js',
-  './js/rph.js','./js/admin.js','./js/boot.js',
+  './js/rph.js','./js/drive.js','./js/rujukan.js','./js/admin.js','./js/boot.js',
   './icons/icon-192.png','./icons/icon-512.png','./icons/icon-maskable-192.png','./icons/icon-maskable-512.png'
 ];
 

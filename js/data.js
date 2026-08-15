@@ -10,15 +10,19 @@ function rujuk(sub){ return db.collection('sekolah').doc(S.sid).collection(sub);
 
 async function muatData(){
   if(!S.sid) return;
-  const [k, sj, jd, bk, tw, ada] = await Promise.all([
+  const [k, sj, jd, bk, tw, ada, ruj, tai] = await Promise.all([
     rujuk('kelas').get(),
     rujuk('subjek').get(),
     rujuk('jadual').doc(S.user.email).get(),
     rujuk('buku').get(),
     rujuk('takwim').get(),                                  // semua sesi
-    rujuk('rpt').limit(1).get()
+    rujuk('rpt').limit(1).get(),
+    rujuk('tetapan').doc('rujukan').get(),
+    rujuk('tetapan').doc('ai').get()
   ]);
   S.rptAda = !ada.empty;
+  S.rujukan = ruj.exists ? (ruj.data().senarai || []) : [];
+  S.tetapanAI = tai.exists ? tai.data() : {};
   S.senaraiSesi = tw.docs.map(d => ({ id:d.id, ...d.data() }))
                          .sort((a,b)=> (b.mula||b.id||'').localeCompare(a.mula||a.id||''));
   S.kelas  = k.docs.map(d => ({id:d.id, ...d.data()})).sort((a,b)=> (a.nama||'').localeCompare(b.nama||''));

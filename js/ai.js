@@ -243,7 +243,13 @@ function promptRph(ctx){
   const kelasInfo = S.kelas.find(k => norma(k.nama) === norma(ctx.kelas)) || {};
   const bilMurid = kelasInfo.bilangan || ctx.bilMurid || null;
 
+  const panduan = (S.tetapanAI?.panduan || '').trim();
+
   return `Bina satu Rancangan Pengajaran Harian (RPH) KPM yang lengkap dan profesional.
+${panduan ? `
+PANDUAN WAJIB SEKOLAH INI — PATUHI SEPENUHNYA
+${panduan}
+` : ''}
 
 MAKLUMAT SESI
 Tarikh: ${ctx.tarikh} (${namaHari(ctx.tarikh)})
