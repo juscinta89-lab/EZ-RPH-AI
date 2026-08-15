@@ -178,12 +178,16 @@ function segarRptJana(){
     </div>`;
 }
 
+function infoKelas(nama){
+  return S.kelas.find(k => norma(k.nama) === norma(nama)) || {};
+}
 function ctxDaripadaSlot(slot, tarikh, extra){
-  const kelas = S.kelas.find(k => norma(k.nama) === norma(slot.kelas));
+  const kelas = infoKelas(slot.kelas);
   return Object.assign({
     slotId:slot.id, tarikh, subjek:slot.subjek, kelas:slot.kelas,
-    tahun:kelas?.tahun || '', mula:slot.mula, tamat:slot.tamat,
-    tempoh:minit(slot.mula, slot.tamat), minggu:mingguUntuk(tarikh)
+    tahun:kelas.tahun || '', mula:slot.mula, tamat:slot.tamat,
+    tempoh:minit(slot.mula, slot.tamat), minggu:mingguUntuk(tarikh),
+    bilMurid:kelas.bilangan || null, tahapKelas:kelas.tahap || '', notaKelas:kelas.nota || ''
   }, extra||{});
 }
 
@@ -323,6 +327,110 @@ function kemasJana(i, jum, teks, siap, gagal, kekalNombor){
   if($('#jpKira')) $('#jpKira').innerHTML = `<b style="color:var(--hijau)">${siap} siap</b>${gagal?` · <b style="color:var(--merah)">${gagal} gagal</b>`:''} · ${jum-i-1} baki`;
 }
 function hentiJana(){ _janaHenti = true; toast('Akan berhenti selepas RPH semasa…'); }
+
+/* ================= AUDIT PUKAL ================= */
+const LABEL_MASALAH = {
+  angka:'Bilangan murid salah', kelas:'Kelas tidak dikenali', sk:'Standard Kandungan',
+  sp:'Standard Pembelajaran', objektif:'Objektif kosong', kriteria:'Kriteria kejayaan kosong',
+  aktiviti:'Aktiviti terlalu ringkas', tajuk:'Tajuk kosong', bbm:'BBM kosong',
+  pbd:'Pentaksiran kosong', amaran:'Amaran AI', rpt:'SP tidak sepadan RPT', refleksi:'Refleksi kosong'
+};
+
+function halAudit(){
+  const hasil = S.rph.map(r => ({ r, m: auditRph(r) }));
+  const bermasalah = hasil.filter(x => x.m.length);
+  const kiraJenis = {};
+  bermasalah.forEach(x => x.m.forEach(p => kiraJenis[p.kod] = (kiraJenis[p.kod]||0)+1));
+  const bolehBaiki = bermasalah.filter(x => x.m.some(p => p.boleh)).length;
+  const berat = k => bermasalah.filter(x => x.m.some(p => p.berat === k)).length;
+  window._auditHasil = hasil;
+
+  $('#kandungan').innerHTML = `
+    <div class="stat-grid">
+      <div class="stat b"><b>${S.rph.length}</b><small>Jumlah RPH</small></div>
+      <div class="stat h"><b>${S.rph.length - bermasalah.length}</b><small>Tiada isu</small></div>
+      <div class="stat k"><b>${bermasalah.length}</b><small>Perlu semakan</small></div>
+      <div class="stat m"><b>${berat('tinggi')}</b><small>Isu penting</small></div>
+    </div>
+
+    ${bolehBaiki ? `<div class="kad" style="background:#fdeaea;border-color:#f5cfcf">
+      <div class="kad-h"><h3 style="color:#a33">${bolehBaiki} RPH dengan bilangan murid salah</h3></div>
+      <p style="font-size:13px;color:var(--teks-2);margin-bottom:12px">
+        Angka murid dalam refleksi/kriteria tidak sepadan dengan data kelas anda.
+        Sistem boleh membetulkan kesemuanya sekali gus mengikut senarai kelas.</p>
+      <button class="btn btn-primary" onclick="baikiSemuaAngka()">🔧 Betulkan ${bolehBaiki} RPH sekali gus</button>
+    </div>` : ''}
+
+    ${!bermasalah.length ? `<div class="kad" style="text-align:center;padding:30px">
+      <div style="font-size:38px">✅</div>
+      <h3 style="margin:8px 0 4px">Semua RPH bersih</h3>
+      <p style="font-size:13px;color:var(--teks-2)">Tiada isu dikesan dalam ${S.rph.length} RPH anda.</p></div>` : `
+
+    <div class="kad">
+      <div class="kad-h"><h3>Ringkasan isu</h3></div>
+      <div class="toolbar" style="margin:0">
+        <button class="btn btn-sm" onclick="tapisAudit('')">Semua (${bermasalah.length})</button>
+        ${Object.entries(kiraJenis).sort((a,b)=>b[1]-a[1]).map(([k,n])=>
+          `<button class="btn btn-sm" onclick="tapisAudit('${k}')">${LABEL_MASALAH[k]||k} (${n})</button>`).join('')}
+      </div>
+    </div>
+    <div id="auditSenarai"></div>`}`;
+  if(bermasalah.length) tapisAudit('');
+}
+
+function tapisAudit(kod){
+  const hasil = (window._auditHasil||[]).filter(x => x.m.length && (!kod || x.m.some(p => p.kod === kod)))
+    .sort((a,b) => (b.tarikh||b.r.tarikh).localeCompare(a.tarikh||a.r.tarikh));
+  const warna = { tinggi:'var(--merah)', sederhana:'var(--kuning)', rendah:'var(--teks-3)' };
+  $('#auditSenarai').innerHTML = hasil.slice(0,200).map(({r,m}) => {
+    const [gelap, cerah] = warnaSubjek(r.subjek);
+    const paling = m.some(p=>p.berat==='tinggi') ? 'tinggi' : m.some(p=>p.berat==='sederhana') ? 'sederhana' : 'rendah';
+    return `<div class="kad" style="padding:13px;border-left:4px solid ${warna[paling]}">
+      <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap">
+        <span class="sj-bulat" style="--w:${gelap};background:${gelap}"></span>
+        <b style="font-size:14px">${esc(r.subjek)}</b>
+        <span style="font-size:12.5px;color:var(--teks-2)">${esc(r.kelas)}</span>
+        <span class="pil kelabu">${tarikhCantik(r.tarikh)}</span>
+        <span class="pil ${r.status==='lengkap'?'hijau':'kuning'}">${r.status==='lengkap'?'Lengkap':'Draf'}</span>
+        <button class="btn btn-sm" style="margin-left:auto" onclick="bukaRph('${r.id}')">Buka & baiki</button>
+      </div>
+      <div style="margin-top:9px;display:grid;gap:5px">
+        ${m.map(p=>`<div style="display:flex;gap:7px;font-size:12.5px;color:${warna[p.berat]}">
+          <span>${p.berat==='tinggi'?'⛔':p.berat==='sederhana'?'⚠️':'○'}</span>
+          <span style="color:var(--teks-2)">${esc(p.teks)}</span></div>`).join('')}
+      </div></div>`;
+  }).join('') + (hasil.length>200 ? `<p style="text-align:center;color:var(--teks-3);font-size:12px;padding:10px">Menunjukkan 200 daripada ${hasil.length}</p>` : '');
+}
+
+async function baikiSemuaAngka(){
+  const sasar = (window._auditHasil||[]).filter(x => x.m.some(p => p.kod === 'angka'));
+  if(!sasar.length) return toast('Tiada yang perlu dibaiki','jaya');
+  sahkan(`Betulkan bilangan murid dalam ${sasar.length} RPH mengikut data kelas? Tindakan ini tidak boleh dibatalkan.`, async () => {
+    let siap = 0;
+    for(let i = 0; i < sasar.length; i += 300){
+      sibuk(true, `Membetulkan ${siap}/${sasar.length}…`);
+      const b = db.batch();
+      sasar.slice(i, i+300).forEach(({r,m}) => {
+        const jum = m.find(p => p.kod==='angka')?.jum;
+        if(!jum) return;
+        const ubah = {};
+        ['refleksi','kriteria','objektif'].forEach(f => { if(r[f]) ubah[f] = betulTeksAngka(r[f], jum); });
+        if(r.aktiviti) ubah.aktiviti = betulTeksAngka(r.aktiviti, jum);
+        b.update(rujuk('rph').doc(r.id), ubah);
+      });
+      await b.commit(); siap += Math.min(300, sasar.length - i);
+    }
+    await muatRph(); sibuk(false); pergi('audit');
+    toast(`${sasar.length} RPH dibetulkan`, 'jaya');
+  });
+}
+function betulTeksAngka(teks, jum){
+  return String(teks)
+    .replace(/(\d{1,3})\s*(daripada|dari|\/)\s*(\d{1,3})(\s*(?:orang\s*)?murid)/gi,
+      (m,a,b,c,d) => `${Math.min(+a, jum)} ${b} ${jum}${d}`)
+    .replace(/(seramai|kesemua|semua)\s*(\d{1,3})(\s*(?:orang\s*)?murid)/gi,
+      (m,a,b,c) => `${a} ${jum}${c}`);
+}
 
 /* ================= KALENDAR ================= */
 let kalBulan = new Date().getMonth(), kalTahun = new Date().getFullYear();
@@ -501,6 +609,10 @@ function halEditor(){
         <div class="kad-h"><h3>Semakan kualiti</h3><span class="pil ${warna}">${q.peratus}%</span></div>
         ${q.cek.map(c=>`<div style="display:flex;gap:8px;font-size:12.5px;padding:3px 0;color:${c[1]?'var(--teks-2)':'var(--merah)'}">
           <span>${c[1]?'✓':'✕'}</span><span>${c[0]}</span></div>`).join('')}
+        ${(() => { const a = semakAngkaMurid(r);
+          return a.ok ? '' : `<p style="margin-top:10px;font-size:12px;background:#fdeaea;color:#a33;padding:9px;border-radius:8px">
+            ⚠️ RPH menyebut <b>${esc(a.salah.join(', '))}</b> murid tetapi kelas ini ada <b>${a.jum}</b> murid.
+            <button class="btn btn-sm" style="margin-top:7px" onclick="betulkanAngka(${a.jum})">Betulkan automatik</button></p>`; })()}
         ${r.amaran ? `<p style="margin-top:10px;font-size:12px;background:#fdf3dd;color:#8a6106;padding:9px;border-radius:8px">⚠️ ${esc(r.amaran)}</p>` : ''}
         <p style="font-size:11px;color:var(--teks-3);margin-top:10px">Semakan ini bantuan sistem sahaja, bukan pengesahan rasmi KPM.</p>
       </div>
@@ -636,8 +748,34 @@ async function janaSemula(){
     await muatRph(); sibuk(false); halEditor(); toast('RPH dijana semula','jaya');
   }catch(e){ sibuk(false); toast('Gagal: '+e.message,'salah'); }
 }
+function betulkanAngka(jum){
+  ['eRefleksi','eKriteria','eObjektif'].forEach(id => {
+    const el = $('#'+id); if(!el) return;
+    el.value = String(el.value)
+      .replace(/(\d{1,3})\s*(daripada|dari|\/)\s*(\d{1,3})(\s*(?:orang\s*)?murid)/gi,
+        (m,a,b,c,d) => `${Math.min(+a, jum)} ${b} ${jum}${d}`)
+      .replace(/(seramai|kesemua|semua)\s*(\d{1,3})(\s*(?:orang\s*)?murid)/gi,
+        (m,a,b,c) => `${a} ${jum}${c}`);
+  });
+  const ed = $('#eAktiviti');
+  if(ed) ed.innerHTML = ed.innerHTML.replace(/(\d{1,3})\s*(daripada|dari)\s*(\d{1,3})(\s*(?:orang\s*)?murid)/gi,
+    (m,a,b,c,d) => `${Math.min(+a, jum)} ${b} ${jum}${d}`);
+  toast('Angka dibetulkan kepada '+jum+' murid','jaya');
+  if(typeof halEditor === "function") setTimeout(halEditor, 60);
+}
+
 function janaRefleksi(){
+  const r = bacaEditor();
+  const k = infoKelas(r.kelas);
+  const jum = k.bilangan || 0;
+  const cadang = jum ? [Math.round(jum*0.9), Math.round(jum*0.75), Math.round(jum*0.5)] : [];
   modal('Jana refleksi', `
+    ${jum ? `<div class="kad" style="background:var(--ungu-t);border-color:#ddd3fb;padding:11px;margin-bottom:13px;font-size:12.5px;color:var(--teks-2)">
+      Kelas <b>${esc(r.kelas)}</b> mempunyai <b>${jum} murid</b>${k.tahap?` · tahap ${esc(k.tahap)}`:''}.
+      Refleksi akan menggunakan angka sebenar ini.</div>`
+      : `<div class="kad" style="background:#fdf3dd;border-color:#f0dcae;padding:11px;margin-bottom:13px;font-size:12.5px;color:#8a6106">
+      Bilangan murid untuk kelas <b>${esc(r.kelas||'—')}</b> belum ditetapkan.
+      Isi di menu <b>Kelas</b> supaya refleksi tepat.</div>`}
     <label class="fld"><span>Keadaan sebenar PdP</span><select id="rfPilih">
       <option>Semua murid menguasai objektif</option>
       <option>Sebahagian besar murid menguasai</option>
@@ -645,7 +783,11 @@ function janaRefleksi(){
       <option>Aktiviti berjaya dan murid aktif</option>
       <option>Aktiviti perlu ditambah baik</option>
       <option>PdP tidak dapat dijalankan</option></select></label>
-    <label class="fld"><span>Bilangan murid menguasai <em>(pilihan)</em></span><input id="rfBil" placeholder="Cth: 28/32"></label>
+    <label class="fld"><span>Bilangan murid menguasai daripada ${jum||'—'}</span>
+      <input id="rfBil" type="number" min="0" max="${jum||999}" value="${cadang[0]||''}" placeholder="${jum?'Cth: '+cadang[0]:'Bilangan'}">
+      ${cadang.length?`<span style="display:flex;gap:6px;margin-top:7px">${cadang.map(n=>
+        `<button type="button" class="btn btn-sm" onclick="$('#rfBil').value=${n}">${n}/${jum}</button>`).join('')}</span>`:''}
+    </label>
     <label class="fld"><span>Catatan tambahan</span><textarea id="rfNota" style="min-height:70px"></textarea></label>`,
     `<button class="btn" onclick="tutupModal()">Batal</button><button class="btn btn-primary" onclick="jalankanRefleksi()">✨ Jana</button>`);
 }
@@ -654,10 +796,26 @@ async function jalankanRefleksi(){
   tutupModal(); sibuk(true,'AI menulis refleksi…');
   try{
     const r = bacaEditor();
+    const k = infoKelas(r.kelas);
+    const jum = k.bilangan || null;
+    const menguasai = bil ? Math.min(+bil, jum || +bil) : null;
     const p = `Tulis satu refleksi RPH profesional (2-4 ayat, Bahasa Melayu baku, gaya rekod rasmi guru KPM).
+
+MAKLUMAT KELAS SEBENAR — WAJIB PATUH
+Kelas: ${r.kelas}${k.tahun?' ('+k.tahun+')':''}
+Jumlah murid dalam kelas ini: ${jum ?? 'tidak dinyatakan'}
+${k.tahap?'Tahap pencapaian kelas: '+k.tahap:''}
+${k.nota?'Nota guru tentang kelas ini: '+k.nota:''}
+${menguasai!=null && jum ? `Bilangan menguasai objektif: ${menguasai} daripada ${jum} murid.` : ''}
+
+PERATURAN ANGKA (PALING PENTING)
+- Gunakan HANYA angka ${jum ?? '(tiada)'} sebagai jumlah murid. JANGAN reka atau anggar angka lain.
+${menguasai!=null && jum ? `- Tulis dengan tepat "${menguasai} daripada ${jum} orang murid".` : '- Jika bilangan tidak diberi, tulis secara umum tanpa angka.'}
+${k.tahap||k.nota ? '- Sesuaikan nada refleksi dengan tahap dan nota kelas di atas (contoh: kelas lemah perlu bimbingan lanjutan, bukan pengayaan sahaja).' : ''}
+
 Objektif: ${r.objektif}
 Aktiviti: ${stripHtml(r.aktiviti).slice(0,400)}
-Keadaan sebenar: ${pilih}${bil?' ('+bil+' murid menguasai)':''}${nota?'. Catatan: '+nota:''}
+Keadaan sebenar: ${pilih}${nota?'. Catatan guru: '+nota:''}
 Balas teks refleksi sahaja tanpa tajuk atau markdown.`;
     $('#eRefleksi').value = (await panggilAiSelamat(p)).trim();
     sibuk(false); toast('Refleksi dijana','jaya');

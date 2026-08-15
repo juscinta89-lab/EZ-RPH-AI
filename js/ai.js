@@ -240,7 +240,8 @@ function promptRph(ctx){
   const laluTeks = lalu.length
     ? lalu.map(r => `- ${r.tarikh}: ${r.tajuk||'-'} | SP: ${(r.sp||'').slice(0,120)} | Aktiviti: ${stripHtml(r.aktiviti||'').slice(0,200)}`).join('\n')
     : 'Tiada RPH terdahulu direkodkan.';
-  const kelasInfo = S.kelas.find(k => k.nama === ctx.kelas) || {};
+  const kelasInfo = S.kelas.find(k => norma(k.nama) === norma(ctx.kelas)) || {};
+  const bilMurid = kelasInfo.bilangan || ctx.bilMurid || null;
 
   return `Bina satu Rancangan Pengajaran Harian (RPH) KPM yang lengkap dan profesional.
 
@@ -249,7 +250,9 @@ Tarikh: ${ctx.tarikh} (${namaHari(ctx.tarikh)})
 Minggu persekolahan: ${ctx.minggu || '-'}
 Mata pelajaran: ${ctx.subjek}
 Tahun/Tingkatan: ${ctx.tahun || '-'}
-Kelas: ${ctx.kelas} (${kelasInfo.bilangan||'-'} murid, tahap ${kelasInfo.tahap||'campuran'})${kelasInfo.nota?'\nNota kelas: '+kelasInfo.nota:''}
+Kelas: ${ctx.kelas}
+Jumlah murid dalam kelas ini: ${bilMurid ?? 'tidak dinyatakan'}
+Tahap pencapaian kelas: ${kelasInfo.tahap || 'campuran'}${kelasInfo.nota?'\nNota guru tentang kelas ini: '+kelasInfo.nota:''}
 Masa: ${ctx.mula} - ${ctx.tamat}
 Tempoh sebenar: ${ctx.tempoh} minit
 ${ctx.tajuk ? 'Tajuk dikehendaki guru: '+ctx.tajuk : ''}
@@ -268,6 +271,12 @@ RPH TERDAHULU (untuk kesinambungan, jangan ulang aktiviti yang sama tanpa sebab)
 ${laluTeks}
 
 PERATURAN WAJIB
+0. MAKLUMAT KELAS ADALAH DATA SEBENAR — WAJIB DIPATUHI:
+   ${bilMurid ? `- Kelas ini ada TEPAT ${bilMurid} orang murid. Setiap kali menyebut bilangan murid (dalam kriteria kejayaan, refleksi, atau aktiviti kumpulan), guna angka ${bilMurid} sahaja. JANGAN sekali-kali reka angka lain seperti 30, 32 atau 35.
+   - Bilangan kumpulan mesti munasabah untuk ${bilMurid} murid (contoh: ${Math.max(2,Math.round(bilMurid/5))} kumpulan bagi ${bilMurid} murid).`
+   : '- Bilangan murid tidak dinyatakan. Jangan sebut sebarang angka bilangan murid; tulis secara umum sahaja.'}
+   ${kelasInfo.tahap ? `- Tahap kelas ialah "${kelasInfo.tahap}". Sesuaikan kesukaran aktiviti, sokongan guru dan sasaran kriteria kejayaan dengan tahap ini.` : ''}
+   ${kelasInfo.nota ? `- Guru mencatat tentang kelas ini: "${kelasInfo.nota}". Aktiviti dan tindakan susulan MESTI mengambil kira perkara ini secara khusus.` : ''}
 1. JANGAN cipta, ubah atau reka nombor/teks Standard Kandungan atau Standard Pembelajaran apabila RPT tersedia. Salin TEPAT daripada baris RPT minggu ini di atas, termasuk kod SK/SP dan tajuk.
 ${ctx.cadangSp ? `2. MOD CADANGAN: RPT tidak tersedia untuk sesi ini. Cadangkan SATU pasangan SK dan SP yang paling tepat daripada DSKP KPM sebenar bagi subjek "${ctx.subjek}" ${ctx.tahun||''}${ctx.tajuk?', selari dengan tajuk "'+ctx.tajuk+'"':''}, dengan mengambil kira ini ialah ${ctx.minggu||'pertengahan tahun'}. Gunakan nombor kod dan ayat standard sebenar seperti dalam dokumen DSKP rasmi — bukan rekaan. Jika anda tidak pasti ayat tepat sesuatu standard, berikan yang paling hampir dan WAJIB masukkan dalam "amaran": "SK/SP adalah cadangan AI — sila sahkan dengan DSKP rasmi sebelum digunakan".`
 : `2. Jika tiada baris RPT untuk minggu ini, isi medan sk/sp dengan "Sila lengkapkan RPT bagi minggu ini" dan senaraikan dalam "amaran". Jangan ambil standard daripada minggu lain.`}
@@ -312,10 +321,71 @@ async function janaRphAI(ctx){
 }
 
 /* ---------- Semakan kualiti (tanpa AI, pantas) ---------- */
+/* Kesan angka bilangan murid yang tidak sepadan dengan data kelas */
+function semakAngkaMurid(r){
+  const k = S.kelas.find(x => norma(x.nama) === norma(r.kelas));
+  const jum = k?.bilangan;
+  if(!jum) return { ok:true, jum:null };
+  const teks = [r.refleksi, r.kriteria, r.objektif, stripHtml(r.aktiviti||'')].join(' ');
+  // cari corak "N daripada M murid" atau "M orang murid"
+  const salah = new Set();
+  let m;
+  const rx1 = /(\d{1,3})\s*(?:daripada|dari|\/)\s*(\d{1,3})\s*(?:orang\s*)?murid/gi;
+  while((m = rx1.exec(teks))){ if(+m[2] !== jum) salah.add(m[2]); }
+  const rx2 = /(?:seramai|kesemua|semua)\s*(\d{1,3})\s*(?:orang\s*)?murid/gi;
+  while((m = rx2.exec(teks))){ if(+m[1] !== jum) salah.add(m[1]); }
+  return { ok: salah.size === 0, jum, salah:[...salah] };
+}
+
+/* ============ AUDIT PUKAL SEMUA RPH ============ */
+function auditRph(r){
+  const m = [];
+  const angka = semakAngkaMurid(r);
+  if(!angka.ok) m.push({ kod:'angka', berat:'tinggi', boleh:true,
+    teks:`Menyebut ${angka.salah.join(', ')} murid — kelas ini ada ${angka.jum} murid`, jum:angka.jum });
+
+  const kelasAda = S.kelas.some(k => norma(k.nama) === norma(r.kelas));
+  if(r.kelas && !kelasAda) m.push({ kod:'kelas', berat:'sederhana', boleh:false,
+    teks:`Kelas "${r.kelas}" tiada dalam senarai kelas` });
+
+  const kosong = t => !String(t||'').trim() || String(t).trim() === '-';
+  const pemegang = t => /sila lengkapkan|belum tersedia|tidak dinyatakan|lorem|xxx|tbd/i.test(String(t||''));
+
+  if(kosong(r.sk) || pemegang(r.sk)) m.push({ kod:'sk', berat:'tinggi', boleh:false, teks:'Standard Kandungan kosong atau tidak sah' });
+  if(kosong(r.sp) || pemegang(r.sp)) m.push({ kod:'sp', berat:'tinggi', boleh:false, teks:'Standard Pembelajaran kosong atau tidak sah' });
+  if(kosong(r.objektif)) m.push({ kod:'objektif', berat:'tinggi', boleh:false, teks:'Objektif pembelajaran kosong' });
+  if(kosong(r.kriteria)) m.push({ kod:'kriteria', berat:'rendah', boleh:false, teks:'Kriteria kejayaan kosong' });
+  if(stripHtml(r.aktiviti||'').trim().length < 120) m.push({ kod:'aktiviti', berat:'tinggi', boleh:false, teks:'Aktiviti PdP terlalu ringkas atau kosong' });
+  if(kosong(r.tajuk)) m.push({ kod:'tajuk', berat:'rendah', boleh:false, teks:'Tajuk tidak diisi' });
+  if(kosong(r.bbm)) m.push({ kod:'bbm', berat:'rendah', boleh:false, teks:'BBM/Sumber tidak diisi' });
+  if(kosong(r.pentaksiran)) m.push({ kod:'pbd', berat:'rendah', boleh:false, teks:'Pentaksiran tidak diisi' });
+
+  if(r.amaran) m.push({ kod:'amaran', berat:'sederhana', boleh:false, teks:'Amaran AI: '+String(r.amaran).slice(0,90) });
+
+  // SP tidak sepadan dengan RPT minggu berkenaan
+  if(r.kodSp && r.subjek && r.minggu){
+    const kelas = S.kelas.find(k => norma(k.nama) === norma(r.kelas));
+    const rpt = (typeof rptUntuk === 'function') ? rptUntuk(r.subjek, kelas?.tahun || '', r.minggu) : { minggu:[] };
+    if(rpt.minggu && rpt.minggu.length){
+      const adaKod = rpt.minggu.some(x => String(x.kodSp||'').trim() === String(r.kodSp).trim());
+      if(!adaKod) m.push({ kod:'rpt', berat:'sederhana', boleh:false,
+        teks:`Kod SP ${r.kodSp} tiada dalam RPT ${r.minggu}` });
+    }
+  }
+
+  // Refleksi kosong hanya masalah untuk tarikh yang sudah lepas
+  if(kosong(r.refleksi) && r.tarikh < tarikhISO())
+    m.push({ kod:'refleksi', berat:'rendah', boleh:false, teks:'Refleksi belum ditulis (tarikh sudah lepas)' });
+
+  return m;
+}
+
 function semakKualiti(r){
+  const angka = semakAngkaMurid(r);
   const cek = [
     ['Subjek diisi', !!r.subjek],
     ['Kelas diisi', !!r.kelas],
+    ['Bilangan murid tepat' + (angka.jum ? ` (${angka.jum} murid)` : ''), angka.ok],
     ['Tarikh sah', !!r.tarikh],
     ['Minggu persekolahan dikenal pasti', !!r.minggu],
     ['Masa & tempoh betul', r.tempoh > 0],

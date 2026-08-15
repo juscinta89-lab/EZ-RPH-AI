@@ -72,6 +72,7 @@ const IKON = {
   laporan:  '<path d="M4 20.5h16"/><path d="M7 20.5v-7M12 20.5V7M17 20.5v-10"/>',
   tetapan:  '<circle cx="12" cy="12" r="3.2"/><path d="M19.4 14.4a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.84 2.84l-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.04 1.56V21a2 2 0 1 1-4 0v-.11a1.7 1.7 0 0 0-1.1-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.84-2.84l.06-.06a1.7 1.7 0 0 0 .34-1.88 1.7 1.7 0 0 0-1.56-1.04H3a2 2 0 1 1 0-4h.11a1.7 1.7 0 0 0 1.56-1.1 1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.84-2.84l.06.06a1.7 1.7 0 0 0 1.88.34H9a1.7 1.7 0 0 0 1-1.56V3a2 2 0 1 1 4 0v.11a1.7 1.7 0 0 0 1.04 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.84 2.84l-.06.06a1.7 1.7 0 0 0-.34 1.88V9a1.7 1.7 0 0 0 1.56 1H21a2 2 0 1 1 0 4h-.11a1.7 1.7 0 0 0-1.49 1.4z"/>',
   admin:    '<path d="M12 3l7.5 3v5.5c0 4.6-3.1 8.4-7.5 9.5-4.4-1.1-7.5-4.9-7.5-9.5V6z"/><path d="m9 12 2 2 4-4"/>',
+  audit:    '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/><path d="m8.5 11 1.8 1.8L14 9.2"/>',
   lagi:     '<circle cx="5.5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18.5" cy="12" r="1.6"/>'
 };
 function svgIkon(id, saiz){
@@ -112,6 +113,7 @@ const MENU = [
   { id:'takwim',    nama:'Takwim' },
   { grp:'Lain-lain' },
   { id:'cetak',     nama:'Cetak Mingguan' },
+  { id:'audit',     nama:'Semakan RPH' },
   { id:'laporan',   nama:'Laporan' },
   { id:'tetapan',   nama:'Tetapan' },
   { id:'admin',     nama:'Panel Pentadbir', peranan:['pemilik','admin'] }
@@ -145,6 +147,7 @@ const TAJUK = {
   buku:['Buku Teks','Rujukan bab & unit buku teks'],
   takwim:['Takwim Persekolahan','Minggu persekolahan & cuti'],
   cetak:['Cetak Mingguan','Cetak set RPH untuk fail rekod'],
+  audit:['Semakan RPH','Kesan isu dalam semua RPH sekali gus'],
   laporan:['Laporan','Statistik RPH & liputan RPT'],
   tetapan:['Tetapan','Profil, AI dan aplikasi'],
   admin:['Panel Pentadbir','Urus sekolah, guru dan data'],
@@ -164,7 +167,7 @@ function pergi(hal){
   const f = {
     dashboard:halDashboard, rph:halRph, kalendar:halKalendar, jana:halJana,
     jadual:halJadual, kelas:halKelas, subjek:halSubjek, rpt:halRpt,
-    buku:halBuku, takwim:halTakwim, cetak:halCetak, laporan:halLaporan, tetapan:halTetapan,
+    buku:halBuku, takwim:halTakwim, cetak:halCetak, audit:halAudit, laporan:halLaporan, tetapan:halTetapan,
     admin:halAdmin, editor:halEditor
   }[hal];
   if(f) f(); else $('#kandungan').innerHTML = '<div class="kosong"><b>Halaman tidak dijumpai</b></div>';
