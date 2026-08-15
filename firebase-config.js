@@ -1,3 +1,9 @@
+/*!
+ * e-RPH AI — Sistem Rancangan Pengajaran Harian Berbantukan AI
+ * © 2026 Alimin bin Abu Bakar. Hak cipta terpelihara.
+ * SK Belukar, Machang, Kelantan.
+ * Penggunaan, pengedaran atau pengubahsuaian tanpa kebenaran bertulis adalah dilarang.
+ */
 /* =========================================================
    e-RPH AI — KONFIGURASI
    Tukar bahagian di bawah dengan config Firebase anda.
@@ -5,13 +11,12 @@
    ========================================================= */
 
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyD8gOeStzQ4JldXeYHViNFX5dfXi4LNB5A",
-  authDomain: "ez-rph-ai.firebaseapp.com",
-  projectId: "ez-rph-ai",
-  storageBucket: "ez-rph-ai.firebasestorage.app",
-  messagingSenderId: "700098799420",
-  appId: "1:700098799420:web:69f0c0408baaceb4d4e039",
-  measurementId: "G-4YFT645VHG"
+  apiKey: "MASUKKAN_API_KEY",
+  authDomain: "PROJEK.firebaseapp.com",
+  projectId: "PROJEK",
+  storageBucket: "PROJEK.appspot.com",
+  messagingSenderId: "000000000000",
+  appId: "1:000000000000:web:xxxxxxxxxxxx"
 };
 
 /* =========================================================

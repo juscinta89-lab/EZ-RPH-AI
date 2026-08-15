@@ -1,3 +1,9 @@
+/*!
+ * e-RPH AI — Sistem Rancangan Pengajaran Harian Berbantukan AI
+ * © 2026 Alimin bin Abu Bakar. Hak cipta terpelihara.
+ * SK Belukar, Machang, Kelantan.
+ * Penggunaan, pengedaran atau pengubahsuaian tanpa kebenaran bertulis adalah dilarang.
+ */
 /* ================= e-RPH AI — DATA & HALAMAN ASAS ================= */
 
 function rujuk(sub){ return db.collection('sekolah').doc(S.sid).collection(sub); }
@@ -1172,6 +1178,18 @@ function halTetapan(){
         <div class="baris"><div class="baris-t"><b>Kosongkan cache</b><small>Muat semula fail aplikasi terkini</small></div>
           <button class="btn btn-sm" onclick="kosongkanCache()">Bersihkan</button></div>
       </div>
+    </div>
+
+    <div class="kad" style="text-align:center;background:linear-gradient(160deg,#faf9ff,#f4f2fe);border-color:#e6e2fa">
+      <img src="icons/icon-192.png" alt="" style="width:52px;height:52px;border-radius:13px;margin-bottom:9px">
+      <h3 style="margin:0;font-size:16px">e-RPH AI</h3>
+      <p style="font-size:12.5px;color:var(--teks-2);margin:3px 0 12px">RPH Pintar. PdP Lebih Terancang.</p>
+      <p style="font-size:13px;color:var(--teks);margin:0;line-height:1.7">
+        Direka &amp; dibangunkan oleh<br><b style="font-size:14.5px">ALIMIN BIN ABU BAKAR</b><br>
+        <span style="font-size:12px;color:var(--teks-3)">SK Belukar, Machang, Kelantan</span></p>
+      <p style="font-size:12px;color:var(--teks-3);margin-top:13px;padding-top:12px;border-top:1px solid var(--garis)">
+        © 2026 Alimin bin Abu Bakar. <b>Hak cipta terpelihara.</b><br>
+        Penggunaan tanpa kebenaran bertulis adalah dilarang.</p>
     </div>`;
   lukisNotaAI();
 }

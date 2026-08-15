@@ -1,5 +1,11 @@
+/*!
+ * e-RPH AI — Sistem Rancangan Pengajaran Harian Berbantukan AI
+ * © 2026 Alimin bin Abu Bakar. Hak cipta terpelihara.
+ * SK Belukar, Machang, Kelantan.
+ * Penggunaan, pengedaran atau pengubahsuaian tanpa kebenaran bertulis adalah dilarang.
+ */
 /* e-RPH AI — Service Worker */
-const CACHE = 'erph-v20';
+const CACHE = 'erph-v23';
 const FAIL = [
   './','./index.html','./styles.css','./manifest.json',
   './firebase-config.js','./js/core.js','./js/data.js','./js/ai.js',

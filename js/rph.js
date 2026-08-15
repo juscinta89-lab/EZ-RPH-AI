@@ -1,3 +1,9 @@
+/*!
+ * e-RPH AI — Sistem Rancangan Pengajaran Harian Berbantukan AI
+ * © 2026 Alimin bin Abu Bakar. Hak cipta terpelihara.
+ * SK Belukar, Machang, Kelantan.
+ * Penggunaan, pengedaran atau pengubahsuaian tanpa kebenaran bertulis adalah dilarang.
+ */
 /* ================= e-RPH AI — RPH ================= */
 
 function barisRph(r){
@@ -658,6 +664,24 @@ function htmlRph(r, tunjukSemakan){
   </table>`}`;
 }
 
+const WARNA_SUBJEK = [
+  [/melayu|\bbm\b/i,       ['#f9c97e','#fdeeda']],
+  [/inggeris|english/i,     ['#9ec5f5','#e7f0fd']],
+  [/matematik/i,            ['#a7c9f2','#e3edfb']],
+  [/sains/i,                ['#9edcb2','#e4f6ea']],
+  [/jasmani|\bpj\b/i,      ['#f5a9a9','#fde7e7']],
+  [/kesihatan|\bpk\b/i,    ['#f5b9d0','#fdeaf2']],
+  [/seni|psv/i,             ['#c9b3f0','#efe9fc']],
+  [/muzik/i,                ['#f5e07e','#fcf6d9']],
+  [/islam|arab/i,           ['#8fd4c8','#e2f5f1']],
+  [/moral|sivik|sejarah/i,  ['#d9c49a','#f5ede0']],
+  [/reka bentuk|rbt|teknologi/i, ['#b8d4a8','#eaf4e4']]
+];
+function warnaSubjek(nama){
+  for(const [rx, w] of WARNA_SUBJEK) if(rx.test(nama||'')) return w;
+  return ['#c9cfdd','#eceff5'];
+}
+
 function gayaCetak(){ return localStorage.getItem('erph_gaya_cetak') || 'padat'; }
 function setGayaCetak(g){ localStorage.setItem('erph_gaya_cetak', g); }
 
@@ -733,6 +757,9 @@ function semakanHari(){
   </tr></table>`;
 }
 
+function notaCetak(){
+  return `<div class="cetak-nota">Dijana oleh e-RPH AI · © 2026 Alimin bin Abu Bakar</div>`;
+}
 function keluarkanCetak(html){
   let box = document.getElementById('cetak');
   if(!box){ box = document.createElement('div'); box.id = 'cetak'; document.body.appendChild(box); }
@@ -742,8 +769,8 @@ function keluarkanCetak(html){
 
 function cetakRph(){
   const r = { ...S.rph.find(x=>x.id===S.editRphId), ...bacaEditor() };
-  if(gayaCetak() === 'penuh') return keluarkanCetak(htmlRph(r));
-  keluarkanCetak(kepalaHari(r.tarikh) + htmlRphPadat(r, 1) + semakanHari());
+  if(gayaCetak() === 'penuh') return keluarkanCetak(htmlRph(r) + notaCetak());
+  keluarkanCetak(kepalaHari(r.tarikh) + htmlRphPadat(r, 1) + semakanHari() + notaCetak());
 }
 
 /* Cetak banyak RPH — satu RPH satu muka surat.
@@ -755,7 +782,7 @@ function cetakBanyak(senarai){
     const akhirHari = {};
     susun.forEach((r,i) => akhirHari[r.tarikh] = i);
     keluarkanCetak(susun.map((r,i) =>
-      `<div style="${i ? 'page-break-before:always;' : ''}">${htmlRph(r, akhirHari[r.tarikh] === i)}</div>`).join(''));
+      `<div style="${i ? 'page-break-before:always;' : ''}">${htmlRph(r, akhirHari[r.tarikh] === i)}</div>`).join('') + notaCetak());
     return;
   }
   /* Gaya padat: mengalir berterusan, tiada muka surat dibazir */
@@ -769,7 +796,7 @@ function cetakBanyak(senarai){
     noKelas++;
     html += htmlRphPadat(r, noKelas);
   });
-  html += semakanHari();
+  html += semakanHari() + notaCetak();
   keluarkanCetak(html);
 }
 function halCetak(){
