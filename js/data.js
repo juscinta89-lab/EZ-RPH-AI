@@ -1189,6 +1189,38 @@ function halTetapan(){
         <button class="btn" onclick="ujiAI()">Uji sambungan</button>
         <button class="btn" onclick="muatModel()">Muat senarai model</button>
       </div>
+      <hr style="border:0;border-top:1px dashed var(--garis);margin:16px 0">
+      <span style="display:block;font-size:12.5px;font-weight:650;color:var(--teks-2);margin-bottom:8px">
+        Had kadar &amp; penjanaan pukal</span>
+      <div class="grid2">
+        <label class="fld"><span>Kelajuan <em>(permintaan/minit)</em></span>
+          <select id="aiRpm">
+            ${[[8,'8 — paling selamat'],[12,'12 — disyorkan (Gemini percuma)'],[15,'15 — had maksimum Gemini'],
+               [25,'25 — Groq / Cerebras percuma'],[60,'60 — berbayar']]
+              .map(([v,t])=>`<option value="${v}" ${tetapanKadar().rpm==v?'selected':''}>${t}</option>`).join('')}
+          </select></label>
+        <label class="fld"><span>Cuba semula bila gagal</span>
+          <select id="aiCubaan">${[2,3,4,6].map(n=>`<option value="${n}" ${tetapanKadar().cubaan==n?'selected':''}>${n} kali</option>`).join('')}</select></label>
+      </div>
+      <p style="font-size:12px;color:var(--teks-3);margin:-4px 0 14px;line-height:1.55">
+        Sistem menghantar permintaan satu demi satu mengikut kelajuan ini. Jika penyedia menolak
+        (ralat 429), ia menunggu automatik dan mencuba semula — bukan terus gagal.</p>
+
+      <span style="display:block;font-size:12.5px;font-weight:650;color:var(--teks-2);margin-bottom:8px">
+        Penyedia sandaran <em style="font-weight:400;color:var(--teks-3)">(bila kuota utama habis)</em></span>
+      <div class="grid2">
+        <label class="fld"><span>Penyedia</span>
+          <select id="sdProv"><option value="">— Tiada —</option>
+            ${Object.entries(PENYEDIA).map(([k,v])=>`<option value="${k}" ${tetapanKadar().sandaran?.prov===k?'selected':''}>${esc(v.nama)}</option>`).join('')}
+          </select></label>
+        <label class="fld"><span>API Key sandaran</span>
+          <input id="sdKey" type="password" value="${esc(tetapanKadar().sandaran?.key||'')}" placeholder="Kunci penyedia kedua"></label>
+      </div>
+      <p style="font-size:12px;color:var(--teks-3);margin:-4px 0 12px;line-height:1.55">
+        Contoh: utama <b>Gemini</b> (1,500 permintaan/hari percuma), sandaran <b>Groq</b> atau
+        <b>Cerebras</b> — dua-dua percuma. Bila kuota Gemini habis, sistem bertukar sendiri
+        dan penjanaan diteruskan tanpa gagal.</p>
+
       <p style="font-size:12px;color:var(--teks-3);margin-top:10px">
         Aplikasi ini statik (GitHub Pages), jadi panggilan AI dibuat terus dari pelayar.
         Sesetengah penyedia menyekat panggilan dari pelayar (CORS) — Gemini, Groq dan OpenRouter disahkan berfungsi.</p>
@@ -1281,6 +1313,13 @@ function lukisNotaAI(){
   $('#aiBaseKotak').style.display = (p.jenis === 'openai') ? '' : 'none';
 }
 function simpanAI(){
+  // simpan tetapan kadar & sandaran
+  if($('#aiRpm')){
+    const sdProv = $('#sdProv').value, sdKey = $('#sdKey').value.trim();
+    simpanKadar({ rpm:+$('#aiRpm').value, cubaan:+$('#aiCubaan').value,
+      sandaran: (sdProv && sdKey) ? { prov:sdProv, key:sdKey,
+        model:(PENYEDIA[sdProv]||{}).model || '', baseUrl:(PENYEDIA[sdProv]||{}).base || '' } : null });
+  }
   const t = { prov:$('#aiProv').value, key:$('#aiKey').value.trim(),
               model:$('#aiModel').value.trim(), baseUrl:$('#aiBase').value.trim(), dikemas:Date.now() };
   localStorage.setItem('erph_ai', JSON.stringify(t));

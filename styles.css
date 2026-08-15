@@ -29,6 +29,8 @@
   --disp:'Plus Jakarta Sans',var(--sans);
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%;touch-action:manipulation}
+
 html,body{height:100%}
 body{font-family:var(--sans);background:var(--bg);color:var(--teks);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
 h1,h2,h3,h4,.brand-mark{font-family:var(--disp);letter-spacing:-.02em}
@@ -132,6 +134,8 @@ textarea{resize:vertical;min-height:88px;line-height:1.6}
   .side{position:fixed;left:0;top:0;width:270px;z-index:60;transform:translateX(-102%);transition:.22s;box-shadow:0 0 60px rgba(0,0,0,.18)}
   .side.buka{transform:none}
   .only-mobile{display:block}
+  /* 16px menghalang iOS auto-zoom bila medan difokus */
+  input,select,textarea{font-size:16px}
   .kandungan{padding:14px 14px 100px}
   .topbar{padding:10px 14px;gap:10px}
   .topbar h2{font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -206,6 +210,13 @@ tr:last-child td{border-bottom:0}
 .kosong b{display:block;font-family:var(--disp);color:var(--teks-2);margin-bottom:5px;font-size:15px}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
 .toolbar input,.toolbar select{width:auto;flex:1;min-width:130px}
+
+/* ---------- Panel penjanaan pukal ---------- */
+.jana-tirai{position:fixed;inset:0;background:rgba(20,28,48,.5);z-index:80;display:grid;place-content:center;padding:20px}
+.jana-kotak{background:var(--putih);border-radius:18px;padding:22px;width:min(420px,92vw);
+  box-shadow:0 24px 60px rgba(20,30,60,.3)}
+.jana-bar{height:8px;border-radius:8px;background:var(--garis);overflow:hidden;margin-top:6px}
+.jana-bar i{display:block;height:100%;background:var(--gradien);border-radius:8px;transition:width .4s}
 
 /* ---------- Kad minggu (RPH Saya) ---------- */
 .mgg-kad{background:var(--putih);border:1px solid var(--garis);border-radius:16px;

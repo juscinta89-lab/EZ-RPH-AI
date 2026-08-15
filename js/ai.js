@@ -51,6 +51,85 @@ function alamatAsas(){
   return b;
 }
 
+/* ================= PENGURUSAN HAD KADAR =================
+   Free tier setiap penyedia ada had permintaan seminit (RPM).
+   Sistem ini menghantar permintaan satu demi satu dengan jeda,
+   dan mengendalikan ralat 429 secara automatik. */
+
+function tetapanKadar(){
+  const t = JSON.parse(localStorage.getItem('erph_kadar') || '{}');
+  return { rpm: t.rpm || 12, cubaan: t.cubaan || 4, sandaran: t.sandaran || null };
+}
+function simpanKadar(t){ localStorage.setItem('erph_kadar', JSON.stringify(t)); }
+
+let _kaliAkhir = 0;
+async function jedaKadar(){
+  const { rpm } = tetapanKadar();
+  const selang = Math.ceil(60000 / Math.max(1, rpm));       // ms antara permintaan
+  const perlu = _kaliAkhir + selang - Date.now();
+  if(perlu > 0) await tidur(perlu);
+  _kaliAkhir = Date.now();
+}
+function tidur(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+function adalahHadKadar(e){
+  const m = String(e?.message || e || '');
+  return /429|rate limit|quota|RESOURCE_EXHAUSTED|too many requests/i.test(m);
+}
+function adalahKuotaHarian(e){
+  const m = String(e?.message || e || '');
+  return /per day|daily limit|quota exceeded.*day|PerDay/i.test(m);
+}
+function sarananTunggu(e){
+  // Gemini kembalikan retryDelay dalam mesej ralat, contoh: "retryDelay":"38s"
+  const m = String(e?.message || '').match(/retryDelay"?\s*:\s*"?(\d+)s/i);
+  return m ? (+m[1] + 1) * 1000 : null;
+}
+
+/* Panggilan AI dengan jeda, cuba semula & tukar penyedia sandaran */
+async function panggilAiSelamat(prompt, sistem, lapor){
+  const { cubaan, sandaran } = tetapanKadar();
+  let tunggu = 5000;
+  for(let i = 1; i <= cubaan; i++){
+    try{
+      await jedaKadar();
+      return await panggilAI(prompt, sistem);
+    }catch(e){
+      const akhir = i === cubaan;
+      if(!adalahHadKadar(e)) throw e;                      // ralat lain — terus lempar
+
+      // Kuota harian habis → terus cuba penyedia sandaran
+      if(adalahKuotaHarian(e) && sandaran?.key){
+        lapor?.('Kuota harian penyedia utama habis — bertukar ke penyedia sandaran…');
+        return await panggilAiPenyedia(sandaran, prompt, sistem);
+      }
+      if(akhir){
+        if(sandaran?.key){
+          lapor?.('Had kadar berterusan — mencuba penyedia sandaran…');
+          return await panggilAiPenyedia(sandaran, prompt, sistem);
+        }
+        throw new Error('Had kadar AI dicapai. Kurangkan kelajuan dalam Tetapan > Enjin AI, atau tetapkan penyedia sandaran.');
+      }
+      const t = sarananTunggu(e) || tunggu;
+      lapor?.(`Had kadar dicapai — menunggu ${Math.round(t/1000)} saat sebelum cuba lagi (${i}/${cubaan})…`);
+      await tidur(t);
+      tunggu = Math.min(tunggu * 2, 60000);                 // backoff eksponen
+    }
+  }
+}
+
+/* Panggil penyedia tertentu (untuk sandaran) tanpa mengubah tetapan utama */
+async function panggilAiPenyedia(cfg, prompt, sistem){
+  const asal = localStorage.getItem('erph_ai');
+  try{
+    localStorage.setItem('erph_ai', JSON.stringify(cfg));
+    _kaliAkhir = 0;
+    return await panggilAI(prompt, sistem);
+  } finally {
+    if(asal) localStorage.setItem('erph_ai', asal);
+  }
+}
+
 async function panggilAI(prompt, sistem){
   const t = tetapanAI();
   const p = infoPenyedia(t.prov);
@@ -214,7 +293,7 @@ function stripHtml(h){ const d = document.createElement('div'); d.innerHTML = h|
 
 /* ---------- Jana satu RPH ---------- */
 async function janaRphAI(ctx){
-  const jawapan = await panggilAI(promptRph(ctx));
+  const jawapan = await panggilAiSelamat(promptRph(ctx), null, ctx.lapor);
   const j = ambilJSON(jawapan);
   return {
     emel:S.user.email, guru:S.profil.nama||'', slotId:ctx.slotId||'',

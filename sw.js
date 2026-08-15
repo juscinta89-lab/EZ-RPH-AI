@@ -5,7 +5,7 @@
  * Penggunaan, pengedaran atau pengubahsuaian tanpa kebenaran bertulis adalah dilarang.
  */
 /* e-RPH AI — Service Worker */
-const CACHE = 'erph-v25';
+const CACHE = 'erph-v26';
 const FAIL = [
   './','./index.html','./styles.css','./manifest.json',
   './firebase-config.js','./js/core.js','./js/data.js','./js/ai.js',

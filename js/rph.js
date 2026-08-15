@@ -217,9 +217,7 @@ async function janaSlot(slotId, tarikh){
     await muatRph(); sibuk(false); toast('RPH dijana','jaya'); bukaRph(ref.id);
   }catch(e){ sibuk(false); toast('Gagal: '+e.message,'salah'); }
 }
-async function janaMingguan(){
-  const mula = $('#jgMinggu').value; if(!mula) return toast('Tetapkan takwim dahulu','salah');
-  const tapis = $('#jgTapis').value;
+function senaraiTugasMinggu(mula, tapis){
   const tugas = [];
   for(let i=0;i<7;i++){
     const d = new Date(mula+'T00:00:00'); d.setDate(d.getDate()+i);
@@ -227,12 +225,40 @@ async function janaMingguan(){
     S.jadual.filter(x => x.hari === namaHari(iso) && (!tapis || norma(x.subjek) === norma(tapis)))
       .forEach(x => { if(!S.rph.some(r => r.tarikh === iso && r.slotId === x.id)) tugas.push({slot:x, tarikh:iso}); });
   }
+  return tugas.sort((a,b)=> (a.tarikh+(a.slot.mula||'')).localeCompare(b.tarikh+(b.slot.mula||'')));
+}
+
+async function janaMingguan(){
+  const mula = $('#jgMinggu').value; if(!mula) return toast('Tetapkan takwim dahulu','salah');
+  const tugas = senaraiTugasMinggu(mula, $('#jgTapis').value);
   if(!tugas.length) return toast('Semua slot minggu ini sudah ada RPH','jaya');
-  // agih baris RPT minggu itu mengikut giliran slot subjek yang sama (kesinambungan)
+  const { rpm } = tetapanKadar();
+  const anggar = Math.ceil(tugas.length * (60/rpm) / 60);
+  modal(`Jana ${tugas.length} RPH`, `
+    <p style="font-size:13.5px;color:var(--teks-2);line-height:1.6">
+      ${tugas.length} slot belum ada RPH. Sistem akan menjana satu demi satu dengan jeda
+      supaya tidak melebihi had percuma penyedia AI.<br><br>
+      <b>Anggaran masa: ${anggar < 2 ? 'kurang 2' : anggar} minit.</b>
+      Setiap RPH disimpan sebaik siap — jika terhenti, anda boleh sambung semula tanpa kehilangan kerja.</p>
+    <div class="kad" style="background:var(--bg);padding:12px;font-size:12.5px;color:var(--teks-2)">
+      Kelajuan semasa: <b>${rpm} permintaan/minit</b> · ubah di Tetapan → Enjin AI jika sering gagal.</div>`,
+    `<button class="btn" onclick="tutupModal()">Batal</button>
+     <button class="btn btn-primary" onclick="mulaJanaPukal('${mula}')">Mula jana</button>`);
+}
+
+let _janaHenti = false;
+async function mulaJanaPukal(mula){
+  tutupModal();
+  const tugas = senaraiTugasMinggu(mula, $('#jgTapis')?.value || '');
+  _janaHenti = false;
   const giliran = {};
-  let siap = 0, gagal = 0;
-  for(const t of tugas){
-    sibuk(true,`Menjana ${siap+gagal+1}/${tugas.length} · ${t.slot.subjek} ${t.tarikh}…`);
+  let siap = 0, gagal = 0, senaraiGagal = [];
+  panelJana(true);
+
+  for(let i = 0; i < tugas.length; i++){
+    if(_janaHenti) break;
+    const t = tugas[i];
+    kemasJana(i, tugas.length, `${t.slot.subjek} · ${t.slot.kelas} · ${tarikhCantik(t.tarikh)}`, siap, gagal);
     try{
       const ctx = ctxDaripadaSlot(t.slot, t.tarikh);
       const rpt = rptUntuk(t.slot.subjek, ctx.tahun, ctx.minggu);
@@ -243,13 +269,60 @@ async function janaMingguan(){
         ctx.tajuk = ctx.rptFokus.tajuk || ctx.rptFokus.tema || '';
         giliran[k]++;
       } else ctx.cadangSp = true;
+      ctx.lapor = msg => kemasJana(i, tugas.length, msg, siap, gagal, true);
       const rph = await janaRphAI(ctx);
-      await rujuk('rph').add(rph); siap++;
-    }catch(e){ gagal++; }
+      await rujuk('rph').add(rph);            // simpan segera — tiada kerja hilang
+      siap++;
+    }catch(e){
+      gagal++; senaraiGagal.push(`${t.slot.subjek} ${tarikhCantik(t.tarikh)}: ${e.message}`);
+      if(/Had kadar AI dicapai/.test(e.message||'')){
+        kemasJana(i, tugas.length, 'Had kadar dicapai — berhenti buat sementara', siap, gagal, true);
+        break;
+      }
+    }
   }
-  await muatRph(); sibuk(false); pergi('rph');
-  toast(`${siap} RPH dijana${gagal?', '+gagal+' gagal':''}`, gagal?'salah':'jaya');
+  panelJana(false);
+  await muatRph(); pergi('rph');
+  if(senaraiGagal.length){
+    modal('Laporan penjanaan', `
+      <div class="stat-grid" style="margin-bottom:12px">
+        <div class="stat h"><b>${siap}</b><small>Berjaya</small></div>
+        <div class="stat m"><b>${gagal}</b><small>Gagal</small></div>
+      </div>
+      <p style="font-size:13px;color:var(--teks-2);margin-bottom:8px">Slot yang gagal kekal kosong — tekan
+        <b>Jana seminggu</b> semula untuk menyambung. Yang sudah siap tidak akan diulang.</p>
+      <div style="max-height:34vh;overflow:auto;font-size:12px;color:var(--teks-2)">
+        ${senaraiGagal.map(x=>`<div style="padding:5px 0;border-bottom:1px solid var(--garis)">${esc(x)}</div>`).join('')}</div>`,
+      `<button class="btn btn-primary" onclick="tutupModal()">Faham</button>`);
+  } else {
+    toast(`${siap} RPH berjaya dijana`, 'jaya');
+  }
 }
+
+function panelJana(tunjuk){
+  let el = $('#janaPanel');
+  if(!tunjuk){ el?.remove(); return; }
+  if(el) return;
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="jana-tirai" id="janaPanel">
+      <div class="jana-kotak">
+        <h3 style="margin-bottom:4px">Menjana RPH</h3>
+        <p id="jpTeks" style="font-size:13px;color:var(--teks-2);min-height:36px">Bersedia…</p>
+        <div class="jana-bar"><i id="jpBar" style="width:0%"></i></div>
+        <div id="jpKira" style="font-size:12px;color:var(--teks-3);margin-top:8px"></div>
+        <p style="font-size:11.5px;color:var(--teks-3);margin-top:12px;line-height:1.5">
+          Biarkan tetingkap ini terbuka. Setiap RPH disimpan sebaik siap.</p>
+        <button class="btn btn-danger btn-block" style="margin-top:12px" onclick="hentiJana()">Henti</button>
+      </div>
+    </div>`);
+}
+function kemasJana(i, jum, teks, siap, gagal, kekalNombor){
+  const pk = Math.round((i / jum) * 100);
+  if($('#jpBar')) $('#jpBar').style.width = pk + '%';
+  if($('#jpTeks')) $('#jpTeks').textContent = kekalNombor ? teks : `${i+1}/${jum} · ${teks}`;
+  if($('#jpKira')) $('#jpKira').innerHTML = `<b style="color:var(--hijau)">${siap} siap</b>${gagal?` · <b style="color:var(--merah)">${gagal} gagal</b>`:''} · ${jum-i-1} baki`;
+}
+function hentiJana(){ _janaHenti = true; toast('Akan berhenti selepas RPH semasa…'); }
 
 /* ================= KALENDAR ================= */
 let kalBulan = new Date().getMonth(), kalTahun = new Date().getFullYear();
@@ -541,7 +614,7 @@ ARAHAN GURU: ${arahan}
 
 Ubah HANYA bahagian yang berkaitan dengan arahan. Kekalkan Standard Kandungan dan Standard Pembelajaran seperti asal tanpa sebarang perubahan.
 Balas JSON sahaja dengan medan yang sama (medan yang tidak diubah dikembalikan seperti asal).`;
-    const j = ambilJSON(await panggilAI(p));
+    const j = ambilJSON(await panggilAiSelamat(p));
     const set = (id,v) => { if(v != null && $('#'+id)) $('#'+id).value = v; };
     set('eTajuk', j.tajuk); set('eObjektif', Array.isArray(j.objektif)?j.objektif.join('\n'):j.objektif);
     set('eKriteria', Array.isArray(j.kriteria)?j.kriteria.join('\n'):j.kriteria);
@@ -586,7 +659,7 @@ Objektif: ${r.objektif}
 Aktiviti: ${stripHtml(r.aktiviti).slice(0,400)}
 Keadaan sebenar: ${pilih}${bil?' ('+bil+' murid menguasai)':''}${nota?'. Catatan: '+nota:''}
 Balas teks refleksi sahaja tanpa tajuk atau markdown.`;
-    $('#eRefleksi').value = (await panggilAI(p)).trim();
+    $('#eRefleksi').value = (await panggilAiSelamat(p)).trim();
     sibuk(false); toast('Refleksi dijana','jaya');
   }catch(e){ sibuk(false); toast('Gagal: '+e.message,'salah'); }
 }

@@ -79,6 +79,23 @@ function svgIkon(id, saiz){
     stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${IKON[id]||IKON.lagi}</svg>`;
 }
 
+/* ---------- Kunci zoom pada peranti mudah alih ---------- */
+(function kunciZoom(){
+  // iOS Safari mengabaikan user-scalable=no, jadi disekat secara manual
+  document.addEventListener('gesturestart', e => e.preventDefault(), { passive:false });
+  document.addEventListener('gesturechange', e => e.preventDefault(), { passive:false });
+  document.addEventListener('gestureend', e => e.preventDefault(), { passive:false });
+  let ketukAkhir = 0;
+  document.addEventListener('touchend', e => {
+    const kini = Date.now();
+    if(kini - ketukAkhir <= 300) e.preventDefault();   // ketuk dua kali
+    ketukAkhir = kini;
+  }, { passive:false });
+  document.addEventListener('touchmove', e => {
+    if(e.touches.length > 1) e.preventDefault();       // cubit dua jari
+  }, { passive:false });
+})();
+
 /* ---------- Menu ---------- */
 const MENU = [
   { grp:'Utama' },
