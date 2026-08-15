@@ -6,11 +6,13 @@
  */
 /* ================= e-RPH AI — RPH ================= */
 
-function barisRph(r){
+function barisRph(r, ringkas){
   const w = { lengkap:'hijau', draf:'kuning' }[r.status] || 'kelabu';
-  return `<div class="baris">
-    <div class="baris-t"><b>${esc(r.subjek)} · ${esc(r.kelas)}</b>
-      <small>${tarikhCantik(r.tarikh)} · ${esc(r.mula)}-${esc(r.tamat)} · ${esc(r.tajuk||'Tiada tajuk')}</small></div>
+  const [gelap, cerah] = warnaSubjek(r.subjek);
+  return `<div class="baris baris-sj" style="--sj:${gelap};--sj-t:${cerah}">
+    <span class="sj-jalur"></span>
+    <div class="baris-t"><b>${esc(r.subjek)} <span class="sj-kelas">${esc(r.kelas)}</span></b>
+      <small>${ringkas ? '' : tarikhCantik(r.tarikh)+' · '}${esc(r.mula)}-${esc(r.tamat)} · ${esc(r.tajuk||'Tiada tajuk')}</small></div>
     <span class="pil ${w}">${r.status === 'lengkap' ? 'Lengkap' : 'Draf'}</span>
     <button class="btn btn-sm" onclick="bukaRph('${r.id}')">Buka</button>
   </div>`;
@@ -53,24 +55,38 @@ function lukisRph(){
     hari.get(r.tarikh).push(r);
   });
 
-  let html = '';
+  const TON = ['#4a2ae0','#16a37b','#e0781a','#1f6df5','#b0349c','#0f9aa8'];
+  let html = ''; let n = 0;
   for(const [mg, hariMap] of ikutMinggu){
     const jumlah = [...hariMap.values()].reduce((j,a)=>j+a.length,0);
     const lengkap = [...hariMap.values()].flat().filter(r=>r.status==='lengkap').length;
-    html += `<div class="grp-minggu">📘 ${esc(mg)}
-      <span class="pil ungu">${jumlah} RPH</span>
-      ${lengkap<jumlah?`<span class="pil kuning">${jumlah-lengkap} draf</span>`:'<span class="pil hijau">Semua lengkap</span>'}</div>`;
-    for(const [tarikh, senarai] of hariMap){
-      html += `<div class="grp-hari">${tarikhCantik(tarikh)}
-        <small>· ${senarai.length} RPH</small>
-        <button class="btn btn-sm" style="margin-left:auto" onclick="cetakHari('${tarikh}')">🖨️</button></div>
-        <div class="senarai">${senarai.sort((a,b)=>(a.mula||'').localeCompare(b.mula||'')).map(barisRph).join('')}</div>`;
-    }
+    const ton = TON[n++ % TON.length];
+    html += `<section class="mgg-kad" style="--ton:${ton}">
+      <header class="mgg-kepala">
+        <span class="mgg-tanda"></span>
+        <b>${esc(mg)}</b>
+        <span class="pil" style="background:${ton}1a;color:${ton}">${jumlah} RPH</span>
+        ${lengkap<jumlah?`<span class="pil kuning">${jumlah-lengkap} draf</span>`:'<span class="pil hijau">Semua lengkap</span>'}
+        <button class="btn btn-sm" style="margin-left:auto" onclick="cetakMinggu2('${esc(mg)}')">Cetak minggu</button>
+      </header>
+      ${[...hariMap].map(([tarikh, senarai]) => `
+        <div class="hari-blok">
+          <div class="grp-hari"><span class="hari-titik"></span>${tarikhCantik(tarikh)}
+            <small>· ${senarai.length} RPH</small>
+            <button class="btn btn-sm ikon-btn-kecil" title="Cetak hari ini" onclick="cetakHari('${tarikh}')">🖨️</button></div>
+          <div class="senarai senarai-rapat">${senarai.sort((a,b)=>(a.mula||'').localeCompare(b.mula||''))
+            .map(r => barisRph(r, true)).join('')}</div>
+        </div>`).join('')}
+    </section>`;
   }
   if(hasil.length > 400) html += '<p style="text-align:center;color:var(--teks-3);font-size:12px;padding:12px">Menunjukkan 400 RPH terkini — guna carian untuk yang lain</p>';
   $('#rSenarai').innerHTML = html;
 }
 function cetakTapisan(){ pergi('cetak'); }
+function cetakMinggu2(label){
+  const senarai = S.rph.filter(r => (r.minggu || mingguUntuk(r.tarikh) || 'Tanpa minggu') === label);
+  cetakBanyak(senarai);
+}
 
 /* ================= JANA RPH ================= */
 function halJana(){
@@ -241,37 +257,64 @@ function halKalendar(){
   const pertama = new Date(kalTahun, kalBulan, 1);
   const jumlah = new Date(kalTahun, kalBulan+1, 0).getDate();
   const kosong = pertama.getDay();
+  const hariIni = tarikhISO();
   let sel = '';
   for(let i=0;i<kosong;i++) sel += '<div class="kal-sel kosong"></div>';
+  let jLengkap=0, jDraf=0, jBelum=0;
   for(let d=1; d<=jumlah; d++){
     const iso = tarikhISO(new Date(kalTahun, kalBulan, d));
     const rphHari = S.rph.filter(r => r.tarikh === iso);
     const slotHari = S.jadual.filter(s => s.hari === namaHari(iso));
     const cuti = cutiPada(iso);
-    let dots = '';
-    if(!cuti){
-      const lengkap = rphHari.filter(r=>r.status==='lengkap').length;
-      const draf = rphHari.filter(r=>r.status==='draf').length;
-      const belum = Math.max(0, slotHari.length - rphHari.length);
-      dots = '<i class="d-h"></i>'.repeat(Math.min(lengkap,4)) + '<i class="d-k"></i>'.repeat(Math.min(draf,4)) + '<i class="d-m"></i>'.repeat(Math.min(belum,4));
+    const lengkap = rphHari.filter(r=>r.status==='lengkap').length;
+    const draf = rphHari.filter(r=>r.status==='draf').length;
+    const belum = cuti ? 0 : Math.max(0, slotHari.length - rphHari.length);
+    if(!cuti){ jLengkap+=lengkap; jDraf+=draf; jBelum+=belum; }
+
+    let kelas = 'kal-sel';
+    let isi = '';
+    if(cuti){
+      kelas += ' kal-cuti';
+      isi = `<span class="kal-cuti-txt">${esc((cuti.nama||'Cuti').split(' ').slice(-2).join(' '))}</span>`;
+    } else if(slotHari.length === 0){
+      kelas += ' kal-takde';
+    } else {
+      if(belum === 0 && rphHari.length) kelas += ' kal-siap';
+      else if(rphHari.length) kelas += ' kal-separa';
+      else kelas += ' kal-belum';
+      isi = `<span class="kal-dot">
+        ${'<i class="d-h"></i>'.repeat(Math.min(lengkap,5))}
+        ${'<i class="d-k"></i>'.repeat(Math.min(draf,5))}
+        ${'<i class="d-m"></i>'.repeat(Math.min(belum,5))}</span>
+        <span class="kal-kira">${rphHari.length}/${slotHari.length}</span>`;
     }
-    sel += `<div class="kal-sel ${iso===tarikhISO()?'ini':''}" onclick="lihatHari('${iso}')" title="${cuti?esc(cuti.nama):''}">
-      <span style="${cuti?'color:var(--teks-3)':''}">${d}</span><span class="kal-dot">${dots}</span></div>`;
+    if(iso === hariIni) kelas += ' ini';
+    sel += `<div class="${kelas}" onclick="lihatHari('${iso}')" title="${cuti?esc(cuti.nama):(slotHari.length?rphHari.length+' daripada '+slotHari.length+' RPH siap':'Tiada slot PdP')}">
+      <span class="kal-no">${d}</span>${isi}</div>`;
   }
   $('#kandungan').innerHTML = `
     <div class="kad">
-      <div class="kad-h">
-        <button class="btn btn-sm" onclick="geserBulan(-1)">‹</button>
-        <h3 style="text-align:center">${BULAN[kalBulan]} ${kalTahun}</h3>
-        <button class="btn btn-sm" onclick="geserBulan(1)">›</button>
+      <div class="kal-navi">
+        <button class="btn btn-sm bulat" onclick="geserBulan(-1)">‹</button>
+        <div style="text-align:center">
+          <h3 style="margin:0">${BULAN[kalBulan]} ${kalTahun}</h3>
+          <small style="color:var(--teks-3);font-size:12px">${jLengkap} lengkap · ${jDraf} draf · ${jBelum} belum</small>
+        </div>
+        <button class="btn btn-sm bulat" onclick="geserBulan(1)">›</button>
       </div>
       <div class="kal">${HARI.map(h=>`<div class="kal-hari">${h.slice(0,3)}</div>`).join('')}${sel}</div>
-      <div class="toolbar" style="margin:14px 0 0;font-size:12px;color:var(--teks-2)">
-        <span><i class="kal-dot"><i class="d-h" style="display:inline-block"></i></i> Lengkap</span>
-        <span><i class="d-k" style="display:inline-block;width:8px;height:8px;border-radius:50%"></i> Draf</span>
-        <span><i class="d-m" style="display:inline-block;width:8px;height:8px;border-radius:50%"></i> Belum dibuat</span>
+      <div class="kal-legend">
+        <span><i class="d-h"></i> Lengkap</span>
+        <span><i class="d-k"></i> Draf</span>
+        <span><i class="d-m"></i> Belum dibuat</span>
+        <span><i class="d-c"></i> Cuti</span>
+        <button class="btn btn-sm" style="margin-left:auto" onclick="kalHariIni()">Hari ini</button>
       </div>
     </div>`;
+}
+function kalHariIni(){
+  const d = new Date(); kalBulan = d.getMonth(); kalTahun = d.getFullYear();
+  halKalendar(); lihatHari(tarikhISO());
 }
 function geserBulan(n){ kalBulan += n; if(kalBulan<0){kalBulan=11;kalTahun--;} if(kalBulan>11){kalBulan=0;kalTahun++;} halKalendar(); }
 function lihatHari(iso){

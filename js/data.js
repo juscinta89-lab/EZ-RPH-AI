@@ -356,14 +356,32 @@ function halKelas(){
       <button class="btn" onclick="importKelas()">📥 Import Excel/CSV</button>
       <button class="btn" onclick="templatExcel('templat-kelas.xlsx',TEMPLAT.kelas,[['Tahun 1 Iltizam','Tahun 1',28,'Campuran','']])">⬇️ Templat Excel</button>
     </div>
-    <div class="senarai">${S.kelas.length ? S.kelas.map(k => `
-      <div class="baris">
-        <div class="baris-t"><b>${esc(k.nama)}</b><small>${esc(k.tahap||'')} · ${k.bilangan||0} murid${k.nota?' · '+esc(k.nota):''}</small></div>
-        <button class="btn btn-sm" onclick="formKelas('${k.id}')">Edit</button>
-        <button class="btn btn-sm btn-danger" onclick="hapusItem('kelas','${k.id}')">Padam</button>
-      </div>`).join('') : `<div class="kosong"><b>Belum ada kelas</b>Tambah kelas yang anda ajar, contoh: Tahun 6 Amanah.</div>`}
-    </div>`;
+    ${S.kelas.length ? `<div class="kad-grid">${S.kelas.map(k => {
+      const t = warnaTahap(k.tahap);
+      const th = (k.tahun || k.nama || '').match(/\d+/);
+      return `<div class="item-kad" style="--w:${t.warna};--wt:${t.tint}">
+        <div class="item-atas">
+          <span class="item-avatar">${th?th[0]:(k.nama||'?')[0]}</span>
+          <div class="item-txt"><b>${esc(k.nama)}</b>
+            <small>${k.bilangan||0} murid</small></div>
+          <span class="pil" style="background:${t.tint};color:${t.warna}">${esc(k.tahap||'—')}</span>
+        </div>
+        ${k.nota?`<p class="item-nota">${esc(k.nota)}</p>`:''}
+        <div class="item-btm">
+          <button class="btn btn-sm" onclick="formKelas('${k.id}')">Edit</button>
+          <button class="btn btn-sm btn-danger" onclick="hapusItem('kelas','${k.id}')">Padam</button>
+        </div></div>`;}).join('')}</div>`
+      : `<div class="kosong"><b>Belum ada kelas</b>Tambah kelas yang anda ajar, contoh: Tahun 6 Amanah.</div>`}`;
 }
+function warnaTahap(t){
+  const n = norma(t||'');
+  if(/cemerlang|tinggi/.test(n))  return { warna:'#16a37b', tint:'#e4f6ef' };
+  if(/sederhana/.test(n))          return { warna:'#e0a010', tint:'#fdf3dd' };
+  if(/rendah|lemah|pemulihan/.test(n)) return { warna:'#dc4d4d', tint:'#fdeaea' };
+  if(/campur/.test(n))             return { warna:'#1f6df5', tint:'#e6effe' };
+  return { warna:'#6a1ed6', tint:'#f2ebfe' };
+}
+
 function formKelas(id){
   const k = S.kelas.find(x => x.id === id) || {};
   modal(id ? 'Edit kelas' : 'Tambah kelas', `
@@ -455,13 +473,20 @@ function halSubjek(){
       <button class="btn" onclick="importSubjek()">📥 Import Excel/CSV</button>
       <button class="btn" onclick="templatExcel('templat-subjek.xlsx',TEMPLAT.subjek,[['Bahasa Melayu','BM','Rendah']])">⬇️ Templat</button>
     </div>
-    <div class="senarai">${S.subjek.length ? S.subjek.map(s => `
-      <div class="baris">
-        <div class="baris-t"><b>${esc(s.nama)}</b><small>${esc(s.peringkat||'—')}${s.kod?' · '+esc(s.kod):''}</small></div>
-        <button class="btn btn-sm" onclick="formSubjek('${s.id}')">Edit</button>
-        <button class="btn btn-sm btn-danger" onclick="hapusItem('subjek','${s.id}')">Padam</button>
-      </div>`).join('') : `<div class="kosong"><b>Belum ada subjek</b>Tambah sendiri atau muat senarai pratetap.</div>`}
-    </div>`;
+    ${S.subjek.length ? `<div class="kad-grid">${S.subjek.map(x => {
+      const [gelap, cerah] = warnaSubjek(x.nama);
+      const singkat = x.kod || (x.nama||'').split(/\s+/).map(w=>w[0]).join('').slice(0,3).toUpperCase();
+      return `<div class="item-kad" style="--w:${gelap};--wt:${cerah}">
+        <div class="item-atas">
+          <span class="item-avatar sj">${esc(singkat)}</span>
+          <div class="item-txt"><b>${esc(x.nama)}</b><small>${esc(x.peringkat||'—')}</small></div>
+          <span class="sj-bulat"></span>
+        </div>
+        <div class="item-btm">
+          <button class="btn btn-sm" onclick="formSubjek('${x.id}')">Edit</button>
+          <button class="btn btn-sm btn-danger" onclick="hapusItem('subjek','${x.id}')">Padam</button>
+        </div></div>`;}).join('')}</div>`
+      : `<div class="kosong"><b>Belum ada subjek</b>Tambah sendiri atau muat senarai pratetap.</div>`}`;
 }
 function formSubjek(id){
   const s = S.subjek.find(x => x.id === id) || {};
