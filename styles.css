@@ -32,7 +32,8 @@
 html,body{height:100%}
 body{font-family:var(--sans);background:var(--bg);color:var(--teks);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
 h1,h2,h3,h4,.brand-mark{font-family:var(--disp);letter-spacing:-.02em}
-button,input,select,textarea{width:100%;border:1px solid var(--garis);border-radius:12px;padding:10.5px 13px;
+button{font-family:inherit;font-size:14px;color:var(--teks);cursor:pointer}
+input,select,textarea{width:100%;border:1px solid var(--garis);border-radius:12px;padding:10.5px 13px;
   font-size:14px;font-family:inherit;background:var(--putih);color:var(--teks);transition:.15s}
 a{color:var(--biru)}
 .hide{display:none !important}
@@ -71,7 +72,6 @@ a{color:var(--biru)}
 .fld{display:block;margin-bottom:13px}
 .fld>span{display:block;font-size:12.5px;font-weight:600;color:var(--teks-2);margin-bottom:6px}
 .fld>span em{font-weight:400;font-style:normal;color:var(--teks-3)}
-input,select,textarea{width:100%;padding:11px 13px;border:1px solid var(--garis);border-radius:var(--r-sm);background:var(--putih);outline:none;transition:.15s}
 input:focus,select:focus,textarea:focus{outline:0;border-color:var(--ungu);
   box-shadow:0 0 0 3.5px var(--ungu-t)}
 textarea{resize:vertical;min-height:88px;line-height:1.6}
@@ -132,7 +132,12 @@ textarea{resize:vertical;min-height:88px;line-height:1.6}
   .side{position:fixed;left:0;top:0;width:270px;z-index:60;transform:translateX(-102%);transition:.22s;box-shadow:0 0 60px rgba(0,0,0,.18)}
   .side.buka{transform:none}
   .only-mobile{display:block}
-  .kandungan{padding:14px 14px 92px}
+  .kandungan{padding:14px 14px 100px}
+  .topbar{padding:10px 14px;gap:10px}
+  .topbar h2{font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .topbar small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .topbar .btn{padding:8px 12px;font-size:12.8px;white-space:nowrap;flex:none}
+  .toolbar input,.toolbar select{min-width:120px}
   /* Menu bawah — bar pil terapung */
   .botnav{display:grid;grid-template-columns:repeat(5,1fr);gap:2px;
     position:fixed;left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom));
