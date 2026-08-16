@@ -1,0 +1,23 @@
+HAK CIPTA TERPELIHARA
+=====================
+
+e-RPH AI — Sistem Rancangan Pengajaran Harian Berbantukan AI
+
+© 2026 ALIMIN BIN ABU BAKAR
+SK Belukar, Machang, Kelantan, Malaysia.
+
+Semua hak cipta terpelihara.
+
+Perisian ini beserta kod sumber, reka bentuk antara muka, susun atur templat
+cetakan dan segala bahan berkaitan adalah hak milik eksklusif Alimin bin Abu Bakar.
+
+DILARANG SAMA SEKALI tanpa kebenaran bertulis daripada pemilik hak cipta:
+  1. Menyalin, mengedar atau menjual semula perisian ini;
+  2. Mengubah suai, menyahkompil atau menghasilkan karya terbitan;
+  3. Menggunakan kod sumber untuk membangunkan produk lain;
+  4. Membuang atau mengubah notis hak cipta ini.
+
+Lesen penggunaan diberikan kepada sekolah/pengguna berdaftar sahaja,
+mengikut tempoh langganan yang ditetapkan.
+
+Untuk pertanyaan lesen dan kebenaran penggunaan, sila hubungi pemilik hak cipta.

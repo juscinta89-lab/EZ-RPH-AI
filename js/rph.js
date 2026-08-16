@@ -1,10 +1,18 @@
+/*!
+ * e-RPH AI — Sistem Rancangan Pengajaran Harian Berbantukan AI
+ * © 2026 Alimin bin Abu Bakar. Hak cipta terpelihara.
+ * SK Belukar, Machang, Kelantan.
+ * Penggunaan, pengedaran atau pengubahsuaian tanpa kebenaran bertulis adalah dilarang.
+ */
 /* ================= e-RPH AI — RPH ================= */
 
-function barisRph(r){
+function barisRph(r, ringkas){
   const w = { lengkap:'hijau', draf:'kuning' }[r.status] || 'kelabu';
-  return `<div class="baris">
-    <div class="baris-t"><b>${esc(r.subjek)} · ${esc(r.kelas)}</b>
-      <small>${tarikhCantik(r.tarikh)} · ${esc(r.mula)}-${esc(r.tamat)} · ${esc(r.tajuk||'Tiada tajuk')}</small></div>
+  const [gelap, cerah] = warnaSubjek(r.subjek);
+  return `<div class="baris baris-sj" style="--sj:${gelap};--sj-t:${cerah}">
+    <span class="sj-jalur"></span>
+    <div class="baris-t"><b>${esc(r.subjek)} <span class="sj-kelas">${esc(r.kelas)}</span></b>
+      <small>${ringkas ? '' : tarikhCantik(r.tarikh)+' · '}${esc(r.mula)}-${esc(r.tamat)} · ${esc(r.tajuk||'Tiada tajuk')}</small></div>
     <span class="pil ${w}">${r.status === 'lengkap' ? 'Lengkap' : 'Draf'}</span>
     <button class="btn btn-sm" onclick="bukaRph('${r.id}')">Buka</button>
   </div>`;
@@ -47,24 +55,38 @@ function lukisRph(){
     hari.get(r.tarikh).push(r);
   });
 
-  let html = '';
+  const TON = ['#4a2ae0','#16a37b','#e0781a','#1f6df5','#b0349c','#0f9aa8'];
+  let html = ''; let n = 0;
   for(const [mg, hariMap] of ikutMinggu){
     const jumlah = [...hariMap.values()].reduce((j,a)=>j+a.length,0);
     const lengkap = [...hariMap.values()].flat().filter(r=>r.status==='lengkap').length;
-    html += `<div class="grp-minggu">📘 ${esc(mg)}
-      <span class="pil ungu">${jumlah} RPH</span>
-      ${lengkap<jumlah?`<span class="pil kuning">${jumlah-lengkap} draf</span>`:'<span class="pil hijau">Semua lengkap</span>'}</div>`;
-    for(const [tarikh, senarai] of hariMap){
-      html += `<div class="grp-hari">${tarikhCantik(tarikh)}
-        <small>· ${senarai.length} RPH</small>
-        <button class="btn btn-sm" style="margin-left:auto" onclick="cetakHari('${tarikh}')">🖨️</button></div>
-        <div class="senarai">${senarai.sort((a,b)=>(a.mula||'').localeCompare(b.mula||'')).map(barisRph).join('')}</div>`;
-    }
+    const ton = TON[n++ % TON.length];
+    html += `<section class="mgg-kad" style="--ton:${ton}">
+      <header class="mgg-kepala">
+        <span class="mgg-tanda"></span>
+        <b>${esc(mg)}</b>
+        <span class="pil" style="background:${ton}1a;color:${ton}">${jumlah} RPH</span>
+        ${lengkap<jumlah?`<span class="pil kuning">${jumlah-lengkap} draf</span>`:'<span class="pil hijau">Semua lengkap</span>'}
+        <button class="btn btn-sm" style="margin-left:auto" onclick="cetakMinggu2('${esc(mg)}')">Cetak minggu</button>
+      </header>
+      ${[...hariMap].map(([tarikh, senarai]) => `
+        <div class="hari-blok">
+          <div class="grp-hari"><span class="hari-titik"></span>${tarikhCantik(tarikh)}
+            <small>· ${senarai.length} RPH</small>
+            <button class="btn btn-sm ikon-btn-kecil" title="Cetak hari ini" onclick="cetakHari('${tarikh}')">🖨️</button></div>
+          <div class="senarai senarai-rapat">${senarai.sort((a,b)=>(a.mula||'').localeCompare(b.mula||''))
+            .map(r => barisRph(r, true)).join('')}</div>
+        </div>`).join('')}
+    </section>`;
   }
   if(hasil.length > 400) html += '<p style="text-align:center;color:var(--teks-3);font-size:12px;padding:12px">Menunjukkan 400 RPH terkini — guna carian untuk yang lain</p>';
   $('#rSenarai').innerHTML = html;
 }
 function cetakTapisan(){ pergi('cetak'); }
+function cetakMinggu2(label){
+  const senarai = S.rph.filter(r => (r.minggu || mingguUntuk(r.tarikh) || 'Tanpa minggu') === label);
+  cetakBanyak(senarai);
+}
 
 /* ================= JANA RPH ================= */
 function halJana(){
@@ -156,12 +178,16 @@ function segarRptJana(){
     </div>`;
 }
 
+function infoKelas(nama){
+  return S.kelas.find(k => norma(k.nama) === norma(nama)) || {};
+}
 function ctxDaripadaSlot(slot, tarikh, extra){
-  const kelas = S.kelas.find(k => norma(k.nama) === norma(slot.kelas));
+  const kelas = infoKelas(slot.kelas);
   return Object.assign({
     slotId:slot.id, tarikh, subjek:slot.subjek, kelas:slot.kelas,
-    tahun:kelas?.tahun || '', mula:slot.mula, tamat:slot.tamat,
-    tempoh:minit(slot.mula, slot.tamat), minggu:mingguUntuk(tarikh)
+    tahun:kelas.tahun || '', mula:slot.mula, tamat:slot.tamat,
+    tempoh:minit(slot.mula, slot.tamat), minggu:mingguUntuk(tarikh),
+    bilMurid:kelas.bilangan || null, tahapKelas:kelas.tahap || '', notaKelas:kelas.nota || ''
   }, extra||{});
 }
 
@@ -195,9 +221,7 @@ async function janaSlot(slotId, tarikh){
     await muatRph(); sibuk(false); toast('RPH dijana','jaya'); bukaRph(ref.id);
   }catch(e){ sibuk(false); toast('Gagal: '+e.message,'salah'); }
 }
-async function janaMingguan(){
-  const mula = $('#jgMinggu').value; if(!mula) return toast('Tetapkan takwim dahulu','salah');
-  const tapis = $('#jgTapis').value;
+function senaraiTugasMinggu(mula, tapis){
   const tugas = [];
   for(let i=0;i<7;i++){
     const d = new Date(mula+'T00:00:00'); d.setDate(d.getDate()+i);
@@ -205,12 +229,40 @@ async function janaMingguan(){
     S.jadual.filter(x => x.hari === namaHari(iso) && (!tapis || norma(x.subjek) === norma(tapis)))
       .forEach(x => { if(!S.rph.some(r => r.tarikh === iso && r.slotId === x.id)) tugas.push({slot:x, tarikh:iso}); });
   }
+  return tugas.sort((a,b)=> (a.tarikh+(a.slot.mula||'')).localeCompare(b.tarikh+(b.slot.mula||'')));
+}
+
+async function janaMingguan(){
+  const mula = $('#jgMinggu').value; if(!mula) return toast('Tetapkan takwim dahulu','salah');
+  const tugas = senaraiTugasMinggu(mula, $('#jgTapis').value);
   if(!tugas.length) return toast('Semua slot minggu ini sudah ada RPH','jaya');
-  // agih baris RPT minggu itu mengikut giliran slot subjek yang sama (kesinambungan)
+  const { rpm } = tetapanKadar();
+  const anggar = Math.ceil(tugas.length * (60/rpm) / 60);
+  modal(`Jana ${tugas.length} RPH`, `
+    <p style="font-size:13.5px;color:var(--teks-2);line-height:1.6">
+      ${tugas.length} slot belum ada RPH. Sistem akan menjana satu demi satu dengan jeda
+      supaya tidak melebihi had percuma penyedia AI.<br><br>
+      <b>Anggaran masa: ${anggar < 2 ? 'kurang 2' : anggar} minit.</b>
+      Setiap RPH disimpan sebaik siap — jika terhenti, anda boleh sambung semula tanpa kehilangan kerja.</p>
+    <div class="kad" style="background:var(--bg);padding:12px;font-size:12.5px;color:var(--teks-2)">
+      Kelajuan semasa: <b>${rpm} permintaan/minit</b> · ubah di Tetapan → Enjin AI jika sering gagal.</div>`,
+    `<button class="btn" onclick="tutupModal()">Batal</button>
+     <button class="btn btn-primary" onclick="mulaJanaPukal('${mula}')">Mula jana</button>`);
+}
+
+let _janaHenti = false;
+async function mulaJanaPukal(mula){
+  tutupModal();
+  const tugas = senaraiTugasMinggu(mula, $('#jgTapis')?.value || '');
+  _janaHenti = false;
   const giliran = {};
-  let siap = 0, gagal = 0;
-  for(const t of tugas){
-    sibuk(true,`Menjana ${siap+gagal+1}/${tugas.length} · ${t.slot.subjek} ${t.tarikh}…`);
+  let siap = 0, gagal = 0, senaraiGagal = [];
+  panelJana(true);
+
+  for(let i = 0; i < tugas.length; i++){
+    if(_janaHenti) break;
+    const t = tugas[i];
+    kemasJana(i, tugas.length, `${t.slot.subjek} · ${t.slot.kelas} · ${tarikhCantik(t.tarikh)}`, siap, gagal);
     try{
       const ctx = ctxDaripadaSlot(t.slot, t.tarikh);
       const rpt = rptUntuk(t.slot.subjek, ctx.tahun, ctx.minggu);
@@ -221,12 +273,351 @@ async function janaMingguan(){
         ctx.tajuk = ctx.rptFokus.tajuk || ctx.rptFokus.tema || '';
         giliran[k]++;
       } else ctx.cadangSp = true;
+      ctx.lapor = msg => kemasJana(i, tugas.length, msg, siap, gagal, true);
       const rph = await janaRphAI(ctx);
-      await rujuk('rph').add(rph); siap++;
-    }catch(e){ gagal++; }
+      await rujuk('rph').add(rph);            // simpan segera — tiada kerja hilang
+      siap++;
+    }catch(e){
+      gagal++; senaraiGagal.push(`${t.slot.subjek} ${tarikhCantik(t.tarikh)}: ${e.message}`);
+      if(/Had kadar AI dicapai/.test(e.message||'')){
+        kemasJana(i, tugas.length, 'Had kadar dicapai — berhenti buat sementara', siap, gagal, true);
+        break;
+      }
+    }
   }
-  await muatRph(); sibuk(false); pergi('rph');
-  toast(`${siap} RPH dijana${gagal?', '+gagal+' gagal':''}`, gagal?'salah':'jaya');
+  panelJana(false);
+  await muatRph(); pergi('rph');
+  if(senaraiGagal.length){
+    modal('Laporan penjanaan', `
+      <div class="stat-grid" style="margin-bottom:12px">
+        <div class="stat h"><b>${siap}</b><small>Berjaya</small></div>
+        <div class="stat m"><b>${gagal}</b><small>Gagal</small></div>
+      </div>
+      <p style="font-size:13px;color:var(--teks-2);margin-bottom:8px">Slot yang gagal kekal kosong — tekan
+        <b>Jana seminggu</b> semula untuk menyambung. Yang sudah siap tidak akan diulang.</p>
+      <div style="max-height:34vh;overflow:auto;font-size:12px;color:var(--teks-2)">
+        ${senaraiGagal.map(x=>`<div style="padding:5px 0;border-bottom:1px solid var(--garis)">${esc(x)}</div>`).join('')}</div>`,
+      `<button class="btn btn-primary" onclick="tutupModal()">Faham</button>`);
+  } else {
+    toast(`${siap} RPH berjaya dijana`, 'jaya');
+  }
+}
+
+function panelJana(tunjuk){
+  let el = $('#janaPanel');
+  if(!tunjuk){ el?.remove(); return; }
+  if(el) return;
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="jana-tirai" id="janaPanel">
+      <div class="jana-kotak">
+        <h3 style="margin-bottom:4px">Menjana RPH</h3>
+        <p id="jpTeks" style="font-size:13px;color:var(--teks-2);min-height:36px">Bersedia…</p>
+        <div class="jana-bar"><i id="jpBar" style="width:0%"></i></div>
+        <div id="jpKira" style="font-size:12px;color:var(--teks-3);margin-top:8px"></div>
+        <p style="font-size:11.5px;color:var(--teks-3);margin-top:12px;line-height:1.5">
+          Biarkan tetingkap ini terbuka. Setiap RPH disimpan sebaik siap.</p>
+        <button class="btn btn-danger btn-block" style="margin-top:12px" onclick="hentiJana()">Henti</button>
+      </div>
+    </div>`);
+}
+function kemasJana(i, jum, teks, siap, gagal, kekalNombor){
+  const pk = Math.round((i / jum) * 100);
+  if($('#jpBar')) $('#jpBar').style.width = pk + '%';
+  if($('#jpTeks')) $('#jpTeks').textContent = kekalNombor ? teks : `${i+1}/${jum} · ${teks}`;
+  if($('#jpKira')) $('#jpKira').innerHTML = `<b style="color:var(--hijau)">${siap} siap</b>${gagal?` · <b style="color:var(--merah)">${gagal} gagal</b>`:''} · ${jum-i-1} baki`;
+}
+function hentiJana(){ _janaHenti = true; toast('Akan berhenti selepas RPH semasa…'); }
+
+/* ================= AUDIT PUKAL ================= */
+const LABEL_MASALAH = {
+  angka:'Bilangan murid salah', kelas:'Kelas tidak dikenali', sk:'Standard Kandungan',
+  sp:'Standard Pembelajaran', objektif:'Objektif kosong', kriteria:'Kriteria kejayaan kosong',
+  aktiviti:'Aktiviti terlalu ringkas', tajuk:'Tajuk kosong', bbm:'BBM kosong',
+  pbd:'Pentaksiran kosong', amaran:'Amaran AI', rpt:'SP tidak sepadan RPT', refleksi:'Refleksi kosong',
+  skSama:'SK sama dengan SP', skPanjang:'Standard terlalu panjang', kbat:'KBAT salah isi',
+  emk:'EMK luar senarai', nilai:'Nilai Murni jadi ayat', pak21:'PAK-21 salah isi',
+  objUkur:'Objektif tak terukur', masa:'Jumlah masa tak padan', refAwal:'Refleksi ditulis awal',
+  ejaan:'Ejaan bukan baku', ulang:'RPH berulang', bentrok:'Jadual bertindih'
+};
+
+function halAudit(){
+  const hasil = S.rph.map(r => ({ r, m: auditRph(r) }));
+  const petaHasil = {}; hasil.forEach(x => petaHasil[x.r.id] = x);
+
+  // RPH yang menyalin bulat RPH terdahulu kelas & subjek sama
+  const ulang = semakUlangRph(S.rph);
+  ulang.forEach((asal, id) => {
+    if(petaHasil[id]) petaHasil[id].m.push({ kod:'ulang', berat:'sederhana', boleh:false,
+      teks:`Aktiviti & BBM sama dengan RPH ${tarikhCantik(asal.tarikh)}` });
+  });
+
+  // Dua RPH bertindih masa pada tarikh yang sama
+  const bentrok = semakBentrok(S.rph);
+  bentrok.forEach(b => {
+    [b.a, b.b].forEach(r => {
+      if(petaHasil[r.id] && !petaHasil[r.id].m.some(p => p.kod==='bentrok'))
+        petaHasil[r.id].m.push({ kod:'bentrok', berat:'tinggi', boleh:false, teks:b.teks });
+    });
+  });
+
+  const bermasalah = hasil.filter(x => x.m.length);
+  const kiraJenis = {};
+  bermasalah.forEach(x => x.m.forEach(p => kiraJenis[p.kod] = (kiraJenis[p.kod]||0)+1));
+  const bolehBaiki = bermasalah.filter(x => x.m.some(p => p.kod === 'angka')).length;
+  const bolehKemas = bermasalah.filter(x => x.m.some(p => p.betul)).length;
+  const pendua = cariPendua(S.rph);
+  const jumBuang = pendua.reduce((n,p) => n + p.buang.length, 0);
+  const idBuang = new Set(pendua.flatMap(p => p.buang.map(r => r.id)));
+  const bolehKemasSemua = bermasalah.filter(x => !idBuang.has(x.r.id)
+    && Object.keys(baikiMedanRph(x.r, x.m)).length).length;
+  window._auditBentrok = bentrok;
+  window._auditPendua = pendua;
+  const berat = k => bermasalah.filter(x => x.m.some(p => p.berat === k)).length;
+  window._auditHasil = hasil;
+
+  $('#kandungan').innerHTML = `
+    <div class="stat-grid">
+      <div class="stat b"><b>${S.rph.length}</b><small>Jumlah RPH</small></div>
+      <div class="stat h"><b>${S.rph.length - bermasalah.length}</b><small>Tiada isu</small></div>
+      <div class="stat k"><b>${bermasalah.length}</b><small>Perlu semakan</small></div>
+      <div class="stat m"><b>${berat('tinggi')}</b><small>Isu penting</small></div>
+    </div>
+
+    ${bolehBaiki ? `<div class="kad" style="background:#fdeaea;border-color:#f5cfcf">
+      <div class="kad-h"><h3 style="color:#a33">${bolehBaiki} RPH dengan bilangan murid salah</h3></div>
+      <p style="font-size:13px;color:var(--teks-2);margin-bottom:12px">
+        Angka murid dalam refleksi/kriteria tidak sepadan dengan data kelas anda.
+        Sistem boleh membetulkan kesemuanya sekali gus mengikut senarai kelas.</p>
+      <button class="btn btn-primary" onclick="baikiSemuaAngka()">🔧 Betulkan ${bolehBaiki} RPH sekali gus</button>
+    </div>` : ''}
+
+    ${bentrok.length ? `<div class="kad" style="background:#fdeaea;border-color:#f5cfcf">
+      <div class="kad-h"><h3 style="color:#a33">${bentrok.length} pertindihan jadual</h3></div>
+      <p style="font-size:13px;color:var(--teks-2);margin-bottom:10px">
+        Perkara ini perlu dibetulkan pada jadual waktu, bukan pada teks RPH.</p>
+      <div style="display:grid;gap:6px">
+        ${bentrok.slice(0,12).map(b => `<div style="font-size:12.5px;color:var(--teks-2)">
+          <b>${tarikhCantik(b.tarikh)}</b> — ${esc(b.teks)}</div>`).join('')}
+        ${bentrok.length>12 ? `<div style="font-size:12px;color:var(--teks-3)">…dan ${bentrok.length-12} lagi</div>`:''}
+      </div>
+    </div>` : ''}
+
+    ${(pendua.length || bolehBaiki || bolehKemas) ? `<div class="kad" style="background:var(--ungu-t);border-color:#ddd3fb">
+      <div class="kad-h"><h3 style="color:#5b3fbe">Pembersihan automatik</h3></div>
+      <p style="font-size:13px;color:var(--teks-2);margin-bottom:12px">
+        ${[ pendua.length ? `<b>${jumBuang} RPH pendua</b> boleh dipadam` : '',
+            (bolehBaiki||bolehKemas) ? `<b>${bolehKemasSemua} RPH</b> boleh dibetulkan medannya` : ''
+          ].filter(Boolean).join(' · ')}.
+        Sistem akan tunjuk senarai penuh sebelum sebarang perubahan dibuat.</p>
+      <button class="btn btn-primary" onclick="bersihAuto()">🧹 Semak & bersihkan automatik</button>
+    </div>` : ''}
+
+    ${!bermasalah.length ? `<div class="kad" style="text-align:center;padding:30px">
+      <div style="font-size:38px">✅</div>
+      <h3 style="margin:8px 0 4px">Semua RPH bersih</h3>
+      <p style="font-size:13px;color:var(--teks-2)">Tiada isu dikesan dalam ${S.rph.length} RPH anda.</p></div>` : `
+
+    <div class="kad">
+      <div class="kad-h"><h3>Ringkasan isu</h3></div>
+      <div class="toolbar" style="margin:0">
+        <button class="btn btn-sm" onclick="tapisAudit('')">Semua (${bermasalah.length})</button>
+        ${Object.entries(kiraJenis).sort((a,b)=>b[1]-a[1]).map(([k,n])=>
+          `<button class="btn btn-sm" onclick="tapisAudit('${k}')">${LABEL_MASALAH[k]||k} (${n})</button>`).join('')}
+      </div>
+    </div>
+    <div id="auditSenarai"></div>`}`;
+  if(bermasalah.length) tapisAudit('');
+}
+
+function tapisAudit(kod){
+  const hasil = (window._auditHasil||[]).filter(x => x.m.length && (!kod || x.m.some(p => p.kod === kod)))
+    .sort((a,b) => (b.tarikh||b.r.tarikh).localeCompare(a.tarikh||a.r.tarikh));
+  const warna = { tinggi:'var(--merah)', sederhana:'var(--kuning)', rendah:'var(--teks-3)' };
+  $('#auditSenarai').innerHTML = hasil.slice(0,200).map(({r,m}) => {
+    const [gelap, cerah] = warnaSubjek(r.subjek);
+    const paling = m.some(p=>p.berat==='tinggi') ? 'tinggi' : m.some(p=>p.berat==='sederhana') ? 'sederhana' : 'rendah';
+    return `<div class="kad" style="padding:13px;border-left:4px solid ${warna[paling]}">
+      <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap">
+        <span class="sj-bulat" style="--w:${gelap};background:${gelap}"></span>
+        <b style="font-size:14px">${esc(r.subjek)}</b>
+        <span style="font-size:12.5px;color:var(--teks-2)">${esc(r.kelas)}</span>
+        <span class="pil kelabu">${tarikhCantik(r.tarikh)}</span>
+        <span class="pil ${r.status==='lengkap'?'hijau':'kuning'}">${r.status==='lengkap'?'Lengkap':'Draf'}</span>
+        <button class="btn btn-sm" style="margin-left:auto" onclick="bukaRph('${r.id}')">Buka & baiki</button>
+      </div>
+      <div style="margin-top:9px;display:grid;gap:5px">
+        ${m.map(p=>`<div style="display:flex;gap:7px;font-size:12.5px;color:${warna[p.berat]}">
+          <span>${p.berat==='tinggi'?'⛔':p.berat==='sederhana'?'⚠️':'○'}</span>
+          <span style="color:var(--teks-2)">${esc(p.teks)}</span></div>`).join('')}
+      </div></div>`;
+  }).join('') + (hasil.length>200 ? `<p style="text-align:center;color:var(--teks-3);font-size:12px;padding:10px">Menunjukkan 200 daripada ${hasil.length}</p>` : '');
+}
+
+/* ============ PEMBERSIHAN AUTOMATIK ============ */
+function bersihAuto(){
+  const hasil = window._auditHasil || [];
+  const pendua = window._auditPendua || [];
+  const bentrok = window._auditBentrok || [];
+  const idBuang = new Set(pendua.flatMap(p => p.buang.map(r => r.id)));
+
+  const baiki = hasil.filter(x => x.m.length && !idBuang.has(x.r.id))
+    .map(x => ({ ...x, ubah: baikiMedanRph(x.r, x.m) }))
+    .filter(x => Object.keys(x.ubah).length);
+
+  const perluAi = hasil.filter(x => !idBuang.has(x.r.id)
+    && x.m.some(p => ISU_PERLU_AI.includes(p.kod)));
+
+  const takAuto = hasil.filter(x => !idBuang.has(x.r.id)
+    && x.m.some(p => ISU_TAK_AUTO.includes(p.kod)));
+
+  const jumBuang = pendua.reduce((n,p) => n + p.buang.length, 0);
+
+  if(!jumBuang && !baiki.length && !perluAi.length)
+    return toast('Tiada apa-apa yang boleh dibersihkan automatik','jaya');
+
+  window._bersih = { pendua, baiki, perluAi };
+
+  const senaraiPendua = pendua.slice(0,8).map(p =>
+    `<div style="font-size:12.5px;color:var(--teks-2);padding:5px 0;border-bottom:1px solid var(--garis)">
+      <b>${esc(p.simpan.subjek)}</b> · ${esc(p.simpan.kelas)} · ${tarikhCantik(p.simpan.tarikh)}
+      ${p.simpan.mula?`· ${esc(p.simpan.mula)}`:''}
+      <span style="color:var(--teks-3)"> — simpan 1, padam ${p.buang.length}</span>
+    </div>`).join('');
+
+  modal('Pembersihan automatik', `
+    ${jumBuang ? `<div class="kad" style="padding:12px;margin-bottom:12px">
+      <b style="font-size:13.5px">1 · Padam ${jumBuang} RPH pendua</b>
+      <p style="font-size:12.5px;color:var(--teks-2);margin:6px 0 8px">
+        Rekod bertindan pada slot yang sama. Yang paling lengkap dikekalkan.</p>
+      ${senaraiPendua}
+      ${pendua.length>8?`<div style="font-size:12px;color:var(--teks-3);padding-top:6px">…dan ${pendua.length-8} slot lagi</div>`:''}
+      <label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-size:13px">
+        <input type="checkbox" id="bsPendua" checked> Padam pendua</label>
+    </div>` : ''}
+
+    ${baiki.length ? `<div class="kad" style="padding:12px;margin-bottom:12px">
+      <b style="font-size:13.5px">2 · Betulkan medan dalam ${baiki.length} RPH</b>
+      <p style="font-size:12.5px;color:var(--teks-2);margin:6px 0 8px">
+        Ejaan bukan baku, KBAT salah isi, EMK/Nilai Murni yang jadi ayat,
+        bilangan murid tidak sepadan, dan refleksi yang ditulis sebelum tarikh PdP.
+        Tiada panggilan AI — pantas dan percuma.</p>
+      <label style="display:flex;gap:8px;align-items:center;font-size:13px">
+        <input type="checkbox" id="bsBaiki" checked> Betulkan medan</label>
+    </div>` : ''}
+
+    ${perluAi.length ? `<div class="kad" style="padding:12px;margin-bottom:12px">
+      <b style="font-size:13.5px">3 · Jana semula ${perluAi.length} RPH dengan AI</b>
+      <p style="font-size:12.5px;color:var(--teks-2);margin:6px 0 8px">
+        Untuk isu yang perlu pertimbangan: SK sama dengan SP, standard disalin bulat
+        daripada DSKP, objektif tak terukur, jumlah masa tak padan, dan RPH yang
+        menyalin hari sebelumnya. Refleksi sedia ada dikekalkan.
+        <b>Menggunakan kuota AI dan mengambil masa.</b></p>
+      <label style="display:flex;gap:8px;align-items:center;font-size:13px">
+        <input type="checkbox" id="bsAi"> Jana semula dengan AI</label>
+    </div>` : ''}
+
+    ${(takAuto.length || bentrok.length) ? `<div class="kad" style="background:#fdf3dd;border-color:#f0dcae;padding:12px">
+      <b style="font-size:13.5px;color:#8a6106">Perlu perhatian abang sendiri</b>
+      <p style="font-size:12.5px;color:var(--teks-2);margin-top:6px">
+        ${[ bentrok.length?`${bentrok.length} pertindihan jadual (betulkan di jadual waktu)`:'',
+            takAuto.length?`${takAuto.length} RPH dengan standard atau aktiviti kosong (perlu RPT dilengkapkan)`:''
+          ].filter(Boolean).join(' · ')}.
+        Perkara ini tidak disentuh oleh pembersihan automatik.</p>
+    </div>` : ''}`,
+    `<button class="btn" onclick="tutupModal()">Batal</button>
+     <button class="btn btn-primary" onclick="jalankanBersih()">Jalankan</button>`);
+}
+
+async function jalankanBersih(){
+  const buatPendua = $('#bsPendua')?.checked, buatBaiki = $('#bsBaiki')?.checked,
+        buatAi = $('#bsAi')?.checked;
+  const { pendua, baiki, perluAi } = window._bersih || {};
+  tutupModal();
+  if(!buatPendua && !buatBaiki && !buatAi) return toast('Tiada tindakan dipilih');
+
+  const kira = { padam:0, baiki:0, jana:0, gagal:0 };
+  try{
+    /* 1 — padam pendua */
+    if(buatPendua && pendua?.length){
+      const buang = pendua.flatMap(p => p.buang);
+      for(let i = 0; i < buang.length; i += 300){
+        sibuk(true, `Memadam pendua ${kira.padam}/${buang.length}…`);
+        const b = db.batch();
+        buang.slice(i, i+300).forEach(r => b.delete(rujuk('rph').doc(r.id)));
+        await b.commit(); kira.padam += Math.min(300, buang.length - i);
+      }
+    }
+
+    /* 2 — betulkan medan */
+    if(buatBaiki && baiki?.length){
+      for(let i = 0; i < baiki.length; i += 300){
+        sibuk(true, `Membetulkan medan ${kira.baiki}/${baiki.length}…`);
+        const b = db.batch();
+        baiki.slice(i, i+300).forEach(({r, ubah}) =>
+          b.update(rujuk('rph').doc(r.id), { ...ubah, dikemas: Date.now() }));
+        await b.commit(); kira.baiki += Math.min(300, baiki.length - i);
+      }
+    }
+
+    /* 3 — jana semula dengan AI (satu demi satu, refleksi dikekalkan) */
+    if(buatAi && perluAi?.length){
+      const idPadam = new Set((buatPendua && pendua ? pendua.flatMap(p=>p.buang) : []).map(r => r.id));
+      const sasar = perluAi.filter(x => !idPadam.has(x.r.id));
+      for(let i = 0; i < sasar.length; i++){
+        const r = sasar[i].r;
+        sibuk(true, `AI menjana semula ${i+1}/${sasar.length} · ${r.subjek} ${r.kelas}…`);
+        try{
+          const baru = await janaRphAI({ slotId:r.slotId, tarikh:r.tarikh, subjek:r.subjek,
+            kelas:r.kelas, tahun:r.tahun, mula:r.mula, tamat:r.tamat,
+            tempoh:r.tempoh || minit(r.mula, r.tamat), minggu:r.minggu, tajuk:r.tajuk });
+          delete baru.dicipta; delete baru.status;
+          baru.refleksi = r.refleksi || '';      // kekalkan refleksi guru
+          await rujuk('rph').doc(r.id).update({ ...baru, dikemas: Date.now() });
+          kira.jana++;
+        }catch(e){ kira.gagal++; }
+      }
+    }
+
+    await muatRph(); sibuk(false); pergi('audit');
+    toast([ kira.padam?`${kira.padam} pendua dipadam`:'',
+            kira.baiki?`${kira.baiki} dibetulkan`:'',
+            kira.jana?`${kira.jana} dijana semula`:'',
+            kira.gagal?`${kira.gagal} gagal`:'' ].filter(Boolean).join(' · '),
+          kira.gagal ? 'salah' : 'jaya');
+  }catch(e){
+    sibuk(false); await muatRph(); pergi('audit');
+    toast('Berhenti: '+e.message, 'salah');
+  }
+}
+
+async function baikiSemuaAngka(){
+  const sasar = (window._auditHasil||[]).filter(x => x.m.some(p => p.kod === 'angka'));
+  if(!sasar.length) return toast('Tiada yang perlu dibaiki','jaya');
+  sahkan(`Betulkan bilangan murid dalam ${sasar.length} RPH mengikut data kelas? Tindakan ini tidak boleh dibatalkan.`, async () => {
+    let siap = 0;
+    for(let i = 0; i < sasar.length; i += 300){
+      sibuk(true, `Membetulkan ${siap}/${sasar.length}…`);
+      const b = db.batch();
+      sasar.slice(i, i+300).forEach(({r,m}) => {
+        const jum = m.find(p => p.kod==='angka')?.jum;
+        if(!jum) return;
+        const ubah = {};
+        ['refleksi','kriteria','objektif'].forEach(f => { if(r[f]) ubah[f] = betulTeksAngka(r[f], jum); });
+        if(r.aktiviti) ubah.aktiviti = betulTeksAngka(r.aktiviti, jum);
+        b.update(rujuk('rph').doc(r.id), ubah);
+      });
+      await b.commit(); siap += Math.min(300, sasar.length - i);
+    }
+    await muatRph(); sibuk(false); pergi('audit');
+    toast(`${sasar.length} RPH dibetulkan`, 'jaya');
+  });
+}
+function betulTeksAngka(teks, jum){
+  return String(teks)
+    .replace(/(\d{1,3})\s*(daripada|dari|\/)\s*(\d{1,3})(\s*(?:orang\s*)?murid)/gi,
+      (m,a,b,c,d) => `${Math.min(+a, jum)} ${b} ${jum}${d}`)
+    .replace(/(seramai|kesemua|semua)\s*(\d{1,3})(\s*(?:orang\s*)?murid)/gi,
+      (m,a,b,c) => `${a} ${jum}${c}`);
 }
 
 /* ================= KALENDAR ================= */
@@ -235,37 +626,64 @@ function halKalendar(){
   const pertama = new Date(kalTahun, kalBulan, 1);
   const jumlah = new Date(kalTahun, kalBulan+1, 0).getDate();
   const kosong = pertama.getDay();
+  const hariIni = tarikhISO();
   let sel = '';
   for(let i=0;i<kosong;i++) sel += '<div class="kal-sel kosong"></div>';
+  let jLengkap=0, jDraf=0, jBelum=0;
   for(let d=1; d<=jumlah; d++){
     const iso = tarikhISO(new Date(kalTahun, kalBulan, d));
     const rphHari = S.rph.filter(r => r.tarikh === iso);
     const slotHari = S.jadual.filter(s => s.hari === namaHari(iso));
     const cuti = cutiPada(iso);
-    let dots = '';
-    if(!cuti){
-      const lengkap = rphHari.filter(r=>r.status==='lengkap').length;
-      const draf = rphHari.filter(r=>r.status==='draf').length;
-      const belum = Math.max(0, slotHari.length - rphHari.length);
-      dots = '<i class="d-h"></i>'.repeat(Math.min(lengkap,4)) + '<i class="d-k"></i>'.repeat(Math.min(draf,4)) + '<i class="d-m"></i>'.repeat(Math.min(belum,4));
+    const lengkap = rphHari.filter(r=>r.status==='lengkap').length;
+    const draf = rphHari.filter(r=>r.status==='draf').length;
+    const belum = cuti ? 0 : Math.max(0, slotHari.length - rphHari.length);
+    if(!cuti){ jLengkap+=lengkap; jDraf+=draf; jBelum+=belum; }
+
+    let kelas = 'kal-sel';
+    let isi = '';
+    if(cuti){
+      kelas += ' kal-cuti';
+      isi = `<span class="kal-cuti-txt">${esc((cuti.nama||'Cuti').split(' ').slice(-2).join(' '))}</span>`;
+    } else if(slotHari.length === 0){
+      kelas += ' kal-takde';
+    } else {
+      if(belum === 0 && rphHari.length) kelas += ' kal-siap';
+      else if(rphHari.length) kelas += ' kal-separa';
+      else kelas += ' kal-belum';
+      isi = `<span class="kal-dot">
+        ${'<i class="d-h"></i>'.repeat(Math.min(lengkap,5))}
+        ${'<i class="d-k"></i>'.repeat(Math.min(draf,5))}
+        ${'<i class="d-m"></i>'.repeat(Math.min(belum,5))}</span>
+        <span class="kal-kira">${rphHari.length}/${slotHari.length}</span>`;
     }
-    sel += `<div class="kal-sel ${iso===tarikhISO()?'ini':''}" onclick="lihatHari('${iso}')" title="${cuti?esc(cuti.nama):''}">
-      <span style="${cuti?'color:var(--teks-3)':''}">${d}</span><span class="kal-dot">${dots}</span></div>`;
+    if(iso === hariIni) kelas += ' ini';
+    sel += `<div class="${kelas}" onclick="lihatHari('${iso}')" title="${cuti?esc(cuti.nama):(slotHari.length?rphHari.length+' daripada '+slotHari.length+' RPH siap':'Tiada slot PdP')}">
+      <span class="kal-no">${d}</span>${isi}</div>`;
   }
   $('#kandungan').innerHTML = `
     <div class="kad">
-      <div class="kad-h">
-        <button class="btn btn-sm" onclick="geserBulan(-1)">‹</button>
-        <h3 style="text-align:center">${BULAN[kalBulan]} ${kalTahun}</h3>
-        <button class="btn btn-sm" onclick="geserBulan(1)">›</button>
+      <div class="kal-navi">
+        <button class="btn btn-sm bulat" onclick="geserBulan(-1)">‹</button>
+        <div style="text-align:center">
+          <h3 style="margin:0">${BULAN[kalBulan]} ${kalTahun}</h3>
+          <small style="color:var(--teks-3);font-size:12px">${jLengkap} lengkap · ${jDraf} draf · ${jBelum} belum</small>
+        </div>
+        <button class="btn btn-sm bulat" onclick="geserBulan(1)">›</button>
       </div>
       <div class="kal">${HARI.map(h=>`<div class="kal-hari">${h.slice(0,3)}</div>`).join('')}${sel}</div>
-      <div class="toolbar" style="margin:14px 0 0;font-size:12px;color:var(--teks-2)">
-        <span><i class="kal-dot"><i class="d-h" style="display:inline-block"></i></i> Lengkap</span>
-        <span><i class="d-k" style="display:inline-block;width:8px;height:8px;border-radius:50%"></i> Draf</span>
-        <span><i class="d-m" style="display:inline-block;width:8px;height:8px;border-radius:50%"></i> Belum dibuat</span>
+      <div class="kal-legend">
+        <span><i class="d-h"></i> Lengkap</span>
+        <span><i class="d-k"></i> Draf</span>
+        <span><i class="d-m"></i> Belum dibuat</span>
+        <span><i class="d-c"></i> Cuti</span>
+        <button class="btn btn-sm" style="margin-left:auto" onclick="kalHariIni()">Hari ini</button>
       </div>
     </div>`;
+}
+function kalHariIni(){
+  const d = new Date(); kalBulan = d.getMonth(); kalTahun = d.getFullYear();
+  halKalendar(); lihatHari(tarikhISO());
 }
 function geserBulan(n){ kalBulan += n; if(kalBulan<0){kalBulan=11;kalTahun--;} if(kalBulan>11){kalBulan=0;kalTahun++;} halKalendar(); }
 function lihatHari(iso){
@@ -369,6 +787,7 @@ function halEditor(){
         <button class="btn btn-primary" onclick="simpanRph('lengkap')">Simpan sebagai lengkap</button>
         <button class="btn" onclick="simpanRph('draf')">Simpan draf</button>
         <button class="btn" onclick="cetakRph()">🖨️ Cetak / PDF</button>
+      ${driveSedia() ? `<button class="btn" onclick="simpanRphKeDrive()">📁 Simpan ke Drive</button>` : ''}
         <button class="btn" onclick="salinRph()">📋 Salin ke tarikh lain</button>
         <button class="btn btn-danger" onclick="padamRph()">Padam</button>
       </div>
@@ -379,6 +798,10 @@ function halEditor(){
         <div class="kad-h"><h3>Semakan kualiti</h3><span class="pil ${warna}">${q.peratus}%</span></div>
         ${q.cek.map(c=>`<div style="display:flex;gap:8px;font-size:12.5px;padding:3px 0;color:${c[1]?'var(--teks-2)':'var(--merah)'}">
           <span>${c[1]?'✓':'✕'}</span><span>${c[0]}</span></div>`).join('')}
+        ${(() => { const a = semakAngkaMurid(r);
+          return a.ok ? '' : `<p style="margin-top:10px;font-size:12px;background:#fdeaea;color:#a33;padding:9px;border-radius:8px">
+            ⚠️ RPH menyebut <b>${esc(a.salah.join(', '))}</b> murid tetapi kelas ini ada <b>${a.jum}</b> murid.
+            <button class="btn btn-sm" style="margin-top:7px" onclick="betulkanAngka(${a.jum})">Betulkan automatik</button></p>`; })()}
         ${r.amaran ? `<p style="margin-top:10px;font-size:12px;background:#fdf3dd;color:#8a6106;padding:9px;border-radius:8px">⚠️ ${esc(r.amaran)}</p>` : ''}
         <p style="font-size:11px;color:var(--teks-3);margin-top:10px">Semakan ini bantuan sistem sahaja, bukan pengesahan rasmi KPM.</p>
       </div>
@@ -492,7 +915,7 @@ ARAHAN GURU: ${arahan}
 
 Ubah HANYA bahagian yang berkaitan dengan arahan. Kekalkan Standard Kandungan dan Standard Pembelajaran seperti asal tanpa sebarang perubahan.
 Balas JSON sahaja dengan medan yang sama (medan yang tidak diubah dikembalikan seperti asal).`;
-    const j = ambilJSON(await panggilAI(p));
+    const j = ambilJSON(await panggilAiSelamat(p));
     const set = (id,v) => { if(v != null && $('#'+id)) $('#'+id).value = v; };
     set('eTajuk', j.tajuk); set('eObjektif', Array.isArray(j.objektif)?j.objektif.join('\n'):j.objektif);
     set('eKriteria', Array.isArray(j.kriteria)?j.kriteria.join('\n'):j.kriteria);
@@ -514,8 +937,38 @@ async function janaSemula(){
     await muatRph(); sibuk(false); halEditor(); toast('RPH dijana semula','jaya');
   }catch(e){ sibuk(false); toast('Gagal: '+e.message,'salah'); }
 }
+function betulkanAngka(jum){
+  ['eRefleksi','eKriteria','eObjektif'].forEach(id => {
+    const el = $('#'+id); if(!el) return;
+    el.value = String(el.value)
+      .replace(/(\d{1,3})\s*(daripada|dari|\/)\s*(\d{1,3})(\s*(?:orang\s*)?murid)/gi,
+        (m,a,b,c,d) => `${Math.min(+a, jum)} ${b} ${jum}${d}`)
+      .replace(/(seramai|kesemua|semua)\s*(\d{1,3})(\s*(?:orang\s*)?murid)/gi,
+        (m,a,b,c) => `${a} ${jum}${c}`);
+  });
+  const ed = $('#eAktiviti');
+  if(ed) ed.innerHTML = ed.innerHTML.replace(/(\d{1,3})\s*(daripada|dari)\s*(\d{1,3})(\s*(?:orang\s*)?murid)/gi,
+    (m,a,b,c,d) => `${Math.min(+a, jum)} ${b} ${jum}${d}`);
+  toast('Angka dibetulkan kepada '+jum+' murid','jaya');
+  if(typeof halEditor === "function") setTimeout(halEditor, 60);
+}
+
 function janaRefleksi(){
+  const r = bacaEditor();
+  const k = infoKelas(r.kelas);
+  const jum = k.bilangan || 0;
+  const cadang = jum ? [Math.round(jum*0.9), Math.round(jum*0.75), Math.round(jum*0.5)] : [];
+  const belumSampai = r.tarikh && r.tarikh > tarikhISO();
   modal('Jana refleksi', `
+    ${belumSampai ? `<div class="kad" style="background:#fdeaea;border-color:#f5cfcf;padding:11px;margin-bottom:13px;font-size:12.5px;color:#a33">
+      RPH ini bertarikh <b>${tarikhCantik(r.tarikh)}</b> — belum diajar.
+      Refleksi sepatutnya ditulis selepas PdP. Teruskan hanya jika anda pasti.</div>` : ''}
+    ${jum ? `<div class="kad" style="background:var(--ungu-t);border-color:#ddd3fb;padding:11px;margin-bottom:13px;font-size:12.5px;color:var(--teks-2)">
+      Kelas <b>${esc(r.kelas)}</b> mempunyai <b>${jum} murid</b>${k.tahap?` · tahap ${esc(k.tahap)}`:''}.
+      Refleksi akan menggunakan angka sebenar ini.</div>`
+      : `<div class="kad" style="background:#fdf3dd;border-color:#f0dcae;padding:11px;margin-bottom:13px;font-size:12.5px;color:#8a6106">
+      Bilangan murid untuk kelas <b>${esc(r.kelas||'—')}</b> belum ditetapkan.
+      Isi di menu <b>Kelas</b> supaya refleksi tepat.</div>`}
     <label class="fld"><span>Keadaan sebenar PdP</span><select id="rfPilih">
       <option>Semua murid menguasai objektif</option>
       <option>Sebahagian besar murid menguasai</option>
@@ -523,7 +976,11 @@ function janaRefleksi(){
       <option>Aktiviti berjaya dan murid aktif</option>
       <option>Aktiviti perlu ditambah baik</option>
       <option>PdP tidak dapat dijalankan</option></select></label>
-    <label class="fld"><span>Bilangan murid menguasai <em>(pilihan)</em></span><input id="rfBil" placeholder="Cth: 28/32"></label>
+    <label class="fld"><span>Bilangan murid menguasai daripada ${jum||'—'}</span>
+      <input id="rfBil" type="number" min="0" max="${jum||999}" value="${cadang[0]||''}" placeholder="${jum?'Cth: '+cadang[0]:'Bilangan'}">
+      ${cadang.length?`<span style="display:flex;gap:6px;margin-top:7px">${cadang.map(n=>
+        `<button type="button" class="btn btn-sm" onclick="$('#rfBil').value=${n}">${n}/${jum}</button>`).join('')}</span>`:''}
+    </label>
     <label class="fld"><span>Catatan tambahan</span><textarea id="rfNota" style="min-height:70px"></textarea></label>`,
     `<button class="btn" onclick="tutupModal()">Batal</button><button class="btn btn-primary" onclick="jalankanRefleksi()">✨ Jana</button>`);
 }
@@ -532,12 +989,28 @@ async function jalankanRefleksi(){
   tutupModal(); sibuk(true,'AI menulis refleksi…');
   try{
     const r = bacaEditor();
+    const k = infoKelas(r.kelas);
+    const jum = k.bilangan || null;
+    const menguasai = bil ? Math.min(+bil, jum || +bil) : null;
     const p = `Tulis satu refleksi RPH profesional (2-4 ayat, Bahasa Melayu baku, gaya rekod rasmi guru KPM).
+
+MAKLUMAT KELAS SEBENAR — WAJIB PATUH
+Kelas: ${r.kelas}${k.tahun?' ('+k.tahun+')':''}
+Jumlah murid dalam kelas ini: ${jum ?? 'tidak dinyatakan'}
+${k.tahap?'Tahap pencapaian kelas: '+k.tahap:''}
+${k.nota?'Nota guru tentang kelas ini: '+k.nota:''}
+${menguasai!=null && jum ? `Bilangan menguasai objektif: ${menguasai} daripada ${jum} murid.` : ''}
+
+PERATURAN ANGKA (PALING PENTING)
+- Gunakan HANYA angka ${jum ?? '(tiada)'} sebagai jumlah murid. JANGAN reka atau anggar angka lain.
+${menguasai!=null && jum ? `- Tulis dengan tepat "${menguasai} daripada ${jum} orang murid".` : '- Jika bilangan tidak diberi, tulis secara umum tanpa angka.'}
+${k.tahap||k.nota ? '- Sesuaikan nada refleksi dengan tahap dan nota kelas di atas (contoh: kelas lemah perlu bimbingan lanjutan, bukan pengayaan sahaja).' : ''}
+
 Objektif: ${r.objektif}
 Aktiviti: ${stripHtml(r.aktiviti).slice(0,400)}
-Keadaan sebenar: ${pilih}${bil?' ('+bil+' murid menguasai)':''}${nota?'. Catatan: '+nota:''}
+Keadaan sebenar: ${pilih}${nota?'. Catatan guru: '+nota:''}
 Balas teks refleksi sahaja tanpa tajuk atau markdown.`;
-    $('#eRefleksi').value = (await panggilAI(p)).trim();
+    $('#eRefleksi').value = (await panggilAiSelamat(p)).trim();
     sibuk(false); toast('Refleksi dijana','jaya');
   }catch(e){ sibuk(false); toast('Gagal: '+e.message,'salah'); }
 }
@@ -585,8 +1058,8 @@ function htmlRph(r, tunjukSemakan){
     ___ / ${bil} murid tidak dapat mencapai objektif pembelajaran dan diberi latihan pemulihan.<br><br>
     <b>PdPC pada hari ini:</b>
     <table style="width:100%;border-collapse:collapse;margin-top:2pt">
-      <tr><td style="border:.7pt solid #444;padding:1.6pt 3pt">Memuaskan</td><td style="border:.7pt solid #444;width:9mm"></td></tr>
-      <tr><td style="border:.7pt solid #444;padding:1.6pt 3pt">Tidak memuaskan</td><td style="border:.7pt solid #444"></td></tr>
+      <tr><td style="border:1px solid #444;padding:1.6pt 3pt">Memuaskan</td><td style="border:1px solid #444;width:9mm"></td></tr>
+      <tr><td style="border:1px solid #444;padding:1.6pt 3pt">Tidak memuaskan</td><td style="border:1px solid #444"></td></tr>
     </table>`;
 
   return `
@@ -616,7 +1089,7 @@ function htmlRph(r, tunjukSemakan){
     ${band('ASPIRASI MURID')}
     <tr><td colspan="6" style="padding:0"><table style="width:100%;border-collapse:collapse;table-layout:fixed">
       <tr>${['Pengetahuan','Kemahiran Berfikir','Kemahiran Memimpin','Kemahiran Dwibahasa','Etika dan Kerohanian','Identiti Nasional']
-        .map((x,i)=>`<td style="${i<5?'border-right:.7pt solid #444;':''}padding:1.6pt 3pt;font-size:7.6pt;text-align:center">☐ ${x}</td>`).join('')}</tr>
+        .map((x,i)=>`<td style="${i<5?'border-right:1px solid #444;':''}padding:1.6pt 3pt;font-size:7.6pt;text-align:center">☐ ${x}</td>`).join('')}</tr>
     </table></td></tr>
     <tr class="pd-band" style="background:${gelap}"><td colspan="3">OBJEKTIF PEMBELAJARAN (OP)</td>
         <td colspan="3">KRITERIA KEJAYAAN (KK)</td></tr>
@@ -644,8 +1117,8 @@ function htmlRph(r, tunjukSemakan){
     <tr><td colspan="6" style="padding:0"><table style="width:100%;border-collapse:collapse">
       ${['PdPC akan diteruskan dengan topik baharu.','PdPC akan diulang semula pada pembelajaran akan datang.',
          'PdPC tidak dilaksanakan kerana: ________________________________________']
-        .map(x=>`<tr><td style="border-bottom:.7pt solid #444;width:8mm;text-align:center;padding:1.6pt">☐</td>
-          <td style="border-bottom:.7pt solid #444;padding:1.6pt 3pt">${x}</td></tr>`).join('')}
+        .map(x=>`<tr><td style="border-bottom:1px solid #444;width:8mm;text-align:center;padding:1.6pt">☐</td>
+          <td style="border-bottom:1px solid #444;padding:1.6pt 3pt">${x}</td></tr>`).join('')}
     </table></td></tr>
   </table>
   ${tunjukSemakan === false ? '' : `
@@ -656,6 +1129,24 @@ function htmlRph(r, tunjukSemakan){
         <b>${esc(S.profil.nama||'')}</b><br>${esc(S.profil.jawatan||'Guru')}</td>
       <td>Disemak oleh:<br><br><br><b>${esc(S.profil.pengesah||'')}</b></td></tr>
   </table>`}`;
+}
+
+const WARNA_SUBJEK = [
+  [/melayu|\bbm\b/i,       ['#f9c97e','#fdeeda']],
+  [/inggeris|english/i,     ['#9ec5f5','#e7f0fd']],
+  [/matematik/i,            ['#a7c9f2','#e3edfb']],
+  [/sains/i,                ['#9edcb2','#e4f6ea']],
+  [/jasmani|\bpj\b/i,      ['#f5a9a9','#fde7e7']],
+  [/kesihatan|\bpk\b/i,    ['#f5b9d0','#fdeaf2']],
+  [/seni|psv/i,             ['#c9b3f0','#efe9fc']],
+  [/muzik/i,                ['#f5e07e','#fcf6d9']],
+  [/islam|arab/i,           ['#8fd4c8','#e2f5f1']],
+  [/moral|sivik|sejarah/i,  ['#d9c49a','#f5ede0']],
+  [/reka bentuk|rbt|teknologi/i, ['#b8d4a8','#eaf4e4']]
+];
+function warnaSubjek(nama){
+  for(const [rx, w] of WARNA_SUBJEK) if(rx.test(nama||'')) return w;
+  return ['#c9cfdd','#eceff5'];
 }
 
 function gayaCetak(){ return localStorage.getItem('erph_gaya_cetak') || 'padat'; }
@@ -733,6 +1224,9 @@ function semakanHari(){
   </tr></table>`;
 }
 
+function notaCetak(){
+  return `<div class="cetak-nota">Dijana oleh e-RPH AI · © 2026 Alimin bin Abu Bakar</div>`;
+}
 function keluarkanCetak(html){
   let box = document.getElementById('cetak');
   if(!box){ box = document.createElement('div'); box.id = 'cetak'; document.body.appendChild(box); }
@@ -742,8 +1236,8 @@ function keluarkanCetak(html){
 
 function cetakRph(){
   const r = { ...S.rph.find(x=>x.id===S.editRphId), ...bacaEditor() };
-  if(gayaCetak() === 'penuh') return keluarkanCetak(htmlRph(r));
-  keluarkanCetak(kepalaHari(r.tarikh) + htmlRphPadat(r, 1) + semakanHari());
+  if(gayaCetak() === 'penuh') return keluarkanCetak(htmlRph(r) + notaCetak());
+  keluarkanCetak(kepalaHari(r.tarikh) + htmlRphPadat(r, 1) + semakanHari() + notaCetak());
 }
 
 /* Cetak banyak RPH — satu RPH satu muka surat.
@@ -755,7 +1249,7 @@ function cetakBanyak(senarai){
     const akhirHari = {};
     susun.forEach((r,i) => akhirHari[r.tarikh] = i);
     keluarkanCetak(susun.map((r,i) =>
-      `<div style="${i ? 'page-break-before:always;' : ''}">${htmlRph(r, akhirHari[r.tarikh] === i)}</div>`).join(''));
+      `<div style="${i ? 'page-break-before:always;' : ''}">${htmlRph(r, akhirHari[r.tarikh] === i)}</div>`).join('') + notaCetak());
     return;
   }
   /* Gaya padat: mengalir berterusan, tiada muka surat dibazir */
@@ -769,7 +1263,7 @@ function cetakBanyak(senarai){
     noKelas++;
     html += htmlRphPadat(r, noKelas);
   });
-  html += semakanHari();
+  html += semakanHari() + notaCetak();
   keluarkanCetak(html);
 }
 function halCetak(){
@@ -794,6 +1288,7 @@ function halCetak(){
       <div class="kad-h"><h3>Cetak pantas</h3></div>
       <div class="toolbar" style="margin:0">
         <button class="btn btn-primary" onclick="cetakHari('${hariIni}')">🖨️ Hari ini (${S.rph.filter(r=>r.tarikh===hariIni).length})</button>
+        ${typeof driveSedia === 'function' && driveSedia() ? `<button class="btn btn-ungu" onclick="pergi('drive')">📁 Simpan ke Drive</button>` : ''}
         ${mggIni?`<button class="btn btn-ungu" onclick="cetakMinggu('${mggIni.mula}')">🖨️ ${esc(mggIni.label)} penuh</button>`:''}
       </div>
     </div>

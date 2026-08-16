@@ -1,3 +1,9 @@
+/*!
+ * e-RPH AI — Sistem Rancangan Pengajaran Harian Berbantukan AI
+ * © 2026 Alimin bin Abu Bakar. Hak cipta terpelihara.
+ * SK Belukar, Machang, Kelantan.
+ * Penggunaan, pengedaran atau pengubahsuaian tanpa kebenaran bertulis adalah dilarang.
+ */
 /* ================= e-RPH AI — ENJIN AI ================= */
 
 /* ---------- Penyedia AI ----------
@@ -43,6 +49,85 @@ function alamatAsas(){
   let b = (t.baseUrl || p.base || '').trim().replace(/\/+$/,'');
   if(b && !/\/v\d+$/.test(b) && !/openai\/v1$/.test(b)) { /* biarkan seperti diberi pengguna */ }
   return b;
+}
+
+/* ================= PENGURUSAN HAD KADAR =================
+   Free tier setiap penyedia ada had permintaan seminit (RPM).
+   Sistem ini menghantar permintaan satu demi satu dengan jeda,
+   dan mengendalikan ralat 429 secara automatik. */
+
+function tetapanKadar(){
+  const t = JSON.parse(localStorage.getItem('erph_kadar') || '{}');
+  return { rpm: t.rpm || 12, cubaan: t.cubaan || 4, sandaran: t.sandaran || null };
+}
+function simpanKadar(t){ localStorage.setItem('erph_kadar', JSON.stringify(t)); }
+
+let _kaliAkhir = 0;
+async function jedaKadar(){
+  const { rpm } = tetapanKadar();
+  const selang = Math.ceil(60000 / Math.max(1, rpm));       // ms antara permintaan
+  const perlu = _kaliAkhir + selang - Date.now();
+  if(perlu > 0) await tidur(perlu);
+  _kaliAkhir = Date.now();
+}
+function tidur(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+function adalahHadKadar(e){
+  const m = String(e?.message || e || '');
+  return /429|rate limit|quota|RESOURCE_EXHAUSTED|too many requests/i.test(m);
+}
+function adalahKuotaHarian(e){
+  const m = String(e?.message || e || '');
+  return /per day|daily limit|quota exceeded.*day|PerDay/i.test(m);
+}
+function sarananTunggu(e){
+  // Gemini kembalikan retryDelay dalam mesej ralat, contoh: "retryDelay":"38s"
+  const m = String(e?.message || '').match(/retryDelay"?\s*:\s*"?(\d+)s/i);
+  return m ? (+m[1] + 1) * 1000 : null;
+}
+
+/* Panggilan AI dengan jeda, cuba semula & tukar penyedia sandaran */
+async function panggilAiSelamat(prompt, sistem, lapor){
+  const { cubaan, sandaran } = tetapanKadar();
+  let tunggu = 5000;
+  for(let i = 1; i <= cubaan; i++){
+    try{
+      await jedaKadar();
+      return await panggilAI(prompt, sistem);
+    }catch(e){
+      const akhir = i === cubaan;
+      if(!adalahHadKadar(e)) throw e;                      // ralat lain — terus lempar
+
+      // Kuota harian habis → terus cuba penyedia sandaran
+      if(adalahKuotaHarian(e) && sandaran?.key){
+        lapor?.('Kuota harian penyedia utama habis — bertukar ke penyedia sandaran…');
+        return await panggilAiPenyedia(sandaran, prompt, sistem);
+      }
+      if(akhir){
+        if(sandaran?.key){
+          lapor?.('Had kadar berterusan — mencuba penyedia sandaran…');
+          return await panggilAiPenyedia(sandaran, prompt, sistem);
+        }
+        throw new Error('Had kadar AI dicapai. Kurangkan kelajuan dalam Tetapan > Enjin AI, atau tetapkan penyedia sandaran.');
+      }
+      const t = sarananTunggu(e) || tunggu;
+      lapor?.(`Had kadar dicapai — menunggu ${Math.round(t/1000)} saat sebelum cuba lagi (${i}/${cubaan})…`);
+      await tidur(t);
+      tunggu = Math.min(tunggu * 2, 60000);                 // backoff eksponen
+    }
+  }
+}
+
+/* Panggil penyedia tertentu (untuk sandaran) tanpa mengubah tetapan utama */
+async function panggilAiPenyedia(cfg, prompt, sistem){
+  const asal = localStorage.getItem('erph_ai');
+  try{
+    localStorage.setItem('erph_ai', JSON.stringify(cfg));
+    _kaliAkhir = 0;
+    return await panggilAI(prompt, sistem);
+  } finally {
+    if(asal) localStorage.setItem('erph_ai', asal);
+  }
 }
 
 async function panggilAI(prompt, sistem){
@@ -115,6 +200,51 @@ async function senaraiModel(){
   return (j.data || []).map(x => x.id).sort();
 }
 
+/* ---------- Piawai medan RPH (rujukan bersama prompt + audit) ---------- */
+const EMK_SAH = ['Kreativiti & Inovasi','Nilai Murni','Sains & Teknologi','TMK',
+  'Keusahawanan','Kelestarian Global','Kelestarian Alam Sekitar',
+  'Patriotisme & Kewarganegaraan','Pendidikan Kewangan','Bahasa'];
+
+const KBAT_SAH = ['Mengaplikasi','Menganalisis','Menilai','Mencipta'];
+
+const PAK21_SAH = ['Think-Pair-Share','Gallery Walk','Round Table','Hot Seat',
+  'Traffic Lights','Jigsaw','Placemat','Rally Robin','Peer Tutoring',
+  'Three Stray One Stay','Numbered Heads Together','Fan-N-Pick','Team Word Web',
+  'Carousel','Role Play','Stesen Pembelajaran'];
+
+/* Perkataan yang kerap keluar tetapi bukan Bahasa Melayu baku */
+const EJAAN_SALAH = {
+  'berbasis':'berasaskan', 'mereview':'mengulas', 'sessi':'sesi',
+  'menggunapakai':'menggunakan', 'kommunikasi':'komunikasi',
+  'mayoriti':'majoriti', 'demostrasi':'demonstrasi', 'aktifitas':'aktiviti',
+  'merefleksikan':'membuat refleksi', 'kemampuan':'keupayaan',
+  'mempersembahkan':'membentangkan', 'perternakan':'penternakan'
+};
+
+function betulEjaan(teks){
+  let t = String(teks||'');
+  for(const [salah, betul] of Object.entries(EJAAN_SALAH)){
+    t = t.replace(new RegExp('\\b'+salah+'\\b','gi'), m =>
+      m[0] === m[0].toUpperCase() ? betul[0].toUpperCase()+betul.slice(1) : betul);
+  }
+  return t;
+}
+/* Petakan isi medan KBAT yang salah kepada aras KBAT yang sah */
+function betulKbat(asal){
+  const t = String(asal||'').toLowerCase();
+  if(KBAT_SAH.some(k => t.startsWith(k.toLowerCase()))) return String(asal).trim();
+  let aras = 'Mengaplikasi';
+  if(/cipta|hasil|reka|inovasi|kreativ/.test(t)) aras = 'Mencipta';
+  else if(/menilai|penilaian|nilai|justifi|wajar/.test(t)) aras = 'Menilai';
+  else if(/analis|banding|beza|kaji|selesai.*masalah|masalah/.test(t)) aras = 'Menganalisis';
+  const nota = String(asal||'').trim().replace(/[.\s]+$/,'');
+  return nota && nota.length <= 40 ? `${aras} (${nota.replace(/^./, c => c.toLowerCase())})` : aras;
+}
+function cariEjaanSalah(teks){
+  const t = String(teks||'').toLowerCase();
+  return Object.keys(EJAAN_SALAH).filter(s => new RegExp('\\b'+s+'\\b').test(t));
+}
+
 function ambilJSON(teks){
   let t = String(teks).trim().replace(/^```(?:json)?/i,'').replace(/```$/,'').trim();
   const a = t.indexOf('{'), b = t.lastIndexOf('}');
@@ -155,16 +285,25 @@ function promptRph(ctx){
   const laluTeks = lalu.length
     ? lalu.map(r => `- ${r.tarikh}: ${r.tajuk||'-'} | SP: ${(r.sp||'').slice(0,120)} | Aktiviti: ${stripHtml(r.aktiviti||'').slice(0,200)}`).join('\n')
     : 'Tiada RPH terdahulu direkodkan.';
-  const kelasInfo = S.kelas.find(k => k.nama === ctx.kelas) || {};
+  const kelasInfo = S.kelas.find(k => norma(k.nama) === norma(ctx.kelas)) || {};
+  const bilMurid = kelasInfo.bilangan || ctx.bilMurid || null;
+
+  const panduan = (S.tetapanAI?.panduan || '').trim();
 
   return `Bina satu Rancangan Pengajaran Harian (RPH) KPM yang lengkap dan profesional.
+${panduan ? `
+PANDUAN WAJIB SEKOLAH INI — PATUHI SEPENUHNYA
+${panduan}
+` : ''}
 
 MAKLUMAT SESI
 Tarikh: ${ctx.tarikh} (${namaHari(ctx.tarikh)})
 Minggu persekolahan: ${ctx.minggu || '-'}
 Mata pelajaran: ${ctx.subjek}
 Tahun/Tingkatan: ${ctx.tahun || '-'}
-Kelas: ${ctx.kelas} (${kelasInfo.bilangan||'-'} murid, tahap ${kelasInfo.tahap||'campuran'})${kelasInfo.nota?'\nNota kelas: '+kelasInfo.nota:''}
+Kelas: ${ctx.kelas}
+Jumlah murid dalam kelas ini: ${bilMurid ?? 'tidak dinyatakan'}
+Tahap pencapaian kelas: ${kelasInfo.tahap || 'campuran'}${kelasInfo.nota?'\nNota guru tentang kelas ini: '+kelasInfo.nota:''}
 Masa: ${ctx.mula} - ${ctx.tamat}
 Tempoh sebenar: ${ctx.tempoh} minit
 ${ctx.tajuk ? 'Tajuk dikehendaki guru: '+ctx.tajuk : ''}
@@ -183,6 +322,12 @@ RPH TERDAHULU (untuk kesinambungan, jangan ulang aktiviti yang sama tanpa sebab)
 ${laluTeks}
 
 PERATURAN WAJIB
+0. MAKLUMAT KELAS ADALAH DATA SEBENAR — WAJIB DIPATUHI:
+   ${bilMurid ? `- Kelas ini ada TEPAT ${bilMurid} orang murid. Setiap kali menyebut bilangan murid (dalam kriteria kejayaan, refleksi, atau aktiviti kumpulan), guna angka ${bilMurid} sahaja. JANGAN sekali-kali reka angka lain seperti 30, 32 atau 35.
+   - Bilangan kumpulan mesti munasabah untuk ${bilMurid} murid (contoh: ${Math.max(2,Math.round(bilMurid/5))} kumpulan bagi ${bilMurid} murid).`
+   : '- Bilangan murid tidak dinyatakan. Jangan sebut sebarang angka bilangan murid; tulis secara umum sahaja.'}
+   ${kelasInfo.tahap ? `- Tahap kelas ialah "${kelasInfo.tahap}". Sesuaikan kesukaran aktiviti, sokongan guru dan sasaran kriteria kejayaan dengan tahap ini.` : ''}
+   ${kelasInfo.nota ? `- Guru mencatat tentang kelas ini: "${kelasInfo.nota}". Aktiviti dan tindakan susulan MESTI mengambil kira perkara ini secara khusus.` : ''}
 1. JANGAN cipta, ubah atau reka nombor/teks Standard Kandungan atau Standard Pembelajaran apabila RPT tersedia. Salin TEPAT daripada baris RPT minggu ini di atas, termasuk kod SK/SP dan tajuk.
 ${ctx.cadangSp ? `2. MOD CADANGAN: RPT tidak tersedia untuk sesi ini. Cadangkan SATU pasangan SK dan SP yang paling tepat daripada DSKP KPM sebenar bagi subjek "${ctx.subjek}" ${ctx.tahun||''}${ctx.tajuk?', selari dengan tajuk "'+ctx.tajuk+'"':''}, dengan mengambil kira ini ialah ${ctx.minggu||'pertengahan tahun'}. Gunakan nombor kod dan ayat standard sebenar seperti dalam dokumen DSKP rasmi — bukan rekaan. Jika anda tidak pasti ayat tepat sesuatu standard, berikan yang paling hampir dan WAJIB masukkan dalam "amaran": "SK/SP adalah cadangan AI — sila sahkan dengan DSKP rasmi sebelum digunakan".`
 : `2. Jika tiada baris RPT untuk minggu ini, isi medan sk/sp dengan "Sila lengkapkan RPT bagi minggu ini" dan senaraikan dalam "amaran". Jangan ambil standard daripada minggu lain.`}
@@ -190,6 +335,74 @@ ${ctx.cadangSp ? `2. MOD CADANGAN: RPT tidak tersedia untuk sesi ini. Cadangkan 
 4. Jangan dakwa kandungan buku teks yang tiada dalam senarai di atas.
 5. Objektif mesti terukur dan selari dengan SP. Pentaksiran mesti selari dengan objektif.
 6. Bahasa Melayu baku, sesuai untuk dokumen rasmi sekolah.
+
+PERATURAN SETIAP MEDAN — PATUHI SATU PERSATU
+
+"sk" dan "sp"
+- WAJIB berbeza antara satu sama lain. Jika RPT memberi ayat yang sama untuk kedua-duanya,
+  ambil ayat SK yang lebih umum dan SP yang lebih spesifik.
+- Maksimum 30 patah perkataan setiap satu. Jika baris RPT mengandungi senarai panjang
+  berbilang kemahiran, ambil SATU sahaja yang berkaitan tajuk minggu ini — jangan salin
+  keseluruhan blok DSKP.
+
+"objektif" (2 hingga 3 item)
+- Setiap item bermula dengan kata kerja: Mengenal pasti, Membina, Melakukan, Menyelesaikan,
+  Menyatakan, Menganalisis, Menghasilkan.
+- JANGAN mulakan dengan "Murid dapat" atau "Pada akhir pembelajaran" — templat cetakan
+  sudah ada ayat pembuka itu.
+- Sekurang-kurangnya satu objektif mesti mengandungi kuantiti yang boleh diukur:
+  "sekurang-kurangnya 3 ayat", "4 daripada 5 soalan", "2 peraturan keselamatan".
+
+"kriteria" (bilangan sama dengan objektif)
+- Mesti perkara yang boleh DILIHAT atau DISEMAK: hasil kerja, lakuan, pembentangan.
+- JANGAN salin semula objektif dan tambah "dengan betul". Itu bukan kriteria kejayaan.
+
+"nilai" (Nilai Murni)
+- 2 hingga 4 kata nama sahaja dipisah koma. Contoh: "Kerjasama, Ketelitian, Kesyukuran".
+- JANGAN tulis ayat. "Guru mengintegrasikan nilai kerjasama" adalah SALAH.
+
+"emk"
+- Pilih 1 atau 2 sahaja daripada senarai ini, tulis persis seperti tertera:
+  ${EMK_SAH.join(' | ')}
+- JANGAN tulis ayat penuh.
+
+"kbat"
+- WAJIB bermula dengan SATU daripada: ${KBAT_SAH.join(' | ')}
+- Tambah kurungan penjelasan pendek. Contoh: "Menganalisis (membanding jenis ayat)".
+- "Penggunaan teknologi", "Konstruktivisme", "Pembelajaran Berasaskan Masalah", "TMK" dan
+  "Kemahiran Berfikir Aras Tinggi" adalah SALAH untuk medan ini — itu strategi atau nama
+  umum, bukan aras KBAT.
+
+"pak21"
+- Nama teknik yang khusus, contoh: ${PAK21_SAH.slice(0,8).join(', ')}.
+- "Kerjasama", "Komunikasi", "Kolaborasi" adalah SALAH untuk medan ini — itu nilai, bukan
+  teknik PAK-21. Nilai tersebut sepatutnya masuk dalam medan "nilai".
+
+"pentaksiran" (PBD)
+- Format: instrumen + aras. Contoh: "Lembaran kerja (TP4)", "Senarai semak pemerhatian (TP3)".
+- "Pentaksiran berterusan" sahaja tidak mencukupi.
+
+"bbm"
+- Bahan sebenar yang guru boleh sediakan, dengan kuantiti atau muka surat jika ada.
+  Contoh: "Tilam gimnastik (5 unit), kon penanda (10 unit), wisel".
+
+"strategi"
+- Nama pendekatan sahaja: Pembelajaran Terbeza, Pembelajaran Masteri,
+  Pembelajaran Berasaskan Masalah, Pembelajaran Kontekstual, Pembelajaran Koperatif.
+
+"aktiviti"
+- Setiap langkah nyatakan apa yang GURU buat dan apa yang MURID buat.
+- Aktiviti mesti khusus kepada tajuk. "Murid berlatih dalam kumpulan kecil" terlalu kabur —
+  nyatakan mereka berlatih apa dan guna bahan apa.
+
+BAHASA — perkataan berikut DILARANG, guna gantian:
+${Object.entries(EJAAN_SALAH).map(([a,b]) => `  ${a} -> ${b}`).join('\n')}
+
+KEPELBAGAIAN
+Jika ada RPH terdahulu disenaraikan di atas untuk kelas dan subjek yang sama, RPH ini WAJIB
+berbeza pada sekurang-kurangnya TIGA perkara: set induksi, bahan bantu mengajar, teknik
+PAK-21, dan aktiviti langkah kedua. Standard Pembelajaran boleh sama jika RPT menetapkan
+begitu, tetapi pelaksanaan mesti maju ke hadapan — bukan salinan hari sebelumnya.
 
 Balas HANYA objek JSON tanpa markdown, mengikut skema ini:
 {
@@ -208,8 +421,16 @@ function stripHtml(h){ const d = document.createElement('div'); d.innerHTML = h|
 
 /* ---------- Jana satu RPH ---------- */
 async function janaRphAI(ctx){
-  const jawapan = await panggilAI(promptRph(ctx));
+  const jawapan = await panggilAiSelamat(promptRph(ctx), null, ctx.lapor);
   const j = ambilJSON(jawapan);
+  // Bersihkan ejaan bukan baku sebelum disimpan
+  ['tema','tajuk','sk','sp','aktiviti','pengayaan','pemulihan','penutup',
+   'strategi','pak21','kbat','emk','nilai','bbm','pentaksiran'].forEach(f => {
+    if(typeof j[f] === 'string') j[f] = betulEjaan(j[f]);
+  });
+  ['objektif','kriteria'].forEach(f => {
+    if(Array.isArray(j[f])) j[f] = j[f].map(betulEjaan);
+  });
   return {
     emel:S.user.email, guru:S.profil.nama||'', slotId:ctx.slotId||'',
     tarikh:ctx.tarikh, hari:namaHari(ctx.tarikh), minggu:ctx.minggu||'',
@@ -227,10 +448,278 @@ async function janaRphAI(ctx){
 }
 
 /* ---------- Semakan kualiti (tanpa AI, pantas) ---------- */
+/* Kesan angka bilangan murid yang tidak sepadan dengan data kelas */
+function semakAngkaMurid(r){
+  const k = S.kelas.find(x => norma(x.nama) === norma(r.kelas));
+  const jum = k?.bilangan;
+  if(!jum) return { ok:true, jum:null };
+  const teks = [r.refleksi, r.kriteria, r.objektif, stripHtml(r.aktiviti||'')].join(' ');
+  // cari corak "N daripada M murid" atau "M orang murid"
+  const salah = new Set();
+  let m;
+  const rx1 = /(\d{1,3})\s*(?:daripada|dari|\/)\s*(\d{1,3})\s*(?:orang\s*)?murid/gi;
+  while((m = rx1.exec(teks))){ if(+m[2] !== jum) salah.add(m[2]); }
+  const rx2 = /(?:seramai|kesemua|semua)\s*(\d{1,3})\s*(?:orang\s*)?murid/gi;
+  while((m = rx2.exec(teks))){ if(+m[1] !== jum) salah.add(m[1]); }
+  return { ok: salah.size === 0, jum, salah:[...salah] };
+}
+
+/* ============ AUDIT PUKAL SEMUA RPH ============ */
+function auditRph(r){
+  const m = [];
+  const angka = semakAngkaMurid(r);
+  if(!angka.ok) m.push({ kod:'angka', berat:'tinggi', boleh:true,
+    teks:`Menyebut ${angka.salah.join(', ')} murid — kelas ini ada ${angka.jum} murid`, jum:angka.jum });
+
+  const kelasAda = S.kelas.some(k => norma(k.nama) === norma(r.kelas));
+  if(r.kelas && !kelasAda) m.push({ kod:'kelas', berat:'sederhana', boleh:false,
+    teks:`Kelas "${r.kelas}" tiada dalam senarai kelas` });
+
+  const kosong = t => !String(t||'').trim() || String(t).trim() === '-';
+  const pemegang = t => /sila lengkapkan|belum tersedia|tidak dinyatakan|lorem|xxx|tbd/i.test(String(t||''));
+
+  if(kosong(r.sk) || pemegang(r.sk)) m.push({ kod:'sk', berat:'tinggi', boleh:false, teks:'Standard Kandungan kosong atau tidak sah' });
+  if(kosong(r.sp) || pemegang(r.sp)) m.push({ kod:'sp', berat:'tinggi', boleh:false, teks:'Standard Pembelajaran kosong atau tidak sah' });
+  if(kosong(r.objektif)) m.push({ kod:'objektif', berat:'tinggi', boleh:false, teks:'Objektif pembelajaran kosong' });
+  if(kosong(r.kriteria)) m.push({ kod:'kriteria', berat:'rendah', boleh:false, teks:'Kriteria kejayaan kosong' });
+  if(stripHtml(r.aktiviti||'').trim().length < 120) m.push({ kod:'aktiviti', berat:'tinggi', boleh:false, teks:'Aktiviti PdP terlalu ringkas atau kosong' });
+  if(kosong(r.tajuk)) m.push({ kod:'tajuk', berat:'rendah', boleh:false, teks:'Tajuk tidak diisi' });
+  if(kosong(r.bbm)) m.push({ kod:'bbm', berat:'rendah', boleh:false, teks:'BBM/Sumber tidak diisi' });
+  if(kosong(r.pentaksiran)) m.push({ kod:'pbd', berat:'rendah', boleh:false, teks:'Pentaksiran tidak diisi' });
+
+  if(r.amaran) m.push({ kod:'amaran', berat:'sederhana', boleh:false, teks:'Amaran AI: '+String(r.amaran).slice(0,90) });
+
+  /* ---- Kualiti medan ---- */
+  const kata = t => String(t||'').trim().split(/\s+/).filter(Boolean).length;
+
+  if(!kosong(r.sk) && !kosong(r.sp) && String(r.sk).trim() === String(r.sp).trim())
+    m.push({ kod:'skSama', berat:'tinggi', boleh:false,
+      teks:'Standard Kandungan dan Standard Pembelajaran isi yang sama' });
+
+  if(kata(r.sk) > 40 || kata(r.sp) > 45)
+    m.push({ kod:'skPanjang', berat:'sederhana', boleh:false,
+      teks:'Standard terlalu panjang — nampak disalin bulat daripada DSKP' });
+
+  if(r.kbat && !KBAT_SAH.some(k => String(r.kbat).trim().toLowerCase().startsWith(k.toLowerCase())))
+    m.push({ kod:'kbat', berat:'sederhana', boleh:true, betul:'kbat',
+      teks:`KBAT "${String(r.kbat).slice(0,40)}" bukan aras KBAT — guna ${KBAT_SAH.join('/')}` });
+
+  if(r.emk && (kata(r.emk) > 7 || /^(guru|murid)\s/i.test(String(r.emk).trim())))
+    m.push({ kod:'emk', berat:'rendah', boleh:false,
+      teks:'EMK ditulis sebagai ayat — patut nama elemen sahaja' });
+  else if(r.emk && !EMK_SAH.some(e => norma(r.emk).includes(norma(e))))
+    m.push({ kod:'emk', berat:'rendah', boleh:false,
+      teks:`EMK "${String(r.emk).slice(0,40)}" tiada dalam senarai rasmi` });
+
+  if(r.nilai && (kata(r.nilai) > 8 || /^(guru|murid)\s/i.test(String(r.nilai).trim())))
+    m.push({ kod:'nilai', berat:'rendah', boleh:false,
+      teks:'Nilai Murni ditulis sebagai ayat — patut kata nama sahaja' });
+
+  if(r.pak21 && /^(kerjasama|komunikasi|kolaborasi|kerja sama)/i.test(String(r.pak21).trim()))
+    m.push({ kod:'pak21', berat:'rendah', boleh:false,
+      teks:'PAK-21 patut nama teknik (Gallery Walk, Think-Pair-Share), bukan nilai' });
+
+  if(!kosong(r.objektif) && !/\d|sekurang-kurangnya/i.test(String(r.objektif)))
+    m.push({ kod:'objUkur', berat:'sederhana', boleh:false,
+      teks:'Tiada objektif yang boleh diukur — tiada kuantiti dinyatakan' });
+
+  /* Jumlah minit dalam aktiviti vs tempoh sebenar */
+  if(r.tempoh > 0 && r.aktiviti){
+    const teksAkt = stripHtml(r.aktiviti);
+    const minit = [...teksAkt.matchAll(/\((\d{1,3})\s*minit\)/gi)].map(x => +x[1]);
+    const jumlah = minit.reduce((a,b) => a+b, 0);
+    if(minit.length >= 2 && Math.abs(jumlah - r.tempoh) > 5)
+      m.push({ kod:'masa', berat:'sederhana', boleh:false,
+        teks:`Jumlah masa langkah ${jumlah} minit, tempoh sesi ${r.tempoh} minit` });
+  }
+
+  /* Refleksi ditulis untuk tarikh yang belum sampai */
+  if(!kosong(r.refleksi) && r.tarikh > tarikhISO())
+    m.push({ kod:'refAwal', berat:'sederhana', boleh:false,
+      teks:'Refleksi sudah ditulis untuk tarikh yang belum berlaku' });
+
+  /* Ejaan bukan baku */
+  const salahEja = cariEjaanSalah([r.sk, r.sp, r.objektif, r.kriteria, r.refleksi,
+    r.nilai, r.emk, r.kbat, r.pak21, r.strategi, r.pemulihan, r.pengayaan,
+    stripHtml(r.aktiviti||''), stripHtml(r.penutup||'')].join(' '));
+  if(salahEja.length) m.push({ kod:'ejaan', berat:'rendah', boleh:true, betul:'ejaan',
+    teks:`Ejaan bukan baku: ${salahEja.slice(0,4).map(s => `${s} → ${EJAAN_SALAH[s]}`).join(', ')}` });
+
+  // SP tidak sepadan dengan RPT minggu berkenaan
+  if(r.kodSp && r.subjek && r.minggu){
+    const kelas = S.kelas.find(k => norma(k.nama) === norma(r.kelas));
+    const rpt = (typeof rptUntuk === 'function') ? rptUntuk(r.subjek, kelas?.tahun || '', r.minggu) : { minggu:[] };
+    if(rpt.minggu && rpt.minggu.length){
+      const adaKod = rpt.minggu.some(x => String(x.kodSp||'').trim() === String(r.kodSp).trim());
+      if(!adaKod) m.push({ kod:'rpt', berat:'sederhana', boleh:false,
+        teks:`Kod SP ${r.kodSp} tiada dalam RPT ${r.minggu}` });
+    }
+  }
+
+  // Refleksi kosong hanya masalah untuk tarikh yang sudah lepas
+  if(kosong(r.refleksi) && r.tarikh < tarikhISO())
+    m.push({ kod:'refleksi', berat:'rendah', boleh:false, teks:'Refleksi belum ditulis (tarikh sudah lepas)' });
+
+  return m;
+}
+
+/* ---------- Bentrok jadual: dua RPH bertindih pada tarikh sama ---------- */
+function minitJam(t){
+  const p = String(t||'').match(/(\d{1,2})[:.](\d{2})/);
+  return p ? (+p[1])*60 + (+p[2]) : null;
+}
+function semakBentrok(senarai){
+  const ikutTarikh = {};
+  (senarai || S.rph).forEach(r => {
+    if(!r.tarikh || !r.mula || !r.tamat) return;
+    (ikutTarikh[r.tarikh] = ikutTarikh[r.tarikh] || []).push(r);
+  });
+  const isu = [];
+  for(const [tarikh, senaraiHari] of Object.entries(ikutTarikh)){
+    for(let i = 0; i < senaraiHari.length; i++){
+      for(let j = i+1; j < senaraiHari.length; j++){
+        const a = senaraiHari[i], b = senaraiHari[j];
+        const a1 = minitJam(a.mula), a2 = minitJam(a.tamat);
+        const b1 = minitJam(b.mula), b2 = minitJam(b.tamat);
+        if(a1 == null || a2 == null || b1 == null || b2 == null) continue;
+        if(!(a1 < b2 && b1 < a2)) continue;
+        const samaKelas = norma(a.kelas) === norma(b.kelas);
+        const teks = samaKelas
+          ? `${a.kelas}: ${a.subjek} dan ${b.subjek} bertindih pada ${a.mula}`
+          : `Guru dijadualkan di dua kelas serentak pada ${a.mula}: ${a.kelas} (${a.subjek}) dan ${b.kelas} (${b.subjek})`;
+        isu.push({ tarikh, a, b, samaKelas, teks });
+      }
+    }
+  }
+  return isu.sort((x,y) => y.tarikh.localeCompare(x.tarikh));
+}
+
+/* ---------- RPH berulang: set induksi + BBM + aktiviti sama ---------- */
+function capRph(r){
+  const bersih = s => String(s||'').toLowerCase().replace(/\W+/g,' ').trim();
+  const akt = stripHtml(r.aktiviti||'').replace(/\s+/g,' ').trim();
+  return [bersih(r.bbm), bersih(akt.slice(0,260))].join('|');
+}
+function semakUlangRph(senarai){
+  const kump = {};
+  (senarai || S.rph).forEach(r => {
+    if(!r.subjek || !r.kelas) return;
+    const kunci = norma(r.subjek)+'|'+norma(r.kelas);
+    (kump[kunci] = kump[kunci] || []).push(r);
+  });
+  const ulang = new Map();
+  for(const senaraiKelas of Object.values(kump)){
+    const cap = {};
+    senaraiKelas.slice().sort((a,b) => String(a.tarikh).localeCompare(b.tarikh)).forEach(r => {
+      const c = capRph(r);
+      if(c.length < 40) return;
+      // Rekod pada tarikh yang sama ialah pendua slot, bukan isi berulang —
+      // biar cariPendua() yang uruskan supaya tidak ditanda dua kali.
+      if(cap[c] && cap[c].tarikh !== r.tarikh) ulang.set(r.id, cap[c]);
+      else if(!cap[c]) cap[c] = r;
+    });
+  }
+  return ulang;   // Map: id RPH => RPH asal yang disalin
+}
+
+/* ---------- Pendua sebenar: rekod sama tersimpan berkali-kali ---------- */
+/* Berbeza daripada semakUlangRph(): ini rekod bertindan pada slot yang SAMA,
+   bukan isi serupa pada tarikh berlainan. Hanya jenis ini selamat dipadam. */
+function skorLengkap(r){
+  let s = 0;
+  ['sk','sp','objektif','kriteria','tajuk','bbm','pentaksiran','strategi',
+   'pak21','kbat','emk','nilai','pemulihan','pengayaan'].forEach(f => {
+    if(String(r[f]||'').trim().length > 2) s += 1;
+  });
+  s += Math.min(6, Math.floor(stripHtml(r.aktiviti||'').length / 200));
+  if(String(r.refleksi||'').trim()) s += 3;
+  if(r.status === 'lengkap') s += 2;
+  return s;
+}
+function cariPendua(senarai){
+  const kump = {};
+  (senarai || S.rph).forEach(r => {
+    if(!r.tarikh || !r.subjek || !r.kelas) return;
+    const kunci = [r.tarikh, norma(r.subjek), norma(r.kelas), r.mula||'', r.tamat||''].join('|');
+    (kump[kunci] = kump[kunci] || []).push(r);
+  });
+  const set = [];
+  for(const senaraiSlot of Object.values(kump)){
+    if(senaraiSlot.length < 2) continue;
+    const isih = senaraiSlot.slice().sort((a,b) =>
+      skorLengkap(b) - skorLengkap(a) || (b.dikemas||0) - (a.dikemas||0));
+    set.push({ simpan: isih[0], buang: isih.slice(1) });
+  }
+  return set.sort((a,b) => String(b.simpan.tarikh).localeCompare(a.simpan.tarikh));
+}
+
+/* ---------- Pembetulan medan tanpa AI ---------- */
+/* Pulangkan objek perubahan sahaja; kosong bermakna tiada apa boleh dibetulkan. */
+function baikiMedanRph(r, isu){
+  const ubah = {};
+  const MEDAN = ['tema','tajuk','sk','sp','objektif','kriteria','aktiviti','pengayaan',
+                 'pemulihan','penutup','strategi','pak21','emk','nilai','bbm',
+                 'pentaksiran','refleksi'];
+
+  if(isu.some(p => p.kod === 'ejaan'))
+    MEDAN.forEach(f => {
+      if(!r[f]) return;
+      const baharu = betulEjaan(r[f]);
+      if(baharu !== r[f]) ubah[f] = baharu;
+    });
+
+  if(isu.some(p => p.kod === 'kbat') && r.kbat){
+    const baharu = betulKbat(r.kbat);
+    if(baharu !== r.kbat) ubah.kbat = baharu;
+  }
+
+  // EMK ditulis sebagai ayat: cari elemen rasmi yang disebut di dalamnya
+  if(isu.some(p => p.kod === 'emk') && r.emk){
+    const jumpa = EMK_SAH.filter(e => norma(r.emk).includes(norma(e)));
+    if(jumpa.length) ubah.emk = jumpa.slice(0,2).join(', ');
+  }
+
+  // Nilai Murni ditulis sebagai ayat: cabut kata nama nilai yang dikenali
+  if(isu.some(p => p.kod === 'nilai') && r.nilai){
+    const NILAI = ['Kerjasama','Kerajinan','Kesyukuran','Ketelitian','Keyakinan diri',
+      'Kejujuran','Hormat-menghormati','Bertanggungjawab','Berdisiplin','Kesabaran',
+      'Keberanian','Kesungguhan','Kreativiti','Empati','Kasih sayang','Toleransi'];
+    const jumpa = NILAI.filter(n => norma(r.nilai).includes(norma(n.split('-')[0].slice(0,7))));
+    if(jumpa.length) ubah.nilai = jumpa.slice(0,4).join(', ');
+  }
+
+  // Refleksi ditulis untuk tarikh yang belum sampai: kosongkan
+  if(isu.some(p => p.kod === 'refAwal')) ubah.refleksi = '';
+
+  // Bilangan murid tidak sepadan data kelas
+  const angka = isu.find(p => p.kod === 'angka');
+  if(angka?.jum){
+    ['refleksi','kriteria','objektif','aktiviti'].forEach(f => {
+      const asal = ubah[f] ?? r[f];
+      if(!asal) return;
+      const baharu = betulTeksAngka(asal, angka.jum);
+      if(baharu !== (r[f] ?? '')) ubah[f] = baharu;
+      else delete ubah[f];
+    });
+  }
+
+  // Buang medan yang akhirnya tidak berubah langsung
+  Object.keys(ubah).forEach(f => { if(ubah[f] === (r[f] ?? '')) delete ubah[f]; });
+
+  return ubah;
+}
+
+/* Isu yang tidak boleh dibaiki secara automatik langsung */
+const ISU_TAK_AUTO = ['bentrok','sk','sp','rpt','kelas','aktiviti','objektif','kriteria'];
+/* Isu yang perlu AI jana semula RPH */
+const ISU_PERLU_AI = ['skSama','skPanjang','objUkur','masa','ulang','pak21'];
+
 function semakKualiti(r){
+  const angka = semakAngkaMurid(r);
   const cek = [
     ['Subjek diisi', !!r.subjek],
     ['Kelas diisi', !!r.kelas],
+    ['Bilangan murid tepat' + (angka.jum ? ` (${angka.jum} murid)` : ''), angka.ok],
     ['Tarikh sah', !!r.tarikh],
     ['Minggu persekolahan dikenal pasti', !!r.minggu],
     ['Masa & tempoh betul', r.tempoh > 0],

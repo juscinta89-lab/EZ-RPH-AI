@@ -1,18 +1,28 @@
+/*!
+ * e-RPH AI — Sistem Rancangan Pengajaran Harian Berbantukan AI
+ * © 2026 Alimin bin Abu Bakar. Hak cipta terpelihara.
+ * SK Belukar, Machang, Kelantan.
+ * Penggunaan, pengedaran atau pengubahsuaian tanpa kebenaran bertulis adalah dilarang.
+ */
 /* ================= e-RPH AI — DATA & HALAMAN ASAS ================= */
 
 function rujuk(sub){ return db.collection('sekolah').doc(S.sid).collection(sub); }
 
 async function muatData(){
   if(!S.sid) return;
-  const [k, sj, jd, bk, tw, ada] = await Promise.all([
+  const [k, sj, jd, bk, tw, ada, ruj, tai] = await Promise.all([
     rujuk('kelas').get(),
     rujuk('subjek').get(),
     rujuk('jadual').doc(S.user.email).get(),
     rujuk('buku').get(),
     rujuk('takwim').get(),                                  // semua sesi
-    rujuk('rpt').limit(1).get()
+    rujuk('rpt').limit(1).get(),
+    rujuk('tetapan').doc('rujukan').get(),
+    rujuk('tetapan').doc('ai').get()
   ]);
   S.rptAda = !ada.empty;
+  S.rujukan = ruj.exists ? (ruj.data().senarai || []) : [];
+  S.tetapanAI = tai.exists ? tai.data() : {};
   S.senaraiSesi = tw.docs.map(d => ({ id:d.id, ...d.data() }))
                          .sort((a,b)=> (b.mula||b.id||'').localeCompare(a.mula||a.id||''));
   S.kelas  = k.docs.map(d => ({id:d.id, ...d.data()})).sort((a,b)=> (a.nama||'').localeCompare(b.nama||''));
@@ -350,14 +360,32 @@ function halKelas(){
       <button class="btn" onclick="importKelas()">📥 Import Excel/CSV</button>
       <button class="btn" onclick="templatExcel('templat-kelas.xlsx',TEMPLAT.kelas,[['Tahun 1 Iltizam','Tahun 1',28,'Campuran','']])">⬇️ Templat Excel</button>
     </div>
-    <div class="senarai">${S.kelas.length ? S.kelas.map(k => `
-      <div class="baris">
-        <div class="baris-t"><b>${esc(k.nama)}</b><small>${esc(k.tahap||'')} · ${k.bilangan||0} murid${k.nota?' · '+esc(k.nota):''}</small></div>
-        <button class="btn btn-sm" onclick="formKelas('${k.id}')">Edit</button>
-        <button class="btn btn-sm btn-danger" onclick="hapusItem('kelas','${k.id}')">Padam</button>
-      </div>`).join('') : `<div class="kosong"><b>Belum ada kelas</b>Tambah kelas yang anda ajar, contoh: Tahun 6 Amanah.</div>`}
-    </div>`;
+    ${S.kelas.length ? `<div class="kad-grid">${S.kelas.map(k => {
+      const t = warnaTahap(k.tahap);
+      const th = (k.tahun || k.nama || '').match(/\d+/);
+      return `<div class="item-kad" style="--w:${t.warna};--wt:${t.tint}">
+        <div class="item-atas">
+          <span class="item-avatar">${th?th[0]:(k.nama||'?')[0]}</span>
+          <div class="item-txt"><b>${esc(k.nama)}</b>
+            <small>${k.bilangan||0} murid</small></div>
+          <span class="pil" style="background:${t.tint};color:${t.warna}">${esc(k.tahap||'—')}</span>
+        </div>
+        ${k.nota?`<p class="item-nota">${esc(k.nota)}</p>`:''}
+        <div class="item-btm">
+          <button class="btn btn-sm" onclick="formKelas('${k.id}')">Edit</button>
+          <button class="btn btn-sm btn-danger" onclick="hapusItem('kelas','${k.id}')">Padam</button>
+        </div></div>`;}).join('')}</div>`
+      : `<div class="kosong"><b>Belum ada kelas</b>Tambah kelas yang anda ajar, contoh: Tahun 6 Amanah.</div>`}`;
 }
+function warnaTahap(t){
+  const n = norma(t||'');
+  if(/cemerlang|tinggi/.test(n))  return { warna:'#16a37b', tint:'#e4f6ef' };
+  if(/sederhana/.test(n))          return { warna:'#e0a010', tint:'#fdf3dd' };
+  if(/rendah|lemah|pemulihan/.test(n)) return { warna:'#dc4d4d', tint:'#fdeaea' };
+  if(/campur/.test(n))             return { warna:'#1f6df5', tint:'#e6effe' };
+  return { warna:'#6a1ed6', tint:'#f2ebfe' };
+}
+
 function formKelas(id){
   const k = S.kelas.find(x => x.id === id) || {};
   modal(id ? 'Edit kelas' : 'Tambah kelas', `
@@ -449,13 +477,20 @@ function halSubjek(){
       <button class="btn" onclick="importSubjek()">📥 Import Excel/CSV</button>
       <button class="btn" onclick="templatExcel('templat-subjek.xlsx',TEMPLAT.subjek,[['Bahasa Melayu','BM','Rendah']])">⬇️ Templat</button>
     </div>
-    <div class="senarai">${S.subjek.length ? S.subjek.map(s => `
-      <div class="baris">
-        <div class="baris-t"><b>${esc(s.nama)}</b><small>${esc(s.peringkat||'—')}${s.kod?' · '+esc(s.kod):''}</small></div>
-        <button class="btn btn-sm" onclick="formSubjek('${s.id}')">Edit</button>
-        <button class="btn btn-sm btn-danger" onclick="hapusItem('subjek','${s.id}')">Padam</button>
-      </div>`).join('') : `<div class="kosong"><b>Belum ada subjek</b>Tambah sendiri atau muat senarai pratetap.</div>`}
-    </div>`;
+    ${S.subjek.length ? `<div class="kad-grid">${S.subjek.map(x => {
+      const [gelap, cerah] = warnaSubjek(x.nama);
+      const singkat = x.kod || (x.nama||'').split(/\s+/).map(w=>w[0]).join('').slice(0,3).toUpperCase();
+      return `<div class="item-kad" style="--w:${gelap};--wt:${cerah}">
+        <div class="item-atas">
+          <span class="item-avatar sj">${esc(singkat)}</span>
+          <div class="item-txt"><b>${esc(x.nama)}</b><small>${esc(x.peringkat||'—')}</small></div>
+          <span class="sj-bulat"></span>
+        </div>
+        <div class="item-btm">
+          <button class="btn btn-sm" onclick="formSubjek('${x.id}')">Edit</button>
+          <button class="btn btn-sm btn-danger" onclick="hapusItem('subjek','${x.id}')">Padam</button>
+        </div></div>`;}).join('')}</div>`
+      : `<div class="kosong"><b>Belum ada subjek</b>Tambah sendiri atau muat senarai pratetap.</div>`}`;
 }
 function formSubjek(id){
   const s = S.subjek.find(x => x.id === id) || {};
@@ -1158,6 +1193,38 @@ function halTetapan(){
         <button class="btn" onclick="ujiAI()">Uji sambungan</button>
         <button class="btn" onclick="muatModel()">Muat senarai model</button>
       </div>
+      <hr style="border:0;border-top:1px dashed var(--garis);margin:16px 0">
+      <span style="display:block;font-size:12.5px;font-weight:650;color:var(--teks-2);margin-bottom:8px">
+        Had kadar &amp; penjanaan pukal</span>
+      <div class="grid2">
+        <label class="fld"><span>Kelajuan <em>(permintaan/minit)</em></span>
+          <select id="aiRpm">
+            ${[[8,'8 — paling selamat'],[12,'12 — disyorkan (Gemini percuma)'],[15,'15 — had maksimum Gemini'],
+               [25,'25 — Groq / Cerebras percuma'],[60,'60 — berbayar']]
+              .map(([v,t])=>`<option value="${v}" ${tetapanKadar().rpm==v?'selected':''}>${t}</option>`).join('')}
+          </select></label>
+        <label class="fld"><span>Cuba semula bila gagal</span>
+          <select id="aiCubaan">${[2,3,4,6].map(n=>`<option value="${n}" ${tetapanKadar().cubaan==n?'selected':''}>${n} kali</option>`).join('')}</select></label>
+      </div>
+      <p style="font-size:12px;color:var(--teks-3);margin:-4px 0 14px;line-height:1.55">
+        Sistem menghantar permintaan satu demi satu mengikut kelajuan ini. Jika penyedia menolak
+        (ralat 429), ia menunggu automatik dan mencuba semula — bukan terus gagal.</p>
+
+      <span style="display:block;font-size:12.5px;font-weight:650;color:var(--teks-2);margin-bottom:8px">
+        Penyedia sandaran <em style="font-weight:400;color:var(--teks-3)">(bila kuota utama habis)</em></span>
+      <div class="grid2">
+        <label class="fld"><span>Penyedia</span>
+          <select id="sdProv"><option value="">— Tiada —</option>
+            ${Object.entries(PENYEDIA).map(([k,v])=>`<option value="${k}" ${tetapanKadar().sandaran?.prov===k?'selected':''}>${esc(v.nama)}</option>`).join('')}
+          </select></label>
+        <label class="fld"><span>API Key sandaran</span>
+          <input id="sdKey" type="password" value="${esc(tetapanKadar().sandaran?.key||'')}" placeholder="Kunci penyedia kedua"></label>
+      </div>
+      <p style="font-size:12px;color:var(--teks-3);margin:-4px 0 12px;line-height:1.55">
+        Contoh: utama <b>Gemini</b> (1,500 permintaan/hari percuma), sandaran <b>Groq</b> atau
+        <b>Cerebras</b> — dua-dua percuma. Bila kuota Gemini habis, sistem bertukar sendiri
+        dan penjanaan diteruskan tanpa gagal.</p>
+
       <p style="font-size:12px;color:var(--teks-3);margin-top:10px">
         Aplikasi ini statik (GitHub Pages), jadi panggilan AI dibuat terus dari pelayar.
         Sesetengah penyedia menyekat panggilan dari pelayar (CORS) — Gemini, Groq dan OpenRouter disahkan berfungsi.</p>
@@ -1172,6 +1239,18 @@ function halTetapan(){
         <div class="baris"><div class="baris-t"><b>Kosongkan cache</b><small>Muat semula fail aplikasi terkini</small></div>
           <button class="btn btn-sm" onclick="kosongkanCache()">Bersihkan</button></div>
       </div>
+    </div>
+
+    <div class="kad" style="text-align:center;background:linear-gradient(160deg,#faf9ff,#f4f2fe);border-color:#e6e2fa">
+      <img src="icons/icon-192.png" alt="" style="width:52px;height:52px;border-radius:13px;margin-bottom:9px">
+      <h3 style="margin:0;font-size:16px">e-RPH AI</h3>
+      <p style="font-size:12.5px;color:var(--teks-2);margin:3px 0 12px">RPH Pintar. PdP Lebih Terancang.</p>
+      <p style="font-size:13px;color:var(--teks);margin:0;line-height:1.7">
+        Direka &amp; dibangunkan oleh<br><b style="font-size:14.5px">ALIMIN BIN ABU BAKAR</b><br>
+        <span style="font-size:12px;color:var(--teks-3)">SK Belukar, Machang, Kelantan</span></p>
+      <p style="font-size:12px;color:var(--teks-3);margin-top:13px;padding-top:12px;border-top:1px solid var(--garis)">
+        © 2026 Alimin bin Abu Bakar. <b>Hak cipta terpelihara.</b><br>
+        Penggunaan tanpa kebenaran bertulis adalah dilarang.</p>
     </div>`;
   lukisNotaAI();
 }
@@ -1238,6 +1317,13 @@ function lukisNotaAI(){
   $('#aiBaseKotak').style.display = (p.jenis === 'openai') ? '' : 'none';
 }
 function simpanAI(){
+  // simpan tetapan kadar & sandaran
+  if($('#aiRpm')){
+    const sdProv = $('#sdProv').value, sdKey = $('#sdKey').value.trim();
+    simpanKadar({ rpm:+$('#aiRpm').value, cubaan:+$('#aiCubaan').value,
+      sandaran: (sdProv && sdKey) ? { prov:sdProv, key:sdKey,
+        model:(PENYEDIA[sdProv]||{}).model || '', baseUrl:(PENYEDIA[sdProv]||{}).base || '' } : null });
+  }
   const t = { prov:$('#aiProv').value, key:$('#aiKey').value.trim(),
               model:$('#aiModel').value.trim(), baseUrl:$('#aiBase').value.trim(), dikemas:Date.now() };
   localStorage.setItem('erph_ai', JSON.stringify(t));

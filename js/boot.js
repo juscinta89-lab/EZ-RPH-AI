@@ -1,3 +1,9 @@
+/*!
+ * e-RPH AI — Sistem Rancangan Pengajaran Harian Berbantukan AI
+ * © 2026 Alimin bin Abu Bakar. Hak cipta terpelihara.
+ * SK Belukar, Machang, Kelantan.
+ * Penggunaan, pengedaran atau pengubahsuaian tanpa kebenaran bertulis adalah dilarang.
+ */
 /* ================= e-RPH AI — BOOT ================= */
 
 auth.onAuthStateChanged(async user => {
@@ -82,6 +88,7 @@ auth.onAuthStateChanged(async user => {
     $('#bootMsg').textContent = 'Memuatkan data sekolah…';
     await Promise.all([muatData(), muatAiAkaun()]);
     muatLogo();
+    if(typeof pramuatGIS === 'function') pramuatGIS().catch(()=>{});   // sedia untuk butang Drive
     tunjuk('#app'); binaMenu(); papar(); pergi('dashboard');
 
   }catch(e){

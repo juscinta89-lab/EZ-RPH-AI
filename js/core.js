@@ -1,3 +1,9 @@
+/*!
+ * e-RPH AI — Sistem Rancangan Pengajaran Harian Berbantukan AI
+ * © 2026 Alimin bin Abu Bakar. Hak cipta terpelihara.
+ * SK Belukar, Machang, Kelantan.
+ * Penggunaan, pengedaran atau pengubahsuaian tanpa kebenaran bertulis adalah dilarang.
+ */
 /* ================= e-RPH AI — CORE ================= */
 firebase.initializeApp(FIREBASE_CONFIG);
 const auth = firebase.auth();
@@ -50,37 +56,82 @@ function sahkan(msg, fn){
 }
 window.tutupModal = tutupModal;
 
+/* ---------- Ikon SVG (garis ringkas) ---------- */
+const IKON = {
+  dashboard:'<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9.5 21v-6h5v6"/>',
+  rph:      '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 1 6.5 18H19v3H6.5A2.5 2.5 0 0 1 4 20.5z"/><path d="M8 7.5h7M8 11h5"/>',
+  kalendar: '<rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9.5h18M8 3v3M16 3v3"/><path d="M7.5 13.5h3v3h-3z"/>',
+  jana:     '<path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/>',
+  jadual:   '<circle cx="12" cy="12" r="9"/><path d="M12 7v5.2l3.4 2"/>',
+  kelas:    '<circle cx="9" cy="8.5" r="3.2"/><path d="M3.2 19.5c.5-3.2 3-5.2 5.8-5.2s5.3 2 5.8 5.2"/><path d="M16.5 6.2a3 3 0 0 1 0 5.8M18 14.6c2 .7 3.3 2.5 3.6 4.9"/>',
+  subjek:   '<path d="M4 6.5C4 5 5.2 4 6.7 4H11v15H6.7C5.2 19 4 20 4 21.5z"/><path d="M20 6.5C20 5 18.8 4 17.3 4H13v15h4.3c1.5 0 2.7 1 2.7 2.5z"/>',
+  rpt:      '<rect x="4" y="3.5" width="16" height="17" rx="2.5"/><path d="M8 8h8M8 12h8M8 16h5"/>',
+  buku:     '<path d="M5 4.5h11a3 3 0 0 1 3 3v12H8a3 3 0 0 0-3 3z"/><path d="M9 9h6"/>',
+  takwim:   '<rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9.5h18M8 3v3M16 3v3M7.5 13h2M11 13h2M14.5 13h2M7.5 16.5h2M11 16.5h2"/>',
+  cetak:    '<path d="M7 9V3.5h10V9"/><rect x="3.5" y="9" width="17" height="7.5" rx="2"/><path d="M7 14h10v6.5H7z"/>',
+  laporan:  '<path d="M4 20.5h16"/><path d="M7 20.5v-7M12 20.5V7M17 20.5v-10"/>',
+  tetapan:  '<circle cx="12" cy="12" r="3.2"/><path d="M19.4 14.4a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.84 2.84l-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.04 1.56V21a2 2 0 1 1-4 0v-.11a1.7 1.7 0 0 0-1.1-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.84-2.84l.06-.06a1.7 1.7 0 0 0 .34-1.88 1.7 1.7 0 0 0-1.56-1.04H3a2 2 0 1 1 0-4h.11a1.7 1.7 0 0 0 1.56-1.1 1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.84-2.84l.06.06a1.7 1.7 0 0 0 1.88.34H9a1.7 1.7 0 0 0 1-1.56V3a2 2 0 1 1 4 0v.11a1.7 1.7 0 0 0 1.04 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.84 2.84l-.06.06a1.7 1.7 0 0 0-.34 1.88V9a1.7 1.7 0 0 0 1.56 1H21a2 2 0 1 1 0 4h-.11a1.7 1.7 0 0 0-1.49 1.4z"/>',
+  admin:    '<path d="M12 3l7.5 3v5.5c0 4.6-3.1 8.4-7.5 9.5-4.4-1.1-7.5-4.9-7.5-9.5V6z"/><path d="m9 12 2 2 4-4"/>',
+  audit:    '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/><path d="m8.5 11 1.8 1.8L14 9.2"/>',
+  drive:    '<path d="M8 3h8l5 8.5-4 7H7l-4-7z"/><path d="M8 3 3.5 11.5M16 3l-4.5 8.5M3.5 11.5h17"/>',
+  rujukan:  '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 1 6.5 18H19v3H6.5A2.5 2.5 0 0 1 4 20.5z"/><circle cx="11.5" cy="9" r="2.2"/><path d="M11.5 11.2v2"/>',
+  lagi:     '<circle cx="5.5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18.5" cy="12" r="1.6"/>'
+};
+function svgIkon(id, saiz){
+  return `<svg viewBox="0 0 24 24" width="${saiz||20}" height="${saiz||20}" fill="none"
+    stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${IKON[id]||IKON.lagi}</svg>`;
+}
+
+/* ---------- Kunci zoom pada peranti mudah alih ---------- */
+(function kunciZoom(){
+  // iOS Safari mengabaikan user-scalable=no, jadi disekat secara manual
+  document.addEventListener('gesturestart', e => e.preventDefault(), { passive:false });
+  document.addEventListener('gesturechange', e => e.preventDefault(), { passive:false });
+  document.addEventListener('gestureend', e => e.preventDefault(), { passive:false });
+  let ketukAkhir = 0;
+  document.addEventListener('touchend', e => {
+    const kini = Date.now();
+    if(kini - ketukAkhir <= 300) e.preventDefault();   // ketuk dua kali
+    ketukAkhir = kini;
+  }, { passive:false });
+  document.addEventListener('touchmove', e => {
+    if(e.touches.length > 1) e.preventDefault();       // cubit dua jari
+  }, { passive:false });
+})();
+
 /* ---------- Menu ---------- */
 const MENU = [
   { grp:'Utama' },
-  { id:'dashboard', ikon:'🏠', nama:'Dashboard' },
-  { id:'rph',       ikon:'📘', nama:'RPH Saya' },
-  { id:'kalendar',  ikon:'📅', nama:'Kalendar' },
-  { id:'jana',      ikon:'✨', nama:'Jana RPH AI' },
+  { id:'dashboard', nama:'Dashboard' },
+  { id:'rph',       nama:'RPH Saya' },
+  { id:'kalendar',  nama:'Kalendar' },
+  { id:'jana',      nama:'Jana RPH AI' },
   { grp:'Tetapan Kurikulum' },
-  { id:'jadual',    ikon:'⏰', nama:'Jadual Waktu' },
-  { id:'kelas',     ikon:'👥', nama:'Kelas' },
-  { id:'subjek',    ikon:'📚', nama:'Subjek' },
-  { id:'rpt',       ikon:'📗', nama:'RPT' },
-  { id:'buku',      ikon:'📖', nama:'Buku Teks' },
-  { id:'takwim',    ikon:'🗓️', nama:'Takwim' },
+  { id:'jadual',    nama:'Jadual Waktu' },
+  { id:'kelas',     nama:'Kelas' },
+  { id:'subjek',    nama:'Subjek' },
+  { id:'rpt',       nama:'RPT' },
+  { id:'buku',      nama:'Buku Teks' },
+  { id:'takwim',    nama:'Takwim' },
   { grp:'Lain-lain' },
-  { id:'cetak',     ikon:'🖨️', nama:'Cetak Mingguan' },
-  { id:'laporan',   ikon:'📊', nama:'Laporan' },
-  { id:'tetapan',   ikon:'⚙️', nama:'Tetapan' },
-  { id:'admin',     ikon:'🛡️', nama:'Panel Pentadbir', peranan:['pemilik','admin'] }
+  { id:'cetak',     nama:'Cetak Mingguan' },
+  { id:'audit',     nama:'Semakan RPH' },
+  { id:'drive',     nama:'Simpan ke Drive' },
+  { id:'rujukan',   nama:'Bahan Rujukan' },
+  { id:'laporan',   nama:'Laporan' },
+  { id:'tetapan',   nama:'Tetapan' },
+  { id:'admin',     nama:'Panel Pentadbir', peranan:['pemilik','admin'] }
 ];
 
 function binaMenu(){
   const boleh = m => !m.peranan || m.peranan.includes(S.peranan);
   $('#sideNav').innerHTML = MENU.filter(boleh).map(m =>
     m.grp ? `<div class="nav-lbl">${m.grp}</div>`
-          : `<button class="nav-i" data-hal="${m.id}"><span>${m.ikon}</span>${m.nama}</button>`).join('');
+          : `<button class="nav-i" data-hal="${m.id}">${svgIkon(m.id)}<span>${m.nama}</span></button>`).join('');
   $('#botNav').innerHTML = [
-    {id:'dashboard',i:'🏠',n:'Utama'},{id:'rph',i:'📘',n:'RPH'},
-    {id:'jana',i:'✨',n:'Jana'},{id:'kalendar',i:'📅',n:'Kalendar'},
-    {id:'lagi',i:'⋯',n:'Lagi'}
-  ].map(m => `<button data-hal="${m.id}"><i>${m.i}</i>${m.n}</button>`).join('');
+    {id:'dashboard',n:'Utama'},{id:'rph',n:'RPH'},{id:'jana',n:'Jana'},
+    {id:'cetak',n:'Cetak'},{id:'lagi',n:'Lagi'}
+  ].map(m => `<button data-hal="${m.id}">${svgIkon(m.id, 22)}<span>${m.n}</span></button>`).join('');
 
   $$('[data-hal]').forEach(b => b.onclick = () => {
     if(b.dataset.hal === 'lagi'){ $('.side').classList.add('buka'); return; }
@@ -100,6 +151,9 @@ const TAJUK = {
   buku:['Buku Teks','Rujukan bab & unit buku teks'],
   takwim:['Takwim Persekolahan','Minggu persekolahan & cuti'],
   cetak:['Cetak Mingguan','Cetak set RPH untuk fail rekod'],
+  audit:['Semakan RPH','Kesan isu dalam semua RPH sekali gus'],
+  drive:['Simpan ke Drive','Dokumen Google Docs sedia untuk Classroom'],
+  rujukan:['Bahan Rujukan','Pautan sekolah & panduan tetap untuk AI'],
   laporan:['Laporan','Statistik RPH & liputan RPT'],
   tetapan:['Tetapan','Profil, AI dan aplikasi'],
   admin:['Panel Pentadbir','Urus sekolah, guru dan data'],
@@ -110,14 +164,16 @@ function pergi(hal){
   S.hal = hal;
   $('.side').classList.remove('buka');
   $$('.nav-i').forEach(b => b.classList.toggle('on', b.dataset.hal === hal));
-  $$('.botnav button').forEach(b => b.classList.toggle('on', b.dataset.hal === hal));
+  const dalamBot = ['dashboard','rph','jana','cetak'];
+  $$('.botnav button').forEach(b => b.classList.toggle('on',
+    b.dataset.hal === hal || (b.dataset.hal === 'lagi' && !dalamBot.includes(hal))));
   const t = TAJUK[hal] || ['e-RPH AI',''];
   $('#tajukHal').textContent = t[0]; $('#subTajuk').textContent = t[1];
   window.scrollTo(0,0);
   const f = {
     dashboard:halDashboard, rph:halRph, kalendar:halKalendar, jana:halJana,
     jadual:halJadual, kelas:halKelas, subjek:halSubjek, rpt:halRpt,
-    buku:halBuku, takwim:halTakwim, cetak:halCetak, laporan:halLaporan, tetapan:halTetapan,
+    buku:halBuku, takwim:halTakwim, cetak:halCetak, audit:halAudit, drive:halDrive, rujukan:halRujukan, laporan:halLaporan, tetapan:halTetapan,
     admin:halAdmin, editor:halEditor
   }[hal];
   if(f) f(); else $('#kandungan').innerHTML = '<div class="kosong"><b>Halaman tidak dijumpai</b></div>';

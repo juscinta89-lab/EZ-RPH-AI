@@ -1,5 +1,17 @@
 # e-RPH AI
 
+**Sistem Rancangan Pengajaran Harian Berbantukan AI untuk guru-guru Malaysia**
+
+Direka & dibangunkan oleh **ALIMIN BIN ABU BAKAR**
+SK Belukar, Machang, Kelantan
+
+© 2026 Alimin bin Abu Bakar. Hak cipta terpelihara.
+Lihat `LESEN.txt` untuk terma penggunaan.
+
+---
+
+# e-RPH AI
+
 Sistem AI Pintar Menjana dan Mengurus Rancangan Pengajaran Harian Guru.
 PWA vanilla JS + Firebase (Auth & Firestore) + GitHub Pages. Tiada backend, tiada build step.
 
