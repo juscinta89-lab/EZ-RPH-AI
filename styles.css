@@ -379,6 +379,29 @@ tr:last-child td{border-bottom:0}
 .spin{width:32px;height:32px;border:3px solid var(--biru-t);border-top-color:var(--biru);border-radius:50%;margin:0 auto;animation:sp .8s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
 
+/* ---------- Grid jadual waktu (dashboard) ---------- */
+.jw-skrol{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -13px;padding:0 13px}
+.jw-tbl{border-collapse:collapse;table-layout:fixed;min-width:100%}
+.jw-tbl th,.jw-tbl td{border:1px solid var(--garis);padding:0;height:46px;
+  min-width:52px;text-align:center;vertical-align:middle}
+.jw-kepala{background:var(--bg);padding:3px 2px !important;height:auto !important}
+.jw-kepala b{display:block;font-size:12px;font-weight:700;color:var(--teks-1)}
+.jw-kepala small{display:block;font-size:8.5px;color:var(--teks-3);white-space:nowrap}
+.jw-hari{background:var(--bg);width:46px;min-width:46px;font-size:12px;font-weight:700;
+  color:var(--teks-2);position:sticky;left:0;z-index:2}
+.jw-kini .jw-hari{background:var(--ungu-t);color:#5b3fbe}
+.jw-kini td{box-shadow:inset 0 0 0 9999px rgba(122,90,240,.05)}
+.jw-isi{cursor:pointer;padding:3px 4px !important;position:relative;
+  border-radius:0;transition:filter .15s}
+.jw-isi:hover{filter:brightness(1.07)}
+.jw-isi i{position:absolute;top:2px;left:4px;font-style:normal;font-size:8px;
+  font-weight:700;opacity:.65;letter-spacing:.3px}
+.jw-isi b{display:block;font-size:12px;font-weight:700;line-height:1.15;
+  padding-top:5px;word-break:break-word}
+.jw-siap:after{content:"✓";position:absolute;top:1px;right:3px;font-size:9px;
+  font-weight:700;opacity:.8}
+.jw-nota{font-size:11.5px;color:var(--teks-3);margin-top:9px}
+
 /* ---------- Wizard ---------- */
 .wiz-step{display:flex;gap:10px;align-items:center;padding:11px 13px;border:1px solid var(--garis);border-radius:var(--r-sm);margin-bottom:8px;background:var(--putih)}
 .wiz-no{width:26px;height:26px;border-radius:50%;background:var(--bg);color:var(--teks-3);display:grid;place-content:center;font-size:12px;font-weight:700;flex:none}

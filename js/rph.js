@@ -1096,7 +1096,7 @@ function htmlRph(r, tunjukSemakan){
     <tr><td colspan="3">Pada akhir PdPC, murid dapat:<br>${obj.map((x,i)=>(i+1)+'. '+esc(x)).join('<br>')||'-'}</td>
         <td colspan="3">Murid berjaya:<br>${kk.map((x,i)=>(i+1)+'. '+esc(x)).join('<br>')||'-'}</td></tr>
     <tr><th ${th}>Strategi / Kaedah</th><td colspan="2">${p(r.strategi)}</td>
-        <th ${th}>BBB / SUMBER</th><td colspan="2">${p(r.bbm)}</td></tr>
+        <th ${th}>BBM / SUMBER</th><td colspan="2">${p(r.bbm)}</td></tr>
     <tr class="pd-band" style="background:${gelap}"><td colspan="4">STRATEGI PEMBELAJARAN DAN PEMUDAHCARAAN</td>
         <td colspan="2">IMPAK / REFLEKSI</td></tr>
     <tr class="pd-boleh">
@@ -1127,7 +1127,7 @@ function htmlRph(r, tunjukSemakan){
     <tr><th style="background:#cfe3f7;text-align:center;vertical-align:middle;font-size:9pt">SEMAKAN</th>
       <td>Disediakan oleh:${tandatanganSaya() ? `<br><img src="${tandatanganSaya()}" class="ttd">` : '<br><br><br>'}
         <b>${esc(S.profil.nama||'')}</b><br>${esc(S.profil.jawatan||'Guru')}</td>
-      <td>Disemak oleh:<br><br><br><b>${esc(S.profil.pengesah||'')}</b></td></tr>
+      <td>Disemak oleh:<br><br><br>${blokPengesah()}</td></tr>
   </table>`}`;
 }
 
@@ -1196,7 +1196,7 @@ function htmlRphPadat(r, noKelas){
     ${band('OBJEKTIF PEMBELAJARAN (OP)')}
     <tr><td colspan="6">Pada akhir PdP, murid dapat:<br>${obj.map((x,i)=>(i+1)+'. '+esc(x)).join('<br>')||'-'}</td></tr>
     ${kk.length?band('KRITERIA KEJAYAAN (KK)')+`<tr><td colspan="6">Murid berjaya:<br>${kk.map((x,i)=>(i+1)+'. '+esc(x)).join('<br>')}</td></tr>`:''}
-    <tr><th style="background:${cerah}">BBB / Sumber</th><td colspan="3">${p(r.bbm)}</td>
+    <tr><th style="background:${cerah}">BBM / Sumber</th><td colspan="3">${p(r.bbm)}</td>
         <th style="background:${cerah}">Strategi</th><td>${p(r.strategi)}</td></tr>
     <tr class="pd-band" style="background:${gelap}"><td colspan="4">STRATEGI PdP &amp; PEMUDAHCARAAN</td>
         <td colspan="2">IMPAK / REFLEKSI</td></tr>
@@ -1216,11 +1216,26 @@ function htmlRphPadat(r, noKelas){
   </table>`;
 }
 
+/* Nama pengesah dipapar di atas, jawatan di bawah. Jawatan diambil daripada
+   medan berasingan; format lama "Nama / Jawatan" masih disokong. */
+function pengesahBaris(){
+  const t = String(S.profil.pengesah||'').trim();
+  const jawatanBerasingan = String(S.profil.jawatanPengesah||'').trim();
+  if(!t) return { nama:'', jawatan:jawatanBerasingan };
+  if(jawatanBerasingan) return { nama:t, jawatan:jawatanBerasingan };
+  const p = t.split(/\s*[\/|·]\s*/);
+  return { nama: p[0]||'', jawatan: p.slice(1).join(' / ') };
+}
+function blokPengesah(){
+  const g = pengesahBaris();
+  return `<b>${esc(g.nama)}</b>${g.jawatan ? `<br>${esc(g.jawatan)}` : ''}`;
+}
+
 function semakanHari(){
   return `<table class="pd-tbl pd-blok"><tr>
     <th style="width:24mm;background:#cfe3f7">SEMAKAN</th>
     <td>Disediakan oleh: <b>${esc(S.profil.nama||'')}</b>${tandatanganSaya()?` <img src="${tandatanganSaya()}" style="height:22pt;vertical-align:middle">`:''}</td>
-    <td style="width:60mm">Disemak oleh: <b>${esc(S.profil.pengesah||'')}</b><br><br></td>
+    <td style="width:60mm">Disemak oleh:<br>${blokPengesah()}<br><br></td>
   </tr></table>`;
 }
 

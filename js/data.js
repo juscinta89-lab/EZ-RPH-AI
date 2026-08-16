@@ -275,6 +275,91 @@ const TEMPLAT = {
   jadual: ['hari','masa_mula','masa_tamat','subjek','kelas','bilik','catatan']
 };
 
+/* ================= GRID JADUAL WAKTU ================= */
+/* Waktu dibina daripada semua sempadan masa dalam jadual, jadi slot 60 minit
+   akan merentangi dua waktu 30 minit secara automatik — sama seperti cetakan aSc. */
+const HARI_SEKOLAH = ['Ahad','Isnin','Selasa','Rabu','Khamis'];
+const SINGKAT_HARI = { Ahad:'AHA', Isnin:'ISN', Selasa:'SEL', Rabu:'RAB', Khamis:'KHA',
+                       Jumaat:'JUM', Sabtu:'SAB' };
+
+function kodSubjek(nama){
+  const n = norma(nama);
+  const peta = [
+    [/seni visual|\bpsv\b/, 'PSV'], [/muzik/, 'MZ'], [/jasmani/, 'PJ'],
+    [/kesihatan/, 'PK'], [/matematik/, 'MT'], [/bahasa melayu/, 'BM'],
+    [/bahasa inggeris|english/, 'BI'], [/bahasa arab/, 'BA'], [/sains/, 'SN'],
+    [/sejarah/, 'SEJ'], [/reka bentuk|\brbt\b/, 'RBT'], [/islam/, 'PI'],
+    [/moral/, 'PM'], [/geografi/, 'GEO'], [/asas sains komputer|\bask\b/, 'ASK']
+  ];
+  for(const [re, kod] of peta) if(re.test(n)) return kod;
+  return (nama||'').split(/\s+/).map(w => w[0]||'').join('').toUpperCase().slice(0,3);
+}
+
+/* Tarikh bagi hari tersebut dalam minggu semasa (Ahad = permulaan minggu) */
+function tarikhHariIni(hari){
+  const i = HARI.indexOf(hari);
+  if(i < 0) return tarikhISO();
+  const d = new Date(tarikhISO() + 'T00:00:00');
+  d.setDate(d.getDate() + (i - d.getDay()));
+  return d.toISOString().slice(0,10);
+}
+
+function bukaSlotGrid(slotId, hari){
+  const tarikh = tarikhHariIni(hari);
+  const ada = S.rph.find(r => r.slotId === slotId && r.tarikh === tarikh);
+  if(ada) return bukaRph(ada.id);
+  janaSlot(slotId, tarikh);
+}
+
+function gridJadual(){
+  if(!S.jadual.length) return '';
+  const hariAda = HARI_SEKOLAH.filter(h => S.jadual.some(s => s.hari === h));
+  if(!hariAda.length) return '';
+
+  // Semua sempadan masa → senarai waktu
+  const titik = [...new Set(S.jadual.flatMap(s => [s.mula, s.tamat]).filter(Boolean))]
+    .sort((a,b) => minitJam(a) - minitJam(b));
+  const waktu = titik.slice(0,-1).map((t,i) => ({ mula:t, tamat:titik[i+1] }));
+  if(!waktu.length) return '';
+
+  const idx = t => titik.indexOf(t);
+  const hariIni = namaHari(tarikhISO());
+
+  const baris = hariAda.map(h => {
+    const slot = S.jadual.filter(s => s.hari === h)
+      .sort((a,b) => minitJam(a.mula) - minitJam(b.mula));
+    let i = 0, sel = '';
+    while(i < waktu.length){
+      const s = slot.find(x => idx(x.mula) === i);
+      if(s){
+        const rentang = Math.max(1, idx(s.tamat) - idx(s.mula));
+        const [gelap] = warnaSubjek(s.subjek);
+        const siap = S.rph.some(r => r.slotId === s.id && r.tarikh === tarikhHariIni(h));
+        sel += `<td class="jw-isi${siap ? ' jw-siap' : ''}" colspan="${rentang}" style="background:${gelap}"
+                  onclick="bukaSlotGrid('${s.id}','${h}')"
+                  title="${esc(s.subjek)} · ${esc(s.kelas)} · ${esc(s.mula)}–${esc(s.tamat)}">
+                  <i>${esc(kodSubjek(s.subjek))}</i><b>${esc(s.kelas)}</b></td>`;
+        i += rentang;
+      } else { sel += '<td></td>'; i++; }
+    }
+    return `<tr${h === hariIni ? ' class="jw-kini"' : ''}>
+      <th class="jw-hari">${SINGKAT_HARI[h] || h.slice(0,3).toUpperCase()}</th>${sel}</tr>`;
+  }).join('');
+
+  return `<div class="kad">
+    <div class="kad-h"><h3>Jadual waktu saya</h3>
+      <button class="btn btn-sm" onclick="pergi('jadual')">Sunting</button></div>
+    <div class="jw-skrol">
+      <table class="jw-tbl">
+        <tr><th class="jw-hari"></th>
+          ${waktu.map((w,i) => `<th class="jw-kepala"><b>${i+1}</b><small>${esc(w.mula)} – ${esc(w.tamat)}</small></th>`).join('')}</tr>
+        ${baris}
+      </table>
+    </div>
+    <p class="jw-nota">Hari ini ditandakan. Ketik mana-mana slot untuk jana RPH.</p>
+  </div>`;
+}
+
 /* ================= DASHBOARD ================= */
 function halDashboard(){
   const hariIni = tarikhISO();
@@ -307,6 +392,8 @@ function halDashboard(){
       <div class="stat k"><b>${draf}</b><small>Draf</small></div>
       <div class="stat m"><b>${Math.max(0, slotHariIni.length - S.rph.filter(r=>r.tarikh===hariIni).length)}</b><small>Belum disediakan hari ini</small></div>
     </div>
+
+    ${gridJadual()}
 
     <div class="kad">
       <div class="kad-h"><h3>Hari ini · ${hari.toUpperCase()}</h3><small>${slotHariIni.length} slot PdP</small>
@@ -1148,7 +1235,9 @@ function halTetapan(){
         <label class="fld"><span>Opsyen</span><input id="ptOpsyen" value="${esc(S.profil.opsyen||'')}" placeholder="Bahasa Melayu"></label>
       </div>
       <label class="fld"><span>Nama pengesah RPH <em>(untuk ruang tandatangan)</em></span>
-        <input id="ptPengesah" value="${esc(S.profil.pengesah||'')}" placeholder="Guru Besar / GPK Akademik"></label>
+        <input id="ptPengesah" value="${esc(S.profil.pengesah||'')}" placeholder="Cth: Ali bin Abu"></label>
+      <label class="fld"><span>Jawatan pengesah <em>(dipapar di bawah nama)</em></span>
+        <input id="ptJawatanPengesah" value="${esc(S.profil.jawatanPengesah||'')}" placeholder="Cth: GPK Kokurikulum"></label>
       <button class="btn btn-primary" onclick="simpanProfil()">Simpan profil</button>
     </div>
 
@@ -1292,7 +1381,8 @@ function buangTtd(){
 
 async function simpanProfil(){
   const d = { nama:$('#ptNama').value.trim(), jawatan:$('#ptJawatan').value.trim(),
-              opsyen:$('#ptOpsyen').value.trim(), pengesah:$('#ptPengesah').value.trim() };
+              opsyen:$('#ptOpsyen').value.trim(), pengesah:$('#ptPengesah').value.trim(),
+              jawatanPengesah:$('#ptJawatanPengesah').value.trim() };
   sibuk(true,'Menyimpan…');
   await db.collection('pengguna').doc(S.user.email).set(d,{merge:true});
   S.profil = { ...S.profil, ...d };
