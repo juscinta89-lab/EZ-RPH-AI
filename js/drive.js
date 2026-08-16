@@ -18,7 +18,7 @@ const SKOP_DRIVE = 'https://www.googleapis.com/auth/drive.file';
    Guru TIDAK perlu buat apa-apa tetapan — mereka hanya tekan butang
    dan log masuk dengan akaun Google masing-masing.
    --------------------------------------------------------------- */
-const CLIENT_ID_TERBINA = "313464725222-2496bherbuls7iackl1q8dg0043m5ehp.apps.googleusercontent.com";   // <-- tampal Client ID anda di sini
+const CLIENT_ID_TERBINA = "";   // <-- tampal Client ID anda di sini
 let _tokenGoogle = null, _tokenTamat = 0, _klienToken = null, _gisSedang = null;
 
 function clientIdGoogle(){
@@ -110,7 +110,85 @@ async function folderRph(sesi, minggu){
   return minggu ? await cariAtauCiptaFolder(minggu, thn) : thn;
 }
 
-/* ---------- Muat naik sebagai Google Docs ---------- */
+/* ---------- Penjanaan PDF (kekal format asal) ---------- */
+function muatPustaka(url, nama){
+  return new Promise((selesai, gagal) => {
+    if(window[nama]) return selesai(window[nama]);
+    const sk = document.createElement('script');
+    sk.src = url;
+    sk.onload = () => window[nama] ? selesai(window[nama]) : gagal(new Error('Pustaka '+nama+' gagal dimuat'));
+    sk.onerror = () => gagal(new Error('Gagal memuat '+nama+'. Semak sambungan internet.'));
+    document.head.appendChild(sk);
+  });
+}
+
+/* Ukuran A4 pada 96 DPI */
+const A4_LEBAR_PX = 794, A4_TINGGI_PX = 1123;
+
+async function jadikanPdf(html, lapor){
+  lapor?.('Memuat pustaka PDF…');
+  await muatPustaka('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', 'html2canvas');
+  await muatPustaka('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'jspdf');
+  const { jsPDF } = window.jspdf;
+
+  // Bingkai tersembunyi seluas A4 supaya susun atur sama seperti cetakan
+  const bingkai = document.createElement('iframe');
+  bingkai.style.cssText = `position:fixed;left:-10000px;top:0;width:${A4_LEBAR_PX}px;height:${A4_TINGGI_PX}px;border:0`;
+  document.body.appendChild(bingkai);
+  try{
+    const d = bingkai.contentDocument;
+    d.open(); d.write(html); d.close();
+    await new Promise(r => setTimeout(r, 350));            // beri masa imej & fon dimuat
+    if(d.fonts?.ready) await d.fonts.ready;
+
+    lapor?.('Menyusun halaman…');
+    const kanvas = await window.html2canvas(d.body, {
+      scale: 2, useCORS: true, backgroundColor: '#ffffff',
+      windowWidth: A4_LEBAR_PX, width: A4_LEBAR_PX
+    });
+
+    const pdf = new jsPDF({ unit:'mm', format:'a4', orientation:'portrait' });
+    const lebarMm = 210, tinggiMm = 297;
+    const nisbah = kanvas.width / A4_LEBAR_PX;              // faktor skala kanvas
+    const tinggiHalamanKanvas = Math.floor(A4_TINGGI_PX * nisbah);
+    const jumlahHalaman = Math.max(1, Math.ceil(kanvas.height / tinggiHalamanKanvas));
+
+    for(let i = 0; i < jumlahHalaman; i++){
+      lapor?.(`Menjana halaman ${i+1}/${jumlahHalaman}…`);
+      const tinggiPotong = Math.min(tinggiHalamanKanvas, kanvas.height - i*tinggiHalamanKanvas);
+      const potong = document.createElement('canvas');
+      potong.width = kanvas.width; potong.height = tinggiPotong;
+      const ctx = potong.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0,0,potong.width,potong.height);
+      ctx.drawImage(kanvas, 0, i*tinggiHalamanKanvas, kanvas.width, tinggiPotong,
+                            0, 0, kanvas.width, tinggiPotong);
+      if(i) pdf.addPage();
+      pdf.addImage(potong.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0,
+                   lebarMm, (tinggiPotong / nisbah) * (tinggiMm / A4_TINGGI_PX), '', 'FAST');
+    }
+    return pdf.output('blob');
+  } finally {
+    bingkai.remove();
+  }
+}
+
+/* ---------- Muat naik fail ke Drive ---------- */
+async function naikPdf(nama, blob, folderId){
+  const t = await tokenDrive();
+  const b = 'erph' + Date.now();
+  const meta = { name:nama, mimeType:'application/pdf', ...(folderId ? { parents:[folderId] } : {}) };
+  const awal = `--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${b}\r\nContent-Type: application/pdf\r\n\r\n`;
+  const akhir = `\r\n--${b}--`;
+  const badan = new Blob([awal, blob, akhir], { type:`multipart/related; boundary=${b}` });
+  const r = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink', {
+    method:'POST', headers:{ 'Authorization':'Bearer '+t }, body: badan
+  });
+  const j = await r.json();
+  if(!r.ok) throw new Error('Gagal memuat naik: ' + (j.error?.message || r.status));
+  return j;
+}
+
+/* ---------- Muat naik sebagai Google Docs (pilihan) ---------- */
 async function naikDokumen(nama, html, folderId){
   const t = await tokenDrive();
   const sempadan = 'erph' + Date.now();
@@ -151,8 +229,15 @@ function halDrive(){
           </select></label>
         <label class="fld"><span>Gaya dokumen</span>
           <select id="dvGaya">
-            <option value="padat">Padat — semua RPH satu dokumen</option>
+            <option value="padat">Padat — semua RPH mengalir</option>
             <option value="penuh">Lesson Plan penuh — satu muka setiap RPH</option>
+          </select></label>
+      </div>
+      <div class="grid2">
+        <label class="fld"><span>Format fail</span>
+          <select id="dvFormat">
+            <option value="pdf">PDF — kekal format cetakan (disyorkan)</option>
+            <option value="doc">Google Docs — boleh diedit, susun atur mungkin berubah</option>
           </select></label>
       </div>
       <div id="dvKira" class="kad" style="background:var(--bg);padding:11px;font-size:12.5px;margin-bottom:13px"></div>
@@ -161,8 +246,9 @@ function halDrive(){
              stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px">
           <path d="M8 3h8l5 8.5-4 7H7l-4-7z"/><path d="M8 3 3.5 11.5M16 3l-4.5 8.5M3.5 11.5h17"/></svg>
         Simpan ke Google Drive</button>
-      <p style="font-size:11.5px;color:var(--teks-3);margin-top:9px;text-align:center">
-        Kali pertama, Google akan minta kebenaran akses Drive.</p>
+      <p style="font-size:11.5px;color:var(--teks-3);margin-top:9px;text-align:center;line-height:1.5">
+        Kali pertama, Google akan minta kebenaran akses Drive.<br>
+        PDF dijana dalam peranti anda — RPH banyak mungkin ambil beberapa saat.</p>
     </div>
 
     ${rekod.length ? `<div class="kad">
@@ -269,14 +355,24 @@ function hantarKeDrive(){
 }
 
 async function teruskanMuatNaik(senarai, label, gaya){
+  const format = $('#dvFormat')?.value || 'pdf';
   try{
     sibuk(true,'Menyediakan dokumen…');
     const html = dokumenDrive(senarai, gaya);
-    sibuk(true,'Menyediakan folder dalam Drive…');
-    const folder = await folderRph(S.sesi, label);
     const nama = `RPH ${label} — ${S.profil.nama||''}`.trim().slice(0,120);
-    sibuk(true,'Memuat naik dokumen…');
-    const fail = await naikDokumen(nama, html, folder);
+    let fail;
+    if(format === 'pdf'){
+      const blob = await jadikanPdf(html, m => sibuk(true, m));
+      sibuk(true,'Menyediakan folder dalam Drive…');
+      const folder = await folderRph(S.sesi, label);
+      sibuk(true,'Memuat naik PDF…');
+      fail = await naikPdf(nama + '.pdf', blob, folder);
+    }else{
+      sibuk(true,'Menyediakan folder dalam Drive…');
+      const folder = await folderRph(S.sesi, label);
+      sibuk(true,'Memuat naik dokumen…');
+      fail = await naikDokumen(nama, html, folder);
+    }
     const rekod = JSON.parse(localStorage.getItem('erph_drive_log') || '[]');
     rekod.unshift({ nama:fail.name, pautan:fail.webViewLink, masa:new Date().toLocaleString('ms-MY') });
     localStorage.setItem('erph_drive_log', JSON.stringify(rekod.slice(0,30)));
@@ -309,11 +405,12 @@ function simpanRphKeDrive(){
   const tok = adaToken() ? Promise.resolve(_tokenGoogle) : mintaTokenSegera();
   tok.then(async () => {
     try{
-      sibuk(true,'Menyimpan ke Drive…');
       const html = dokumenDrive([r], gayaCetak());
+      const blob = await jadikanPdf(html, m => sibuk(true, m));
+      sibuk(true,'Memuat naik ke Drive…');
       const folder = await folderRph(S.sesi, r.minggu || '');
-      const nama = `RPH ${r.subjek} ${r.kelas} — ${r.tarikh}`.slice(0,120);
-      const fail = await naikDokumen(nama, html, folder);
+      const nama = `RPH ${r.subjek} ${r.kelas} — ${r.tarikh}.pdf`.slice(0,120);
+      const fail = await naikPdf(nama, blob, folder);
       const log = JSON.parse(localStorage.getItem('erph_drive_log') || '[]');
       log.unshift({ nama:fail.name, pautan:fail.webViewLink, masa:new Date().toLocaleString('ms-MY') });
       localStorage.setItem('erph_drive_log', JSON.stringify(log.slice(0,30)));
@@ -334,6 +431,81 @@ function salinTeks(t){
 }
 function kosongkanLogDrive(){
   localStorage.removeItem('erph_drive_log'); pergi('drive'); toast('Senarai dikosongkan');
+}
+
+/* ================= PENJANA PDF =================
+   RPH dirender dalam iframe tersembunyi bersaiz A4 dengan CSS cetakan sebenar,
+   kemudian ditangkap sebagai imej dan disusun ke dalam PDF berbilang muka surat.
+   Hasilnya sama persis dengan pratonton cetakan. */
+
+let _pdfSedia = null;
+function muatPustakaPdf(){
+  if(_pdfSedia) return _pdfSedia;
+  const muat = src => new Promise((ok, gagal) => {
+    const sk = document.createElement('script');
+    sk.src = src; sk.onload = ok;
+    sk.onerror = () => gagal(new Error('Gagal memuat pustaka PDF: ' + src));
+    document.head.appendChild(sk);
+  });
+  _pdfSedia = Promise.all([
+    window.html2canvas ? Promise.resolve() : muat('lib/html2canvas.min.js'),
+    window.jspdf ? Promise.resolve() : muat('lib/jspdf.umd.min.js')
+  ]);
+  return _pdfSedia;
+}
+
+const A4_LEBAR_MM = 210, A4_TINGGI_MM = 297;
+
+async function binaPdf(html, lapor){
+  await muatPustakaPdf();
+  const { jsPDF } = window.jspdf;
+
+  // Iframe tersembunyi bersaiz A4 (96dpi: 210mm ≈ 794px)
+  const bingkai = document.createElement('iframe');
+  bingkai.style.cssText = 'position:fixed;left:-10000px;top:0;width:794px;height:1123px;border:0;visibility:hidden';
+  document.body.appendChild(bingkai);
+  try{
+    const d = bingkai.contentDocument;
+    d.open();
+    d.write(html.replace('</head>',
+      `<style>
+        html,body{margin:0;padding:0;background:#fff;width:794px}
+        body{padding:34px 38px}   /* margin cetakan ~9mm/10mm */
+        *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      </style></head>`));
+    d.close();
+    await new Promise(r => setTimeout(r, 350));            // tunggu susun atur & imej
+    const imej = [...d.images].map(i => i.complete ? null : new Promise(ok => { i.onload = i.onerror = ok; }));
+    await Promise.all(imej.filter(Boolean));
+
+    const badan = d.body;
+    const skala = 2;                                        // ketajaman 2x
+    lapor?.('Merender halaman…');
+    const kanvas = await html2canvas(badan, {
+      scale: skala, backgroundColor:'#fff', logging:false,
+      windowWidth: 794, width: 794, height: badan.scrollHeight, useCORS:true
+    });
+
+    const pdf = new jsPDF({ unit:'mm', format:'a4', orientation:'portrait', compress:true });
+    const lebarPx = kanvas.width;
+    const tinggiMukaPx = Math.floor(lebarPx * (A4_TINGGI_MM / A4_LEBAR_MM));   // nisbah A4
+    const jumMuka = Math.max(1, Math.ceil(kanvas.height / tinggiMukaPx));
+
+    for(let i = 0; i < jumMuka; i++){
+      lapor?.(`Menyusun muka surat ${i+1}/${jumMuka}…`);
+      const tinggiPotong = Math.min(tinggiMukaPx, kanvas.height - i * tinggiMukaPx);
+      const potong = document.createElement('canvas');
+      potong.width = lebarPx; potong.height = tinggiPotong;
+      potong.getContext('2d').drawImage(kanvas, 0, i * tinggiMukaPx, lebarPx, tinggiPotong,
+                                                0, 0, lebarPx, tinggiPotong);
+      const tinggiMm = (tinggiPotong / lebarPx) * A4_LEBAR_MM;
+      if(i) pdf.addPage();
+      pdf.addImage(potong.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, A4_LEBAR_MM, tinggiMm, undefined, 'FAST');
+    }
+    return { blob: pdf.output('blob'), muka: jumMuka };
+  } finally {
+    bingkai.remove();
+  }
 }
 
 /* Bina HTML dokumen menggunakan templat cetakan sedia ada */
