@@ -417,7 +417,8 @@ tr:last-child td{border-bottom:0}
 .lt-klu ul{list-style:none;padding:0}
 .lt-klu li{margin-bottom:4px}
 .lt-klu em{color:var(--teks-3);font-size:11.5px}
-.lt-senarai-kata{margin-top:10px;font-size:12.5px;text-align:center}
+.lt-arah{text-align:center;font-size:11.5px;color:var(--teks-3);margin-top:6px}
+.lt-senarai-kata{margin-top:8px;font-size:12.5px;text-align:center}
 .lt-kerja{border:1px dashed var(--garis);border-radius:var(--r-sm);height:56px;
   margin:5px 0 4px 15px;padding:3px 7px}
 .lt-kerja small{font-size:10.5px;color:var(--teks-3)}
@@ -597,7 +598,8 @@ tr:last-child td{border-bottom:0}
   #cetak .lt-klu{display:grid;grid-template-columns:1fr 1fr;gap:12pt;margin-top:8pt;font-size:9pt}
   #cetak .lt-klu ul{list-style:none;padding:0;margin:0}
   #cetak .lt-klu li{margin-bottom:2pt}
-  #cetak .lt-senarai-kata{margin-top:7pt;font-size:9.5pt;text-align:center}
+  #cetak .lt-arah{text-align:center;font-size:8.5pt;color:#555;margin-top:5pt}
+  #cetak .lt-senarai-kata{margin-top:5pt;font-size:9.5pt;text-align:center}
   #cetak .lt-kerja{border:1px dashed #999;height:44pt;margin:3pt 0 3pt 11pt;padding:2pt 5pt}
   #cetak .lt-kerja small{font-size:8pt;color:#777}
   #cetak .lt-akhir{margin-left:11pt;font-size:9pt}

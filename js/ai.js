@@ -829,7 +829,7 @@ async function janaSoalanAI(ctx){
       .filter(k => k.perkataan.length >= 3 && k.perkataan.length <= 11);
     if(kata.length < 4) throw new Error('AI tidak menghasilkan cukup perkataan yang sah');
     j.kata = kata;
-    j.grid = ctx.jenis === 'silangKata' ? binaSilangKata(kata) : binaCariPerkataan(kata);
+    j.grid = ctx.jenis === 'silangKata' ? binaSilangKata(kata) : binaCariPerkataan(kata, ctx.aras);
   }else{
     j.soalan = (j.soalan||[]).map((s,i) => ({ ...s, no:i+1,
       soalan: betulEjaan(s.soalan||''), huraian: betulEjaan(s.huraian||''),
@@ -948,11 +948,20 @@ function barisKeSel(g){
 }
 
 /* ---------- Susun atur cari perkataan ---------- */
-function binaCariPerkataan(kata){
+/* Arah dihadkan mengikut aras. Murid sekolah rendah membaca kiri ke kanan dan
+   atas ke bawah sahaja; perkataan songsang menjadikannya hampir mustahil dicari. */
+function arahCariKata(aras){
+  const kanan = [0,1], bawah = [1,0], serong = [1,1];
+  if(aras === 'mudah') return [kanan, bawah];
+  if(aras === 'kbat')  return [kanan, bawah, serong];
+  return [kanan, bawah, serong];
+}
+
+function binaCariPerkataan(kata, aras){
+  const ARAH = arahCariKata(aras);
   const panjang = Math.max(...kata.map(k => k.perkataan.length));
   const N = Math.min(16, Math.max(10, panjang + 3, Math.ceil(Math.sqrt(kata.length * 12))));
   const grid = Array.from({length:N}, () => Array(N).fill(null));
-  const ARAH = [[0,1],[1,0],[1,1],[-1,1],[0,-1],[1,-1]];
   const letak = [];
 
   for(const k of kata.slice().sort((a,b) => b.perkataan.length - a.perkataan.length)){
@@ -977,7 +986,8 @@ function binaCariPerkataan(kata){
   const HURUF = 'ABCDEFGHIJKLMNOPRSTUVW';
   for(let r=0;r<N;r++) for(let c=0;c<N;c++)
     if(!grid[r][c]) grid[r][c] = HURUF[Math.floor(Math.random()*HURUF.length)];
-  return { baris: selKeBaris(grid), lebar: N, kunci: letak, gugur: kata.length - letak.length };
+  return { baris: selKeBaris(grid), lebar: N, kunci: letak,
+           gugur: kata.length - letak.length, arah: ARAH.length };
 }
 
 function semakKualiti(r){

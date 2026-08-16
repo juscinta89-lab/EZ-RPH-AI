@@ -1022,7 +1022,11 @@ function htmlCariKata(L, skema){
   });
   const baris = barisKeSel(g).map((b,ri) => `<tr>${b.map((ch,ci) =>
     `<td class="lt-sel${tanda.has(ri+','+ci)?' lt-jumpa':''}">${esc(ch||'')}</td>`).join('')}</tr>`).join('');
+  const arah = (g.arah || 3) <= 2
+    ? 'Perkataan tersembunyi mendatar (kiri ke kanan) dan menegak (atas ke bawah) sahaja.'
+    : 'Perkataan tersembunyi mendatar (kiri ke kanan), menegak (atas ke bawah) dan serong ke bawah.';
   return `<table class="lt-grid lt-cari">${baris}</table>
+    <p class="lt-arah">${arah}</p>
     <div class="lt-senarai-kata"><b>Cari perkataan ini:</b>
       ${(L.kata||[]).map(k => `<span>${esc(k.perkataan)}</span>`).join('')}</div>
     ${skema ? `<div class="lt-skema"><h3>KLU ISTILAH <small>(untuk guru)</small></h3>
