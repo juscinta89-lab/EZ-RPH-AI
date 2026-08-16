@@ -150,6 +150,52 @@ function segarRptJana(){
   const mgg = mingguUntuk(t);
   const rpt = rptUntuk(slot.subjek, kelas?.tahun || '', mgg);
   window._janaRpt = rpt.minggu;
+  window._janaRptSemua = rpt.semua;
+
+  /* Guru sering melangkau atau mendahului tajuk mengikut keadaan sebenar kelas,
+     jadi seluruh RPT subjek ini boleh dipilih, bukan baris minggu semasa sahaja. */
+  const nSekarang = noMinggu(mgg);
+  const pilihanLain = rpt.semua.length ? `
+    <details class="jg-lain" ${rpt.minggu.length ? '' : 'open'}>
+      <summary>📚 Pilih tajuk daripada minggu lain <em>(${rpt.semua.length} baris RPT)</em></summary>
+      <p class="jg-nota">Guna ini jika kelas anda mendahului atau ketinggalan daripada RPT.
+        Minggu dalam RPH kekal ${esc(mgg || 'minggu semasa')}; hanya tajuk dan SP yang diambil dari baris lain.</p>
+      <label class="fld" style="margin:0"><span>Baris RPT</span>
+        <select id="jgRptLain" onchange="tandaRptLain()">
+          <option value="">${rpt.minggu.length ? '— Ikut RPT minggu semasa —' : '— Tiada, saya taip tajuk sendiri —'}</option>
+          ${rpt.semua.map((r,i) => {
+            const n = noMinggu(r.minggu);
+            const jauh = n && nSekarang ? (n > nSekarang ? ` · ${n-nSekarang} minggu ke hadapan`
+                                        : n < nSekarang ? ` · ${nSekarang-n} minggu ke belakang` : ' · minggu ini') : '';
+            return `<option value="${i}">${esc(r.minggu||'—')}${jauh} — ${esc((r.tajuk||r.tema||'Tanpa tajuk').slice(0,60))}</option>`;
+          }).join('')}
+        </select></label>
+      <div id="jgRptLainInfo"></div>
+    </details>` : '';
+
+  const manual = `
+    <details class="jg-lain jg-manual" id="jgManualBox" ontoggle="tandaRptManual()">
+      <summary>✍️ Tulis sendiri — <em>Custom SK / SP</em></summary>
+      <p class="jg-nota">Isi mana-mana ruang di bawah untuk mengatasi RPT sepenuhnya. AI akan
+        membina objektif, kriteria kejayaan, aktiviti dan bahagian lain berdasarkan apa yang anda tulis.
+        Biarkan kosong untuk terus mengikut RPT.</p>
+      <label class="fld"><span>Tajuk / kemahiran</span>
+        <input id="jgMTajuk" oninput="tandaRptManual()" placeholder="Cth: Ayat aktif dan ayat pasif"></label>
+      <div class="grid2">
+        <label class="fld"><span>Kod SK</span>
+          <input id="jgMKodSk" oninput="tandaRptManual()" placeholder="Cth: 5.3"></label>
+        <label class="fld"><span>Kod SP</span>
+          <input id="jgMKodSp" oninput="tandaRptManual()" placeholder="Cth: 5.3.2"></label>
+      </div>
+      <label class="fld"><span>Standard Kandungan</span>
+        <textarea id="jgMSk" rows="2" oninput="tandaRptManual()" placeholder="Salin daripada DSKP"></textarea></label>
+      <label class="fld"><span>Standard Pembelajaran</span>
+        <textarea id="jgMSp" rows="2" oninput="tandaRptManual()" placeholder="Salin daripada DSKP"></textarea></label>
+      <label class="fld" style="margin-bottom:0"><span>Standard Prestasi / TP <em>(pilihan)</em></span>
+        <input id="jgMTp" oninput="tandaRptManual()" placeholder="Cth: TP3"></label>
+      <div id="jgManualInfo"></div>
+    </details>`;
+
   if(!rpt.minggu.length){
     const sebab = rpt.semua.length
       ? `RPT ${esc(slot.subjek)} tiada baris untuk ${esc(mgg||'minggu ini')}`
@@ -157,17 +203,20 @@ function segarRptJana(){
     kotak.innerHTML = `
       <div class="kad" style="background:var(--ungu-t);border-color:#ddd3fb;margin-bottom:13px">
         <b style="font-size:13.5px">${sebab}</b>
-        <p style="font-size:12.5px;color:var(--teks-2);margin:6px 0 10px">AI akan <b>mencadangkan</b> SK & SP yang paling sesuai
-          berdasarkan tajuk yang anda beri, tahun dan minggu pembelajaran. Cadangan ini ditandakan jelas dalam RPH —
+        <p style="font-size:12.5px;color:var(--teks-2);margin:6px 0 10px">Pilih baris RPT daripada minggu lain,
+          tulis SK &amp; SP anda sendiri, atau biarkan kosong dan AI akan <b>mencadangkan</b> SK &amp; SP
+          berdasarkan tajuk yang anda beri. Cadangan ditandakan jelas dalam RPH —
           <b>sila sahkan dengan DSKP rasmi</b> sebelum guna.</p>
-        <label class="fld" style="margin:0"><span>Tajuk / kemahiran untuk PdP ini</span>
+        ${pilihanLain}
+        ${manual}
+        <label class="fld" style="margin:10px 0 0"><span>Tajuk / kemahiran untuk PdP ini</span>
           <input id="jgTajukManual" placeholder="Cth: Ayat aktif dan ayat pasif"></label>
         <button class="btn btn-sm" style="margin-top:8px" onclick="pergi('rpt')">📗 Atau muat naik RPT subjek ini</button>
       </div>`;
     return;
   }
   kotak.innerHTML = `<label class="fld"><span>Kandungan RPT ${esc(mgg)} — pilih fokus PdP</span></label>
-    <div class="senarai" style="margin:-6px 0 14px">
+    <div class="senarai" style="margin:-6px 0 10px">
     ${rpt.minggu.map((r,i)=>`
       <label class="baris" style="cursor:pointer;align-items:flex-start">
         <input type="radio" name="jgRptPilih" value="${i}" ${i===0?'checked':''} style="width:auto;margin-top:3px">
@@ -175,7 +224,61 @@ function segarRptJana(){
           <b>${esc((r.tajuk||r.tema||'Tanpa tajuk').slice(0,80))}</b>
           <small>${r.kodSp?esc(r.kodSp)+' · ':''}${esc((r.sp||r.tema||'').slice(0,110))}${r.catatan?' · '+esc(r.catatan.slice(0,60)):''}</small>
         </div></label>`).join('')}
-    </div>`;
+    </div>
+    ${pilihanLain}
+    ${manual}`;
+}
+
+/* Baca ruang manual. Pulangkan null jika guru tidak menulis apa-apa. */
+function bacaRptManual(){
+  const g = id => $('#'+id) ? $('#'+id).value.trim() : '';
+  const d = { tajuk:g('jgMTajuk'), kodSk:g('jgMKodSk'), kodSp:g('jgMKodSp'),
+              sk:g('jgMSk'), sp:g('jgMSp'), tp:g('jgMTp') };
+  return Object.values(d).some(v => v) ? d : null;
+}
+
+/* Bila guru mula menulis sendiri, pilihan RPT dimalapkan supaya jelas mana
+   yang akan digunakan. Semua ruang kosong = kembali ikut RPT. */
+function tandaRptManual(){
+  const d = bacaRptManual();
+  const info = $('#jgManualInfo');
+  document.querySelectorAll('input[name="jgRptPilih"]').forEach(x => {
+    x.disabled = !!d;
+    x.closest('.baris')?.style.setProperty('opacity', d ? '.45' : '1');
+  });
+  const lain = $('#jgRptLain');
+  if(lain){ lain.disabled = !!d; lain.closest('.fld')?.style.setProperty('opacity', d ? '.45' : '1'); }
+  if(!info) return;
+  if(!d){ info.innerHTML = ''; return; }
+  const kurang = [];
+  if(!d.sp) kurang.push('Standard Pembelajaran');
+  if(!d.sk) kurang.push('Standard Kandungan');
+  info.innerHTML = `<div class="jg-terpilih">
+    <b>${esc(d.tajuk || 'Tajuk belum diisi')}</b>
+    <small>${d.kodSk?'SK '+esc(d.kodSk):''}${d.kodSp?' · SP '+esc(d.kodSp):''}${d.tp?' · '+esc(d.tp):''}</small>
+    <small>${kurang.length
+      ? `AI akan mencadangkan: ${kurang.join(' dan ')} — sahkan dengan DSKP sebelum guna.`
+      : 'Semua standard diisi sendiri. AI hanya membina objektif, aktiviti dan bahagian lain.'}</small>
+  </div>`;
+}
+
+/* Papar butiran baris RPT yang dipilih dari minggu lain, dan matikan pilihan
+   radio minggu semasa supaya jelas mana satu yang akan digunakan. */
+function tandaRptLain(){
+  const s = $('#jgRptLain'); if(!s) return;
+  const info = $('#jgRptLainInfo');
+  const guna = s.value !== '';
+  document.querySelectorAll('input[name="jgRptPilih"]').forEach(x => {
+    x.disabled = guna;
+    x.closest('.baris')?.style.setProperty('opacity', guna ? '.45' : '1');
+  });
+  if(!guna){ if(info) info.innerHTML = ''; return; }
+  const r = (window._janaRptSemua||[])[+s.value];
+  if(info && r) info.innerHTML = `<div class="jg-terpilih">
+    <b>${esc(r.tajuk || r.tema || 'Tanpa tajuk')}</b>
+    <small>${esc(r.minggu||'')}${r.kodSk?' · SK '+esc(r.kodSk):''}${r.kodSp?' · SP '+esc(r.kodSp):''}</small>
+    ${r.sp ? `<small>${esc(String(r.sp).slice(0,160))}</small>` : ''}
+  </div>`;
 }
 
 function infoKelas(nama){
@@ -194,18 +297,33 @@ function ctxDaripadaSlot(slot, tarikh, extra){
 async function janaSatu(){
   const sel = $('#jgPilih'); if(!sel) return toast('Tiada slot pada tarikh ini','salah');
   const slot = S.jadual.find(x => x.id === sel.value);
+
+  /* Keutamaan: tulisan sendiri > baris minggu lain > baris minggu semasa > tiada */
+  const manual = bacaRptManual();
+  const lain = $('#jgRptLain');
+  const dariLain = !manual && lain && lain.value !== '' ? (window._janaRptSemua||[])[+lain.value] : null;
   const idx = document.querySelector('input[name="jgRptPilih"]:checked');
-  const fokus = idx && window._janaRpt && window._janaRpt.length ? window._janaRpt[+idx.value] : null;
+  const dariMinggu = !manual && !dariLain && idx && window._janaRpt?.length
+    ? window._janaRpt[+idx.value] : null;
+  const fokus = manual || dariLain || dariMinggu;
+
   const tajukManual = $('#jgTajukManual') ? $('#jgTajukManual').value.trim() : '';
   const ctx = ctxDaripadaSlot(slot, $('#jgTarikh').value,
     { arahan:$('#jgArahan').value.trim(), rptFokus:fokus,
-      tajuk: fokus ? (fokus.tajuk||fokus.tema||'') : tajukManual,
-      cadangSp: !fokus });
+      tajuk: fokus ? (fokus.tajuk||fokus.tema||'') || tajukManual : tajukManual,
+      cadangSp: manual ? !(manual.sk && manual.sp) : !fokus,
+      rptManual: !!manual,
+      rptMingguAsal: dariLain ? (dariLain.minggu || '') : '' });
   sibuk(true,'AI sedang membina RPH…');
   try{
     const rph = await janaRphAI(ctx);
+    if(manual) rph.rptManual = true;                          // ditulis sendiri oleh guru
+    if(dariLain) rph.rptMingguAsal = dariLain.minggu || '';   // tajuk dilangkau
     const ref = await rujuk('rph').add(rph);
-    await muatRph(); sibuk(false); toast('RPH dijana','jaya'); bukaRph(ref.id);
+    await muatRph(); sibuk(false);
+    toast(manual ? 'RPH dijana guna SK/SP anda sendiri'
+      : dariLain ? `RPH dijana guna tajuk ${labelMinggu(dariLain.minggu)}` : 'RPH dijana', 'jaya');
+    bukaRph(ref.id);
   }catch(e){ sibuk(false); toast('Gagal: '+e.message,'salah'); }
 }
 async function janaSlot(slotId, tarikh){

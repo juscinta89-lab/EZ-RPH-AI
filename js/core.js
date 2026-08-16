@@ -105,22 +105,22 @@ const MENU = [
   { id:'dashboard', nama:'Dashboard' },
   { id:'rph',       nama:'RPH Saya' },
   { id:'kalendar',  nama:'Kalendar' },
-  { id:'jana',      nama:'Jana RPH AI' },
-  { grp:'Tetapan Kurikulum' },
+  { id:'jana',      nama:'AI Generator' },
+  { grp:'Setup Kurikulum' },
   { id:'jadual',    nama:'Jadual Waktu' },
   { id:'kelas',     nama:'Kelas' },
   { id:'subjek',    nama:'Subjek' },
   { id:'rpt',       nama:'RPT' },
   { id:'buku',      nama:'Buku Teks' },
   { id:'takwim',    nama:'Takwim' },
-  { grp:'Lain-lain' },
+  { grp:'Tools & Laporan' },
   { id:'cetak',     nama:'Cetak Mingguan' },
   { id:'audit',     nama:'Semakan RPH' },
-  { id:'drive',     nama:'Simpan ke Drive' },
+  { id:'drive',     nama:'Google Drive' },
   { id:'rujukan',   nama:'Bahan Rujukan' },
-  { id:'laporan',   nama:'Laporan' },
+  { id:'laporan',   nama:'Laporan & Statistik' },
   { id:'tetapan',   nama:'Tetapan' },
-  { id:'admin',     nama:'Panel Pentadbir', peranan:['pemilik','admin'] }
+  { id:'admin',     nama:'Admin Panel', peranan:['pemilik','admin'] }
 ];
 
 function binaMenu(){
@@ -143,7 +143,7 @@ const TAJUK = {
   dashboard:['Dashboard','Ringkasan PdP anda hari ini'],
   rph:['RPH Saya','Semua Rancangan Pengajaran Harian'],
   kalendar:['Kalendar RPH','Status RPH mengikut tarikh'],
-  jana:['Jana RPH AI','Hasilkan RPH daripada jadual waktu & RPT'],
+  jana:['AI Generator','Hasilkan RPH daripada jadual waktu & RPT'],
   jadual:['Jadual Waktu','Slot PdP mingguan anda'],
   kelas:['Kelas','Senarai kelas yang anda ajar'],
   subjek:['Subjek','Mata pelajaran sekolah'],
@@ -152,11 +152,11 @@ const TAJUK = {
   takwim:['Takwim Persekolahan','Minggu persekolahan & cuti'],
   cetak:['Cetak Mingguan','Cetak set RPH untuk fail rekod'],
   audit:['Semakan RPH','Kesan isu dalam semua RPH sekali gus'],
-  drive:['Simpan ke Drive','Dokumen Google Docs sedia untuk Classroom'],
+  drive:['Google Drive','Dokumen Google Docs sedia untuk Classroom'],
   rujukan:['Bahan Rujukan','Pautan sekolah & panduan tetap untuk AI'],
-  laporan:['Laporan','Statistik RPH & liputan RPT'],
+  laporan:['Laporan & Statistik','Prestasi RPH & liputan RPT'],
   tetapan:['Tetapan','Profil, AI dan aplikasi'],
-  admin:['Panel Pentadbir','Urus sekolah, guru dan data'],
+  admin:['Admin Panel','Urus sekolah, guru dan data'],
   editor:['Editor RPH','Semak dan edit sebelum simpan']
 };
 

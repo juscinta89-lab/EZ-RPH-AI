@@ -263,20 +263,31 @@ function rphSebelum(subjek, kelas, tarikh, n){
 }
 
 /* ---------- Bina prompt RPH ---------- */
+function labelMinggu(m){
+  const t = String(m||'').trim();
+  if(!t) return '-';
+  return /^minggu\b/i.test(t) ? t : 'Minggu ' + t;
+}
 function barisRpt(r){
-  return `- Minggu ${r.minggu||'-'} | Tema/Bidang: ${r.tema||'-'} | Tajuk: ${r.tajuk||'-'}\n` +
+  return `- ${labelMinggu(r.minggu)} | Tema/Bidang: ${r.tema||'-'} | Tajuk: ${r.tajuk||'-'}\n` +
          `  SK [${r.kodSk||'-'}]: ${r.sk||'-'}\n  SP [${r.kodSp||'-'}]: ${r.sp||'-'}` +
          (r.tp?`\n  TP: ${r.tp}`:'') + (r.catatan?`\n  Catatan RPT: ${r.catatan}`:'');
 }
 function promptRph(ctx){
   const rpt = rptUntuk(ctx.subjek, ctx.tahun, ctx.minggu);
   let fokus = ctx.rptFokus || null;
-  let lain = rpt.minggu.filter(r => !fokus || r.id !== fokus.id);
+  /* Jika guru menulis sendiri atau mengambil tajuk daripada minggu lain, baris
+     minggu semasa TIDAK disertakan langsung — jika disertakan, AI cenderung
+     kembali kepadanya dan mengabaikan pilihan guru. */
+  const rptSendiri = !!ctx.rptManual;
+  const dariMingguLain = !!ctx.rptMingguAsal;
+  const abaiMingguIni = rptSendiri || dariMingguLain;
+  let lain = abaiMingguIni ? [] : rpt.minggu.filter(r => !fokus || r.id !== fokus.id);
   const rptTeks = fokus
     ? barisRpt(fokus) + (lain.length ? '\n\nBARIS LAIN MINGGU INI (rujukan sahaja):\n' + lain.map(barisRpt).join('\n') : '')
     : (rpt.minggu.length ? rpt.minggu.map(barisRpt).join('\n') : 'TIADA BARIS RPT UNTUK MINGGU INI.');
-  const rptSekitar = rpt.sekitar.length
-    ? rpt.sekitar.map(barisRpt).join('\n') : 'Tiada.';
+  const rptSekitar = abaiMingguIni ? 'Tidak berkaitan — guru telah menetapkan fokus PdP secara khusus.'
+    : (rpt.sekitar.length ? rpt.sekitar.map(barisRpt).join('\n') : 'Tiada.');
   const buku = kontekBuku(ctx.subjek, ctx.tahun);
   const bukuTeks = buku.length
     ? buku.map(b => `- ${b.buku||'Buku Teks'} | Bab ${b.bab||'-'} | ${b.unit||''} | ${b.tajuk||''}${b.pautan?' | pautan: '+b.pautan:''}: ${(b.kandungan||'').slice(0,300)}`).join('\n')
@@ -309,7 +320,19 @@ Tempoh sebenar: ${ctx.tempoh} minit
 ${ctx.tajuk ? 'Tajuk dikehendaki guru: '+ctx.tajuk : ''}
 ${ctx.arahan ? 'Arahan khas guru: '+ctx.arahan : ''}
 
-${fokus ? 'BARIS RPT DIPILIH GURU — INI FOKUS PdP, GUNA SK/SP/TAJUK TEPAT DARIPADANYA' : 'RPT MINGGU INI — SUMBER RASMI, GUNA TEPAT SEPERTI DI BAWAH'}
+${rptSendiri
+  ? `SK / SP DITULIS SENDIRI OLEH GURU — INI SUMBER MUKTAMAD
+Guru telah menetapkan fokus PdP secara manual. Salin medan yang diisi di bawah
+TEPAT SEPERTI TERTULIS ke dalam RPH — jangan ubah ayat, jangan ringkaskan, jangan
+gantikan dengan mana-mana baris RPT. Ruang yang dibiarkan kosong sahaja boleh anda
+cadangkan sendiri, dan cadangan itu WAJIB dinyatakan dalam medan "amaran".`
+  : dariMingguLain
+  ? `BARIS RPT DIPILIH GURU DARIPADA ${labelMinggu(ctx.rptMingguAsal).toUpperCase()} — GURU SENGAJA MELANGKAU/MENDAHULUI RPT
+Kelas ini tidak mengikut turutan RPT kerana keadaan sebenar di sekolah. Gunakan SK, SP, kod dan
+tajuk DARIPADA BARIS DI BAWAH SAHAJA. JANGAN gantikan dengan tajuk ${labelMinggu(ctx.minggu) || 'minggu semasa'}.
+Medan "minggu" dalam RPH tetap ${labelMinggu(ctx.minggu)} kerana itulah minggu sesi PdP ini berlangsung.`
+  : (fokus ? 'BARIS RPT DIPILIH GURU — INI FOKUS PdP, GUNA SK/SP/TAJUK TEPAT DARIPADANYA'
+           : 'RPT MINGGU INI — SUMBER RASMI, GUNA TEPAT SEPERTI DI BAWAH')}
 ${rptTeks}
 
 RPT MINGGU BERHAMPIRAN (konteks kesinambungan sahaja, jangan guna standardnya)
@@ -545,8 +568,9 @@ function auditRph(r){
   if(salahEja.length) m.push({ kod:'ejaan', berat:'rendah', boleh:true, betul:'ejaan',
     teks:`Ejaan bukan baku: ${salahEja.slice(0,4).map(s => `${s} → ${EJAAN_SALAH[s]}`).join(', ')}` });
 
-  // SP tidak sepadan dengan RPT minggu berkenaan
-  if(r.kodSp && r.subjek && r.minggu){
+  // SP tidak sepadan dengan RPT minggu berkenaan.
+  // Dilangkau jika guru menulis SK/SP sendiri atau sengaja mengambil tajuk minggu lain.
+  if(r.kodSp && r.subjek && r.minggu && !r.rptMingguAsal && !r.rptManual){
     const kelas = S.kelas.find(k => norma(k.nama) === norma(r.kelas));
     const rpt = (typeof rptUntuk === 'function') ? rptUntuk(r.subjek, kelas?.tahun || '', r.minggu) : { minggu:[] };
     if(rpt.minggu && rpt.minggu.length){
