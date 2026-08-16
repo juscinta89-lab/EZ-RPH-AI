@@ -333,15 +333,39 @@ const LABEL_MASALAH = {
   angka:'Bilangan murid salah', kelas:'Kelas tidak dikenali', sk:'Standard Kandungan',
   sp:'Standard Pembelajaran', objektif:'Objektif kosong', kriteria:'Kriteria kejayaan kosong',
   aktiviti:'Aktiviti terlalu ringkas', tajuk:'Tajuk kosong', bbm:'BBM kosong',
-  pbd:'Pentaksiran kosong', amaran:'Amaran AI', rpt:'SP tidak sepadan RPT', refleksi:'Refleksi kosong'
+  pbd:'Pentaksiran kosong', amaran:'Amaran AI', rpt:'SP tidak sepadan RPT', refleksi:'Refleksi kosong',
+  skSama:'SK sama dengan SP', skPanjang:'Standard terlalu panjang', kbat:'KBAT salah isi',
+  emk:'EMK luar senarai', nilai:'Nilai Murni jadi ayat', pak21:'PAK-21 salah isi',
+  objUkur:'Objektif tak terukur', masa:'Jumlah masa tak padan', refAwal:'Refleksi ditulis awal',
+  ejaan:'Ejaan bukan baku', ulang:'RPH berulang', bentrok:'Jadual bertindih'
 };
 
 function halAudit(){
   const hasil = S.rph.map(r => ({ r, m: auditRph(r) }));
+  const petaHasil = {}; hasil.forEach(x => petaHasil[x.r.id] = x);
+
+  // RPH yang menyalin bulat RPH terdahulu kelas & subjek sama
+  const ulang = semakUlangRph(S.rph);
+  ulang.forEach((asal, id) => {
+    if(petaHasil[id]) petaHasil[id].m.push({ kod:'ulang', berat:'sederhana', boleh:false,
+      teks:`Aktiviti & BBM sama dengan RPH ${tarikhCantik(asal.tarikh)}` });
+  });
+
+  // Dua RPH bertindih masa pada tarikh yang sama
+  const bentrok = semakBentrok(S.rph);
+  bentrok.forEach(b => {
+    [b.a, b.b].forEach(r => {
+      if(petaHasil[r.id] && !petaHasil[r.id].m.some(p => p.kod==='bentrok'))
+        petaHasil[r.id].m.push({ kod:'bentrok', berat:'tinggi', boleh:false, teks:b.teks });
+    });
+  });
+
   const bermasalah = hasil.filter(x => x.m.length);
   const kiraJenis = {};
   bermasalah.forEach(x => x.m.forEach(p => kiraJenis[p.kod] = (kiraJenis[p.kod]||0)+1));
-  const bolehBaiki = bermasalah.filter(x => x.m.some(p => p.boleh)).length;
+  const bolehBaiki = bermasalah.filter(x => x.m.some(p => p.kod === 'angka')).length;
+  const bolehKemas = bermasalah.filter(x => x.m.some(p => p.betul)).length;
+  window._auditBentrok = bentrok;
   const berat = k => bermasalah.filter(x => x.m.some(p => p.berat === k)).length;
   window._auditHasil = hasil;
 
@@ -359,6 +383,25 @@ function halAudit(){
         Angka murid dalam refleksi/kriteria tidak sepadan dengan data kelas anda.
         Sistem boleh membetulkan kesemuanya sekali gus mengikut senarai kelas.</p>
       <button class="btn btn-primary" onclick="baikiSemuaAngka()">🔧 Betulkan ${bolehBaiki} RPH sekali gus</button>
+    </div>` : ''}
+
+    ${bentrok.length ? `<div class="kad" style="background:#fdeaea;border-color:#f5cfcf">
+      <div class="kad-h"><h3 style="color:#a33">${bentrok.length} pertindihan jadual</h3></div>
+      <p style="font-size:13px;color:var(--teks-2);margin-bottom:10px">
+        Perkara ini perlu dibetulkan pada jadual waktu, bukan pada teks RPH.</p>
+      <div style="display:grid;gap:6px">
+        ${bentrok.slice(0,12).map(b => `<div style="font-size:12.5px;color:var(--teks-2)">
+          <b>${tarikhCantik(b.tarikh)}</b> — ${esc(b.teks)}</div>`).join('')}
+        ${bentrok.length>12 ? `<div style="font-size:12px;color:var(--teks-3)">…dan ${bentrok.length-12} lagi</div>`:''}
+      </div>
+    </div>` : ''}
+
+    ${bolehKemas ? `<div class="kad" style="background:#fdf3dd;border-color:#f0dcae">
+      <div class="kad-h"><h3 style="color:#8a6106">${bolehKemas} RPH dengan medan tidak kemas</h3></div>
+      <p style="font-size:13px;color:var(--teks-2);margin-bottom:12px">
+        Ejaan bukan baku dan medan KBAT yang diisi dengan strategi. Sistem boleh
+        membetulkannya secara automatik tanpa menjana semula RPH.</p>
+      <button class="btn btn-primary" onclick="kemasSemuaMedan()">✨ Kemaskan ${bolehKemas} RPH</button>
     </div>` : ''}
 
     ${!bermasalah.length ? `<div class="kad" style="text-align:center;padding:30px">
@@ -400,6 +443,38 @@ function tapisAudit(kod){
           <span style="color:var(--teks-2)">${esc(p.teks)}</span></div>`).join('')}
       </div></div>`;
   }).join('') + (hasil.length>200 ? `<p style="text-align:center;color:var(--teks-3);font-size:12px;padding:10px">Menunjukkan 200 daripada ${hasil.length}</p>` : '');
+}
+
+async function kemasSemuaMedan(){
+  const sasar = (window._auditHasil||[]).filter(x => x.m.some(p => p.betul));
+  if(!sasar.length) return toast('Tiada yang perlu dikemas','jaya');
+  sahkan(`Kemaskan ejaan dan medan KBAT dalam ${sasar.length} RPH? Tindakan ini tidak boleh dibatalkan.`, async () => {
+    const MEDAN = ['tema','tajuk','sk','sp','objektif','kriteria','aktiviti','pengayaan',
+                   'pemulihan','penutup','strategi','pak21','emk','nilai','bbm',
+                   'pentaksiran','refleksi'];
+    let siap = 0;
+    for(let i = 0; i < sasar.length; i += 300){
+      sibuk(true, `Mengemas ${siap}/${sasar.length}…`);
+      const b = db.batch();
+      sasar.slice(i, i+300).forEach(({r,m}) => {
+        const ubah = {};
+        if(m.some(p => p.betul === 'ejaan'))
+          MEDAN.forEach(f => {
+            if(!r[f]) return;
+            const baharu = betulEjaan(r[f]);
+            if(baharu !== r[f]) ubah[f] = baharu;
+          });
+        if(m.some(p => p.betul === 'kbat') && r.kbat){
+          const baharu = betulKbat(r.kbat);
+          if(baharu !== r.kbat) ubah.kbat = baharu;
+        }
+        if(Object.keys(ubah).length){ ubah.dikemas = Date.now(); b.update(rujuk('rph').doc(r.id), ubah); }
+      });
+      await b.commit(); siap += Math.min(300, sasar.length - i);
+    }
+    await muatRph(); sibuk(false); pergi('audit');
+    toast(`${sasar.length} RPH dikemas`, 'jaya');
+  });
 }
 
 async function baikiSemuaAngka(){
@@ -770,7 +845,11 @@ function janaRefleksi(){
   const k = infoKelas(r.kelas);
   const jum = k.bilangan || 0;
   const cadang = jum ? [Math.round(jum*0.9), Math.round(jum*0.75), Math.round(jum*0.5)] : [];
+  const belumSampai = r.tarikh && r.tarikh > tarikhISO();
   modal('Jana refleksi', `
+    ${belumSampai ? `<div class="kad" style="background:#fdeaea;border-color:#f5cfcf;padding:11px;margin-bottom:13px;font-size:12.5px;color:#a33">
+      RPH ini bertarikh <b>${tarikhCantik(r.tarikh)}</b> — belum diajar.
+      Refleksi sepatutnya ditulis selepas PdP. Teruskan hanya jika anda pasti.</div>` : ''}
     ${jum ? `<div class="kad" style="background:var(--ungu-t);border-color:#ddd3fb;padding:11px;margin-bottom:13px;font-size:12.5px;color:var(--teks-2)">
       Kelas <b>${esc(r.kelas)}</b> mempunyai <b>${jum} murid</b>${k.tahap?` · tahap ${esc(k.tahap)}`:''}.
       Refleksi akan menggunakan angka sebenar ini.</div>`
