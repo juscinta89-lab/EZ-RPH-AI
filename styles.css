@@ -402,17 +402,24 @@ tr:last-child td{border-bottom:0}
   .lp-kepala b{font-size:11.5pt;letter-spacing:.2px}
   .lp-kepala span{font-size:7.6pt}
 
-  .lp-bar{background:#f5b301;border:.8pt solid #444;text-align:center;font-weight:700;
+  .lp-bar{background:#f5b301;border:1px solid #444;text-align:center;font-weight:700;
     font-size:10.5pt;padding:3pt;letter-spacing:.4px}
   .lp-bar2{background:#f5b301 !important;font-size:9pt !important;text-align:center}
   .lp-sub{background:#ececec !important;text-align:center}
   .lp-sub2{background:#cfe3f7 !important;text-align:center;vertical-align:middle;font-size:9.5pt}
 
-  .lp-tbl{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;
-    border-left:.8pt solid #444;border-top:.8pt solid #444;margin-top:-0.8pt}
-  .lp-tbl td,.lp-tbl th{border-right:.8pt solid #444;border-bottom:.8pt solid #444;
+  .lp-tbl{width:100%;border-collapse:collapse;table-layout:fixed;
+    border:1px solid #444}
+  .lp-tbl td,.lp-tbl th{border:1px solid #444;
     padding:2.6pt 4pt;vertical-align:top;font-size:8.8pt;word-wrap:break-word}
   .lp-tbl th{font-weight:700;font-size:8.3pt;text-align:left;background:#fff}
+  .lp-tbl table{width:100%;border-collapse:collapse;border:0}
+  .lp-tbl table td{border:1px solid #444}
+  .lp-tbl table tr:first-child td{border-top:0}
+  .lp-tbl table tr:last-child td{border-bottom:0}
+  .lp-tbl table td:first-child{border-left:0}
+  .lp-tbl table td:last-child{border-right:0}
+  .lp-semakan{margin-top:-1px}
   .lp-tbl tr{page-break-inside:avoid}
   .lp-tbl tr.lp-pecah{page-break-inside:auto}
   .lp-tbl tr.lp-pecah>td{page-break-inside:auto}
@@ -426,20 +433,34 @@ tr:last-child td{border-bottom:0}
   .lp-tbl ol,.lp-tbl ul{margin:1.5pt 0;padding-left:13pt}
   .lp-tbl li{margin:0}
 
-  .lp-seksyen{background:#ececec;border-bottom:.8pt solid #444;font-weight:700;
+  .lp-seksyen{background:#ececec;border-bottom:1px solid #444;font-weight:700;
     font-size:8.3pt;text-align:center;padding:2pt}
-  .lp-isi{padding:2.6pt 4pt;border-bottom:.8pt solid #444}
-  td .lp-isi:last-child{border-bottom:0}
+  .lp-isi{padding:2.6pt 4pt;border-bottom:1px solid #444}
+  td .lp-isi:last-child,td .lp-seksyen:last-child{border-bottom:0}
   .lp-refleksi{font-size:8.4pt;line-height:1.45}
 
   .lp-semakan .ttd{max-height:32pt;max-width:60%;display:block;margin:2pt 0}
 
   /* ---- Gaya PADAT (buku rekod) ---- */
-  .pd-tbl{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;
-    border-left:.7pt solid #444;border-top:.7pt solid #444;margin-top:-0.7pt}
-  .pd-tbl td,.pd-tbl th{border-right:.7pt solid #444;border-bottom:.7pt solid #444;
+  /* Satu lebar sempadan sahaja (1px) dan border-collapse supaya setiap garisan
+     dikongsi antara sel bersebelahan. Nilai pecahan seperti .7pt kerap dibundarkan
+     kepada 0 oleh enjin cetakan, menyebabkan garisan hilang secara rawak. */
+  .pd-tbl{width:100%;border-collapse:collapse;table-layout:fixed;
+    border:1px solid #444}
+  .pd-tbl td,.pd-tbl th{border:1px solid #444;
     padding:1.8pt 3.4pt;vertical-align:top;font-size:8.2pt;line-height:1.26;word-wrap:break-word}
+  /* Sel kosong tanpa kandungan boleh runtuh dan kehilangan sempadan */
+  .pd-tbl td:empty:after,.pd-tbl th:empty:after{content:"\00a0"}
   .pd-tbl th{font-weight:700;font-size:7.7pt;text-align:left;background:#f0f0f0}
+  /* Jadual bersambungan berkongsi satu garisan, bukan dua bertindih */
+  .pd-hari+.pd-blok,.pd-blok+.pd-blok{margin-top:-1px}
+  /* Jadual bersarang di dalam sel mewarisi sempadan yang sama */
+  .pd-tbl table{width:100%;border-collapse:collapse;border:0}
+  .pd-tbl table td{border:1px solid #444}
+  .pd-tbl table tr:first-child td{border-top:0}
+  .pd-tbl table tr:last-child td{border-bottom:0}
+  .pd-tbl table td:first-child{border-left:0}
+  .pd-tbl table td:last-child{border-right:0}
   .pd-hari td{background:#f5b301;font-size:8.4pt;padding:2.6pt 4pt}
   .pd-hari{margin-bottom:0}
   .pd-strip td{background:#e4e9f5;font-size:8.6pt;padding:2.2pt 4pt}
@@ -451,11 +472,12 @@ tr:last-child td{border-bottom:0}
   .pd-tbl li{margin:0}
   .pd-ref{background:#fdf6e6;font-size:7.9pt;line-height:1.4}
   .pd-band td{font-weight:700;font-size:8pt;padding:2pt 4pt;letter-spacing:.2px}
-  .pd-sek{background:#f0f0f0;border-bottom:.7pt solid #444;font-weight:700;font-size:7.7pt;padding:1.6pt 3.4pt}
-  .pd-isi2{padding:1.8pt 3.4pt;border-bottom:.7pt solid #444}
-  td .pd-isi2:last-child{border-bottom:0}
+  .pd-sek{background:#f0f0f0;border-bottom:1px solid #444;font-weight:700;font-size:7.7pt;padding:1.6pt 3.4pt}
+  .pd-isi2{padding:1.8pt 3.4pt;border-bottom:1px solid #444}
+  /* Bahagian terakhir dalam sel tidak perlu garisan — sempadan sel sudah ada */
+  td .pd-isi2:last-child,td .pd-sek:last-child{border-bottom:0}
   .pd-blok{margin-bottom:5pt}
-  .pd-blok+.pd-blok{margin-top:0}
+  .pd-blok+.pd-blok{margin-top:-1px}
 
   .tandatangan{display:none}
   .cetak-nota{margin-top:5pt;font-size:6.6pt;color:#777;text-align:right;letter-spacing:.2px}

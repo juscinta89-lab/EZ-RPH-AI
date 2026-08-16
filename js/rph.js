@@ -365,7 +365,13 @@ function halAudit(){
   bermasalah.forEach(x => x.m.forEach(p => kiraJenis[p.kod] = (kiraJenis[p.kod]||0)+1));
   const bolehBaiki = bermasalah.filter(x => x.m.some(p => p.kod === 'angka')).length;
   const bolehKemas = bermasalah.filter(x => x.m.some(p => p.betul)).length;
+  const pendua = cariPendua(S.rph);
+  const jumBuang = pendua.reduce((n,p) => n + p.buang.length, 0);
+  const idBuang = new Set(pendua.flatMap(p => p.buang.map(r => r.id)));
+  const bolehKemasSemua = bermasalah.filter(x => !idBuang.has(x.r.id)
+    && Object.keys(baikiMedanRph(x.r, x.m)).length).length;
   window._auditBentrok = bentrok;
+  window._auditPendua = pendua;
   const berat = k => bermasalah.filter(x => x.m.some(p => p.berat === k)).length;
   window._auditHasil = hasil;
 
@@ -396,12 +402,14 @@ function halAudit(){
       </div>
     </div>` : ''}
 
-    ${bolehKemas ? `<div class="kad" style="background:#fdf3dd;border-color:#f0dcae">
-      <div class="kad-h"><h3 style="color:#8a6106">${bolehKemas} RPH dengan medan tidak kemas</h3></div>
+    ${(pendua.length || bolehBaiki || bolehKemas) ? `<div class="kad" style="background:var(--ungu-t);border-color:#ddd3fb">
+      <div class="kad-h"><h3 style="color:#5b3fbe">Pembersihan automatik</h3></div>
       <p style="font-size:13px;color:var(--teks-2);margin-bottom:12px">
-        Ejaan bukan baku dan medan KBAT yang diisi dengan strategi. Sistem boleh
-        membetulkannya secara automatik tanpa menjana semula RPH.</p>
-      <button class="btn btn-primary" onclick="kemasSemuaMedan()">✨ Kemaskan ${bolehKemas} RPH</button>
+        ${[ pendua.length ? `<b>${jumBuang} RPH pendua</b> boleh dipadam` : '',
+            (bolehBaiki||bolehKemas) ? `<b>${bolehKemasSemua} RPH</b> boleh dibetulkan medannya` : ''
+          ].filter(Boolean).join(' · ')}.
+        Sistem akan tunjuk senarai penuh sebelum sebarang perubahan dibuat.</p>
+      <button class="btn btn-primary" onclick="bersihAuto()">🧹 Semak & bersihkan automatik</button>
     </div>` : ''}
 
     ${!bermasalah.length ? `<div class="kad" style="text-align:center;padding:30px">
@@ -445,36 +453,141 @@ function tapisAudit(kod){
   }).join('') + (hasil.length>200 ? `<p style="text-align:center;color:var(--teks-3);font-size:12px;padding:10px">Menunjukkan 200 daripada ${hasil.length}</p>` : '');
 }
 
-async function kemasSemuaMedan(){
-  const sasar = (window._auditHasil||[]).filter(x => x.m.some(p => p.betul));
-  if(!sasar.length) return toast('Tiada yang perlu dikemas','jaya');
-  sahkan(`Kemaskan ejaan dan medan KBAT dalam ${sasar.length} RPH? Tindakan ini tidak boleh dibatalkan.`, async () => {
-    const MEDAN = ['tema','tajuk','sk','sp','objektif','kriteria','aktiviti','pengayaan',
-                   'pemulihan','penutup','strategi','pak21','emk','nilai','bbm',
-                   'pentaksiran','refleksi'];
-    let siap = 0;
-    for(let i = 0; i < sasar.length; i += 300){
-      sibuk(true, `Mengemas ${siap}/${sasar.length}…`);
-      const b = db.batch();
-      sasar.slice(i, i+300).forEach(({r,m}) => {
-        const ubah = {};
-        if(m.some(p => p.betul === 'ejaan'))
-          MEDAN.forEach(f => {
-            if(!r[f]) return;
-            const baharu = betulEjaan(r[f]);
-            if(baharu !== r[f]) ubah[f] = baharu;
-          });
-        if(m.some(p => p.betul === 'kbat') && r.kbat){
-          const baharu = betulKbat(r.kbat);
-          if(baharu !== r.kbat) ubah.kbat = baharu;
-        }
-        if(Object.keys(ubah).length){ ubah.dikemas = Date.now(); b.update(rujuk('rph').doc(r.id), ubah); }
-      });
-      await b.commit(); siap += Math.min(300, sasar.length - i);
+/* ============ PEMBERSIHAN AUTOMATIK ============ */
+function bersihAuto(){
+  const hasil = window._auditHasil || [];
+  const pendua = window._auditPendua || [];
+  const bentrok = window._auditBentrok || [];
+  const idBuang = new Set(pendua.flatMap(p => p.buang.map(r => r.id)));
+
+  const baiki = hasil.filter(x => x.m.length && !idBuang.has(x.r.id))
+    .map(x => ({ ...x, ubah: baikiMedanRph(x.r, x.m) }))
+    .filter(x => Object.keys(x.ubah).length);
+
+  const perluAi = hasil.filter(x => !idBuang.has(x.r.id)
+    && x.m.some(p => ISU_PERLU_AI.includes(p.kod)));
+
+  const takAuto = hasil.filter(x => !idBuang.has(x.r.id)
+    && x.m.some(p => ISU_TAK_AUTO.includes(p.kod)));
+
+  const jumBuang = pendua.reduce((n,p) => n + p.buang.length, 0);
+
+  if(!jumBuang && !baiki.length && !perluAi.length)
+    return toast('Tiada apa-apa yang boleh dibersihkan automatik','jaya');
+
+  window._bersih = { pendua, baiki, perluAi };
+
+  const senaraiPendua = pendua.slice(0,8).map(p =>
+    `<div style="font-size:12.5px;color:var(--teks-2);padding:5px 0;border-bottom:1px solid var(--garis)">
+      <b>${esc(p.simpan.subjek)}</b> · ${esc(p.simpan.kelas)} · ${tarikhCantik(p.simpan.tarikh)}
+      ${p.simpan.mula?`· ${esc(p.simpan.mula)}`:''}
+      <span style="color:var(--teks-3)"> — simpan 1, padam ${p.buang.length}</span>
+    </div>`).join('');
+
+  modal('Pembersihan automatik', `
+    ${jumBuang ? `<div class="kad" style="padding:12px;margin-bottom:12px">
+      <b style="font-size:13.5px">1 · Padam ${jumBuang} RPH pendua</b>
+      <p style="font-size:12.5px;color:var(--teks-2);margin:6px 0 8px">
+        Rekod bertindan pada slot yang sama. Yang paling lengkap dikekalkan.</p>
+      ${senaraiPendua}
+      ${pendua.length>8?`<div style="font-size:12px;color:var(--teks-3);padding-top:6px">…dan ${pendua.length-8} slot lagi</div>`:''}
+      <label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-size:13px">
+        <input type="checkbox" id="bsPendua" checked> Padam pendua</label>
+    </div>` : ''}
+
+    ${baiki.length ? `<div class="kad" style="padding:12px;margin-bottom:12px">
+      <b style="font-size:13.5px">2 · Betulkan medan dalam ${baiki.length} RPH</b>
+      <p style="font-size:12.5px;color:var(--teks-2);margin:6px 0 8px">
+        Ejaan bukan baku, KBAT salah isi, EMK/Nilai Murni yang jadi ayat,
+        bilangan murid tidak sepadan, dan refleksi yang ditulis sebelum tarikh PdP.
+        Tiada panggilan AI — pantas dan percuma.</p>
+      <label style="display:flex;gap:8px;align-items:center;font-size:13px">
+        <input type="checkbox" id="bsBaiki" checked> Betulkan medan</label>
+    </div>` : ''}
+
+    ${perluAi.length ? `<div class="kad" style="padding:12px;margin-bottom:12px">
+      <b style="font-size:13.5px">3 · Jana semula ${perluAi.length} RPH dengan AI</b>
+      <p style="font-size:12.5px;color:var(--teks-2);margin:6px 0 8px">
+        Untuk isu yang perlu pertimbangan: SK sama dengan SP, standard disalin bulat
+        daripada DSKP, objektif tak terukur, jumlah masa tak padan, dan RPH yang
+        menyalin hari sebelumnya. Refleksi sedia ada dikekalkan.
+        <b>Menggunakan kuota AI dan mengambil masa.</b></p>
+      <label style="display:flex;gap:8px;align-items:center;font-size:13px">
+        <input type="checkbox" id="bsAi"> Jana semula dengan AI</label>
+    </div>` : ''}
+
+    ${(takAuto.length || bentrok.length) ? `<div class="kad" style="background:#fdf3dd;border-color:#f0dcae;padding:12px">
+      <b style="font-size:13.5px;color:#8a6106">Perlu perhatian abang sendiri</b>
+      <p style="font-size:12.5px;color:var(--teks-2);margin-top:6px">
+        ${[ bentrok.length?`${bentrok.length} pertindihan jadual (betulkan di jadual waktu)`:'',
+            takAuto.length?`${takAuto.length} RPH dengan standard atau aktiviti kosong (perlu RPT dilengkapkan)`:''
+          ].filter(Boolean).join(' · ')}.
+        Perkara ini tidak disentuh oleh pembersihan automatik.</p>
+    </div>` : ''}`,
+    `<button class="btn" onclick="tutupModal()">Batal</button>
+     <button class="btn btn-primary" onclick="jalankanBersih()">Jalankan</button>`);
+}
+
+async function jalankanBersih(){
+  const buatPendua = $('#bsPendua')?.checked, buatBaiki = $('#bsBaiki')?.checked,
+        buatAi = $('#bsAi')?.checked;
+  const { pendua, baiki, perluAi } = window._bersih || {};
+  tutupModal();
+  if(!buatPendua && !buatBaiki && !buatAi) return toast('Tiada tindakan dipilih');
+
+  const kira = { padam:0, baiki:0, jana:0, gagal:0 };
+  try{
+    /* 1 — padam pendua */
+    if(buatPendua && pendua?.length){
+      const buang = pendua.flatMap(p => p.buang);
+      for(let i = 0; i < buang.length; i += 300){
+        sibuk(true, `Memadam pendua ${kira.padam}/${buang.length}…`);
+        const b = db.batch();
+        buang.slice(i, i+300).forEach(r => b.delete(rujuk('rph').doc(r.id)));
+        await b.commit(); kira.padam += Math.min(300, buang.length - i);
+      }
     }
+
+    /* 2 — betulkan medan */
+    if(buatBaiki && baiki?.length){
+      for(let i = 0; i < baiki.length; i += 300){
+        sibuk(true, `Membetulkan medan ${kira.baiki}/${baiki.length}…`);
+        const b = db.batch();
+        baiki.slice(i, i+300).forEach(({r, ubah}) =>
+          b.update(rujuk('rph').doc(r.id), { ...ubah, dikemas: Date.now() }));
+        await b.commit(); kira.baiki += Math.min(300, baiki.length - i);
+      }
+    }
+
+    /* 3 — jana semula dengan AI (satu demi satu, refleksi dikekalkan) */
+    if(buatAi && perluAi?.length){
+      const idPadam = new Set((buatPendua && pendua ? pendua.flatMap(p=>p.buang) : []).map(r => r.id));
+      const sasar = perluAi.filter(x => !idPadam.has(x.r.id));
+      for(let i = 0; i < sasar.length; i++){
+        const r = sasar[i].r;
+        sibuk(true, `AI menjana semula ${i+1}/${sasar.length} · ${r.subjek} ${r.kelas}…`);
+        try{
+          const baru = await janaRphAI({ slotId:r.slotId, tarikh:r.tarikh, subjek:r.subjek,
+            kelas:r.kelas, tahun:r.tahun, mula:r.mula, tamat:r.tamat,
+            tempoh:r.tempoh || minit(r.mula, r.tamat), minggu:r.minggu, tajuk:r.tajuk });
+          delete baru.dicipta; delete baru.status;
+          baru.refleksi = r.refleksi || '';      // kekalkan refleksi guru
+          await rujuk('rph').doc(r.id).update({ ...baru, dikemas: Date.now() });
+          kira.jana++;
+        }catch(e){ kira.gagal++; }
+      }
+    }
+
     await muatRph(); sibuk(false); pergi('audit');
-    toast(`${sasar.length} RPH dikemas`, 'jaya');
-  });
+    toast([ kira.padam?`${kira.padam} pendua dipadam`:'',
+            kira.baiki?`${kira.baiki} dibetulkan`:'',
+            kira.jana?`${kira.jana} dijana semula`:'',
+            kira.gagal?`${kira.gagal} gagal`:'' ].filter(Boolean).join(' · '),
+          kira.gagal ? 'salah' : 'jaya');
+  }catch(e){
+    sibuk(false); await muatRph(); pergi('audit');
+    toast('Berhenti: '+e.message, 'salah');
+  }
 }
 
 async function baikiSemuaAngka(){
@@ -945,8 +1058,8 @@ function htmlRph(r, tunjukSemakan){
     ___ / ${bil} murid tidak dapat mencapai objektif pembelajaran dan diberi latihan pemulihan.<br><br>
     <b>PdPC pada hari ini:</b>
     <table style="width:100%;border-collapse:collapse;margin-top:2pt">
-      <tr><td style="border:.7pt solid #444;padding:1.6pt 3pt">Memuaskan</td><td style="border:.7pt solid #444;width:9mm"></td></tr>
-      <tr><td style="border:.7pt solid #444;padding:1.6pt 3pt">Tidak memuaskan</td><td style="border:.7pt solid #444"></td></tr>
+      <tr><td style="border:1px solid #444;padding:1.6pt 3pt">Memuaskan</td><td style="border:1px solid #444;width:9mm"></td></tr>
+      <tr><td style="border:1px solid #444;padding:1.6pt 3pt">Tidak memuaskan</td><td style="border:1px solid #444"></td></tr>
     </table>`;
 
   return `
@@ -976,7 +1089,7 @@ function htmlRph(r, tunjukSemakan){
     ${band('ASPIRASI MURID')}
     <tr><td colspan="6" style="padding:0"><table style="width:100%;border-collapse:collapse;table-layout:fixed">
       <tr>${['Pengetahuan','Kemahiran Berfikir','Kemahiran Memimpin','Kemahiran Dwibahasa','Etika dan Kerohanian','Identiti Nasional']
-        .map((x,i)=>`<td style="${i<5?'border-right:.7pt solid #444;':''}padding:1.6pt 3pt;font-size:7.6pt;text-align:center">☐ ${x}</td>`).join('')}</tr>
+        .map((x,i)=>`<td style="${i<5?'border-right:1px solid #444;':''}padding:1.6pt 3pt;font-size:7.6pt;text-align:center">☐ ${x}</td>`).join('')}</tr>
     </table></td></tr>
     <tr class="pd-band" style="background:${gelap}"><td colspan="3">OBJEKTIF PEMBELAJARAN (OP)</td>
         <td colspan="3">KRITERIA KEJAYAAN (KK)</td></tr>
@@ -1004,8 +1117,8 @@ function htmlRph(r, tunjukSemakan){
     <tr><td colspan="6" style="padding:0"><table style="width:100%;border-collapse:collapse">
       ${['PdPC akan diteruskan dengan topik baharu.','PdPC akan diulang semula pada pembelajaran akan datang.',
          'PdPC tidak dilaksanakan kerana: ________________________________________']
-        .map(x=>`<tr><td style="border-bottom:.7pt solid #444;width:8mm;text-align:center;padding:1.6pt">☐</td>
-          <td style="border-bottom:.7pt solid #444;padding:1.6pt 3pt">${x}</td></tr>`).join('')}
+        .map(x=>`<tr><td style="border-bottom:1px solid #444;width:8mm;text-align:center;padding:1.6pt">☐</td>
+          <td style="border-bottom:1px solid #444;padding:1.6pt 3pt">${x}</td></tr>`).join('')}
     </table></td></tr>
   </table>
   ${tunjukSemakan === false ? '' : `

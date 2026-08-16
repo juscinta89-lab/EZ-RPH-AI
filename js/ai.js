@@ -610,15 +610,109 @@ function semakUlangRph(senarai){
   const ulang = new Map();
   for(const senaraiKelas of Object.values(kump)){
     const cap = {};
-    senaraiKelas.sort((a,b) => String(a.tarikh).localeCompare(b.tarikh)).forEach(r => {
+    senaraiKelas.slice().sort((a,b) => String(a.tarikh).localeCompare(b.tarikh)).forEach(r => {
       const c = capRph(r);
       if(c.length < 40) return;
-      if(cap[c]) ulang.set(r.id, cap[c]);
-      else cap[c] = r;
+      // Rekod pada tarikh yang sama ialah pendua slot, bukan isi berulang —
+      // biar cariPendua() yang uruskan supaya tidak ditanda dua kali.
+      if(cap[c] && cap[c].tarikh !== r.tarikh) ulang.set(r.id, cap[c]);
+      else if(!cap[c]) cap[c] = r;
     });
   }
   return ulang;   // Map: id RPH => RPH asal yang disalin
 }
+
+/* ---------- Pendua sebenar: rekod sama tersimpan berkali-kali ---------- */
+/* Berbeza daripada semakUlangRph(): ini rekod bertindan pada slot yang SAMA,
+   bukan isi serupa pada tarikh berlainan. Hanya jenis ini selamat dipadam. */
+function skorLengkap(r){
+  let s = 0;
+  ['sk','sp','objektif','kriteria','tajuk','bbm','pentaksiran','strategi',
+   'pak21','kbat','emk','nilai','pemulihan','pengayaan'].forEach(f => {
+    if(String(r[f]||'').trim().length > 2) s += 1;
+  });
+  s += Math.min(6, Math.floor(stripHtml(r.aktiviti||'').length / 200));
+  if(String(r.refleksi||'').trim()) s += 3;
+  if(r.status === 'lengkap') s += 2;
+  return s;
+}
+function cariPendua(senarai){
+  const kump = {};
+  (senarai || S.rph).forEach(r => {
+    if(!r.tarikh || !r.subjek || !r.kelas) return;
+    const kunci = [r.tarikh, norma(r.subjek), norma(r.kelas), r.mula||'', r.tamat||''].join('|');
+    (kump[kunci] = kump[kunci] || []).push(r);
+  });
+  const set = [];
+  for(const senaraiSlot of Object.values(kump)){
+    if(senaraiSlot.length < 2) continue;
+    const isih = senaraiSlot.slice().sort((a,b) =>
+      skorLengkap(b) - skorLengkap(a) || (b.dikemas||0) - (a.dikemas||0));
+    set.push({ simpan: isih[0], buang: isih.slice(1) });
+  }
+  return set.sort((a,b) => String(b.simpan.tarikh).localeCompare(a.simpan.tarikh));
+}
+
+/* ---------- Pembetulan medan tanpa AI ---------- */
+/* Pulangkan objek perubahan sahaja; kosong bermakna tiada apa boleh dibetulkan. */
+function baikiMedanRph(r, isu){
+  const ubah = {};
+  const MEDAN = ['tema','tajuk','sk','sp','objektif','kriteria','aktiviti','pengayaan',
+                 'pemulihan','penutup','strategi','pak21','emk','nilai','bbm',
+                 'pentaksiran','refleksi'];
+
+  if(isu.some(p => p.kod === 'ejaan'))
+    MEDAN.forEach(f => {
+      if(!r[f]) return;
+      const baharu = betulEjaan(r[f]);
+      if(baharu !== r[f]) ubah[f] = baharu;
+    });
+
+  if(isu.some(p => p.kod === 'kbat') && r.kbat){
+    const baharu = betulKbat(r.kbat);
+    if(baharu !== r.kbat) ubah.kbat = baharu;
+  }
+
+  // EMK ditulis sebagai ayat: cari elemen rasmi yang disebut di dalamnya
+  if(isu.some(p => p.kod === 'emk') && r.emk){
+    const jumpa = EMK_SAH.filter(e => norma(r.emk).includes(norma(e)));
+    if(jumpa.length) ubah.emk = jumpa.slice(0,2).join(', ');
+  }
+
+  // Nilai Murni ditulis sebagai ayat: cabut kata nama nilai yang dikenali
+  if(isu.some(p => p.kod === 'nilai') && r.nilai){
+    const NILAI = ['Kerjasama','Kerajinan','Kesyukuran','Ketelitian','Keyakinan diri',
+      'Kejujuran','Hormat-menghormati','Bertanggungjawab','Berdisiplin','Kesabaran',
+      'Keberanian','Kesungguhan','Kreativiti','Empati','Kasih sayang','Toleransi'];
+    const jumpa = NILAI.filter(n => norma(r.nilai).includes(norma(n.split('-')[0].slice(0,7))));
+    if(jumpa.length) ubah.nilai = jumpa.slice(0,4).join(', ');
+  }
+
+  // Refleksi ditulis untuk tarikh yang belum sampai: kosongkan
+  if(isu.some(p => p.kod === 'refAwal')) ubah.refleksi = '';
+
+  // Bilangan murid tidak sepadan data kelas
+  const angka = isu.find(p => p.kod === 'angka');
+  if(angka?.jum){
+    ['refleksi','kriteria','objektif','aktiviti'].forEach(f => {
+      const asal = ubah[f] ?? r[f];
+      if(!asal) return;
+      const baharu = betulTeksAngka(asal, angka.jum);
+      if(baharu !== (r[f] ?? '')) ubah[f] = baharu;
+      else delete ubah[f];
+    });
+  }
+
+  // Buang medan yang akhirnya tidak berubah langsung
+  Object.keys(ubah).forEach(f => { if(ubah[f] === (r[f] ?? '')) delete ubah[f]; });
+
+  return ubah;
+}
+
+/* Isu yang tidak boleh dibaiki secara automatik langsung */
+const ISU_TAK_AUTO = ['bentrok','sk','sp','rpt','kelas','aktiviti','objektif','kriteria'];
+/* Isu yang perlu AI jana semula RPH */
+const ISU_PERLU_AI = ['skSama','skPanjang','objUkur','masa','ulang','pak21'];
 
 function semakKualiti(r){
   const angka = semakAngkaMurid(r);
