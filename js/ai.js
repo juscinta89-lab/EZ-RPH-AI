@@ -936,7 +936,15 @@ function cubaSilangKata(isih){
     if(!nombor[kk]) nombor[kk] = ++n;
     k.no = nombor[kk];
   });
-  return { sel, nombor, kunci, luas: sel.length * sel[0].length };
+  return { baris: selKeBaris(sel), lebar: sel[0].length, nombor, kunci,
+           luas: sel.length * sel[0].length };
+}
+
+/* Firestore tidak menyokong array dalam array, jadi grid disimpan sebagai
+   senarai baris teks. Titik '.' bermaksud petak kosong. */
+function selKeBaris(sel){ return sel.map(b => b.map(c => c || '.').join('')); }
+function barisKeSel(g){
+  return (g?.baris || []).map(b => b.split('').map(ch => ch === '.' ? null : ch));
 }
 
 /* ---------- Susun atur cari perkataan ---------- */
@@ -969,7 +977,7 @@ function binaCariPerkataan(kata){
   const HURUF = 'ABCDEFGHIJKLMNOPRSTUVW';
   for(let r=0;r<N;r++) for(let c=0;c<N;c++)
     if(!grid[r][c]) grid[r][c] = HURUF[Math.floor(Math.random()*HURUF.length)];
-  return { sel:grid, kunci:letak, gugur: kata.length - letak.length };
+  return { baris: selKeBaris(grid), lebar: N, kunci: letak, gugur: kata.length - letak.length };
 }
 
 function semakKualiti(r){

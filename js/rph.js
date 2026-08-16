@@ -997,7 +997,8 @@ function htmlSkema(L){
 
 function htmlSilangKata(L, skema){
   const g = L.grid; if(!g) return '';
-  const baris = g.sel.map((b,ri) => `<tr>${b.map((ch,ci) => {
+  const sel = barisKeSel(g);
+  const baris = sel.map((b,ri) => `<tr>${b.map((ch,ci) => {
     if(!ch) return '<td class="lt-kosong"></td>';
     const no = g.nombor[ri+','+ci];
     return `<td class="lt-sel">${no?`<i>${no}</i>`:''}${skema?esc(ch):''}</td>`;
@@ -1019,8 +1020,8 @@ function htmlCariKata(L, skema){
   if(skema) (g.kunci||[]).forEach(k => {
     for(let i=0;i<k.perkataan.length;i++) tanda.add((k.r+k.dr*i)+','+(k.c+k.dc*i));
   });
-  const baris = g.sel.map((b,ri) => `<tr>${b.map((ch,ci) =>
-    `<td class="lt-sel${tanda.has(ri+','+ci)?' lt-jumpa':''}">${esc(ch)}</td>`).join('')}</tr>`).join('');
+  const baris = barisKeSel(g).map((b,ri) => `<tr>${b.map((ch,ci) =>
+    `<td class="lt-sel${tanda.has(ri+','+ci)?' lt-jumpa':''}">${esc(ch||'')}</td>`).join('')}</tr>`).join('');
   return `<table class="lt-grid lt-cari">${baris}</table>
     <div class="lt-senarai-kata"><b>Cari perkataan ini:</b>
       ${(L.kata||[]).map(k => `<span>${esc(k.perkataan)}</span>`).join('')}</div>
