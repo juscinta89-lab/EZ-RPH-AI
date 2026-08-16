@@ -379,28 +379,92 @@ tr:last-child td{border-bottom:0}
 .spin{width:32px;height:32px;border:3px solid var(--biru-t);border-top-color:var(--biru);border-radius:50%;margin:0 auto;animation:sp .8s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
 
+/* ---------- Lembaran latihan ---------- */
+.lt-pratonton{max-height:58vh;overflow-y:auto;font-size:13px;line-height:1.45}
+.lt-kepala{text-align:center;margin-bottom:14px}
+.lt-sekolah{font-size:11px;letter-spacing:.6px;color:var(--teks-3)}
+.lt-kepala h2{font-size:16px;margin:3px 0 4px}
+.lt-meta{font-size:11.5px;color:var(--teks-3)}
+.lt-nama{margin-top:11px;font-size:12px;text-align:left}
+.lt-arahan{text-align:left;font-size:12.5px;margin-top:9px;padding:8px 10px;
+  background:var(--bg);border-radius:var(--r-sm)}
+.lt-bank{font-size:12.5px;margin-bottom:12px;padding:8px 10px;border:1px dashed var(--garis);border-radius:var(--r-sm)}
+.lt-bank span,.lt-senarai-kata span{display:inline-block;margin:3px 5px 0 0;padding:2px 8px;
+  background:var(--bg);border-radius:20px;font-size:12px;font-weight:600}
+.lt-soalan{margin-bottom:13px;page-break-inside:avoid}
+.lt-s{margin-bottom:4px}
+.lt-s em{color:var(--teks-3);font-size:11.5px}
+.lt-pilihan{display:grid;grid-template-columns:1fr 1fr;gap:2px 14px;padding-left:15px;font-size:12.5px}
+.lt-jawab{color:var(--garis);letter-spacing:1px;padding-left:15px;overflow:hidden;white-space:nowrap}
+.lt-skema{margin-top:16px;padding-top:11px;border-top:2px solid var(--garis);page-break-before:auto}
+.lt-skema h3{font-size:13px;margin-bottom:7px}
+.lt-skema h3 small{font-weight:400;color:var(--teks-3)}
+.lt-sk{font-size:12.5px;margin-bottom:4px}
+.lt-sk em{color:var(--teks-3)}
+.lt-grid{border-collapse:separate;border-spacing:0;margin:12px auto}
+.lt-grid td{width:26px;height:26px;text-align:center;
+  vertical-align:middle;font-size:13px;font-weight:700;position:relative}
+.lt-grid .lt-sel{border:1px solid #444;margin:-1px 0 0 -1px;box-shadow:0 0 0 0 #444}
+.lt-kosong{background:transparent;border:0}
+.lt-sel{background:#fff}
+.lt-sel i{position:absolute;top:0;left:2px;font-style:normal;font-size:8px;font-weight:700;color:#666}
+.lt-cari td{width:22px;height:22px;font-size:11.5px;font-weight:500}
+.lt-cari .lt-sel{border:0}
+.lt-cari{border:1px solid #444}
+.lt-jumpa{background:#ffe9a8}
+.lt-klu{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px;font-size:12.5px}
+.lt-klu h4{font-size:12.5px;margin-bottom:5px}
+.lt-klu ul{list-style:none;padding:0}
+.lt-klu li{margin-bottom:4px}
+.lt-klu em{color:var(--teks-3);font-size:11.5px}
+.lt-senarai-kata{margin-top:10px;font-size:12.5px;text-align:center}
+.lt-kerja{border:1px dashed var(--garis);border-radius:var(--r-sm);height:56px;
+  margin:5px 0 4px 15px;padding:3px 7px}
+.lt-kerja small{font-size:10.5px;color:var(--teks-3)}
+.lt-akhir{margin-left:15px;font-size:12.5px;color:var(--teks-2)}
+.lt-langkah{margin:3px 0 0 14px}
+.lt-langkah span{display:block;font-size:12px;color:var(--teks-2)}
+.lt-gambar-senarai{display:grid;gap:11px}
+.lt-gambar{display:flex;gap:11px;align-items:stretch;page-break-inside:avoid}
+.lt-kotak{width:76px;min-width:76px;border:1px solid #444;border-radius:var(--r-sm);
+  display:grid;place-content:center}
+.lt-kotak span{font-size:30px;line-height:1}
+.lt-tulis{flex:1}
+.lt-baris{border-bottom:1px solid var(--garis);height:21px;margin-top:5px}
+
 /* ---------- Grid jadual waktu (dashboard) ---------- */
-.jw-skrol{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -13px;padding:0 13px}
-.jw-tbl{border-collapse:collapse;table-layout:fixed;min-width:100%}
-.jw-tbl th,.jw-tbl td{border:1px solid var(--garis);padding:0;height:46px;
-  min-width:52px;text-align:center;vertical-align:middle}
-.jw-kepala{background:var(--bg);padding:3px 2px !important;height:auto !important}
-.jw-kepala b{display:block;font-size:12px;font-weight:700;color:var(--teks-1)}
-.jw-kepala small{display:block;font-size:8.5px;color:var(--teks-3);white-space:nowrap}
-.jw-hari{background:var(--bg);width:46px;min-width:46px;font-size:12px;font-weight:700;
-  color:var(--teks-2);position:sticky;left:0;z-index:2}
+.jw-skrol{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -13px;padding:0 13px 4px}
+.jw-tbl{border-collapse:collapse;width:auto}
+.jw-tbl th,.jw-tbl td{border:1px solid var(--garis);padding:0;height:50px;
+  width:82px;min-width:82px;max-width:82px;text-align:center;vertical-align:middle}
+.jw-kepala{background:var(--bg);padding:4px 2px !important;height:auto !important}
+.jw-kepala b{display:block;font-size:12px;font-weight:700;color:var(--teks-1);line-height:1.1}
+.jw-kepala small{display:block;font-size:9px;color:var(--teks-3);white-space:nowrap;line-height:1.3}
+.jw-hari{background:var(--bg);width:50px;min-width:50px;max-width:50px;font-size:12px;
+  font-weight:700;color:var(--teks-2);position:sticky;left:0;z-index:2}
 .jw-kini .jw-hari{background:var(--ungu-t);color:#5b3fbe}
 .jw-kini td{box-shadow:inset 0 0 0 9999px rgba(122,90,240,.05)}
-.jw-isi{cursor:pointer;padding:3px 4px !important;position:relative;
-  border-radius:0;transition:filter .15s}
+.jw-isi{cursor:pointer;padding:12px 3px 3px !important;position:relative;transition:filter .15s}
 .jw-isi:hover{filter:brightness(1.07)}
-.jw-isi i{position:absolute;top:2px;left:4px;font-style:normal;font-size:8px;
-  font-weight:700;opacity:.65;letter-spacing:.3px}
-.jw-isi b{display:block;font-size:12px;font-weight:700;line-height:1.15;
-  padding-top:5px;word-break:break-word}
-.jw-siap:after{content:"✓";position:absolute;top:1px;right:3px;font-size:9px;
-  font-weight:700;opacity:.8}
+.jw-isi i{position:absolute;top:2px;left:4px;font-style:normal;font-size:8.5px;
+  font-weight:700;opacity:.7;letter-spacing:.3px}
+.jw-isi b{display:block;font-size:11.5px;font-weight:700;line-height:1.2;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 2px}
+.jw-siap:after{content:"✓";position:absolute;top:1px;right:3px;font-size:9.5px;
+  font-weight:700;opacity:.85}
 .jw-nota{font-size:11.5px;color:var(--teks-3);margin-top:9px}
+.jw-alat{display:flex;gap:6px;align-items:center}
+
+/* Paparan penuh berputar untuk telefon */
+.jw-penuh{position:fixed;inset:0;z-index:80;background:var(--putih);display:flex;
+  flex-direction:column;padding:10px}
+.jw-penuh .jw-skrol{flex:1;overflow:auto;margin:0;padding:0}
+.jw-penuh-bar{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.jw-penuh-bar b{flex:1;font-size:14px}
+.jw-putar{transform-origin:center center}
+@media (max-width:520px){
+  .jw-putar{transform:rotate(90deg)}
+}
 
 /* ---------- Wizard ---------- */
 .wiz-step{display:flex;gap:10px;align-items:center;padding:11px 13px;border:1px solid var(--garis);border-radius:var(--r-sm);margin-bottom:8px;background:var(--putih)}
@@ -503,5 +567,46 @@ tr:last-child td{border-bottom:0}
   .pd-blok+.pd-blok{margin-top:-1px}
 
   .tandatangan{display:none}
+
+  /* ---- Lembaran latihan ---- */
+  #cetak .lt-kepala{text-align:center;margin-bottom:9pt}
+  #cetak .lt-sekolah{font-size:8pt;letter-spacing:.6px;color:#555}
+  #cetak .lt-kepala h2{font-size:13pt;margin:2pt 0 3pt}
+  #cetak .lt-meta{font-size:8.5pt;color:#555}
+  #cetak .lt-nama{margin-top:8pt;font-size:9.5pt;text-align:left}
+  #cetak .lt-arahan{text-align:left;font-size:9pt;margin-top:6pt;padding:4pt 6pt;border:1px solid #444}
+  #cetak .lt-bank{font-size:9pt;margin-bottom:8pt;padding:4pt 6pt;border:1px dashed #444}
+  #cetak .lt-bank span,#cetak .lt-senarai-kata span{display:inline-block;margin:1pt 8pt 0 0;font-weight:700}
+  #cetak .lt-soalan{margin-bottom:8pt;page-break-inside:avoid;font-size:9.5pt}
+  #cetak .lt-s{margin-bottom:2pt}
+  #cetak .lt-pilihan{display:grid;grid-template-columns:1fr 1fr;gap:1pt 12pt;padding-left:11pt;font-size:9pt}
+  #cetak .lt-jawab{color:#999;letter-spacing:1px;padding-left:11pt;overflow:hidden;white-space:nowrap}
+  #cetak .lt-skema{margin-top:10pt;padding-top:6pt;border-top:1.5pt solid #444}
+  #cetak .lt-skema h3{font-size:10pt;margin-bottom:4pt}
+  #cetak .lt-sk{font-size:9pt;margin-bottom:2pt}
+  #cetak .lt-grid{border-collapse:separate;border-spacing:0;margin:8pt auto}
+  #cetak .lt-grid td{width:19pt;height:19pt;text-align:center;
+    vertical-align:middle;font-size:10pt;font-weight:700;position:relative}
+  #cetak .lt-grid .lt-sel{border:1px solid #444}
+  #cetak .lt-cari .lt-sel{border:0}
+  #cetak .lt-kosong{background:transparent !important;border:0 !important}
+  #cetak .lt-sel i{position:absolute;top:0;left:1pt;font-style:normal;font-size:6pt;font-weight:700;color:#666}
+  #cetak .lt-cari td{width:16pt;height:16pt;font-size:9pt;font-weight:500}
+  #cetak .lt-cari{border:1px solid #444}
+  #cetak .lt-jumpa{background:#ffe9a8 !important}
+  #cetak .lt-klu{display:grid;grid-template-columns:1fr 1fr;gap:12pt;margin-top:8pt;font-size:9pt}
+  #cetak .lt-klu ul{list-style:none;padding:0;margin:0}
+  #cetak .lt-klu li{margin-bottom:2pt}
+  #cetak .lt-senarai-kata{margin-top:7pt;font-size:9.5pt;text-align:center}
+  #cetak .lt-kerja{border:1px dashed #999;height:44pt;margin:3pt 0 3pt 11pt;padding:2pt 5pt}
+  #cetak .lt-kerja small{font-size:8pt;color:#777}
+  #cetak .lt-akhir{margin-left:11pt;font-size:9pt}
+  #cetak .lt-langkah{margin:1pt 0 0 10pt}
+  #cetak .lt-langkah span{display:block;font-size:8.5pt}
+  #cetak .lt-gambar{display:flex;gap:8pt;margin-bottom:9pt;page-break-inside:avoid}
+  #cetak .lt-kotak{width:58pt;min-width:58pt;border:1px solid #444;display:grid;place-content:center}
+  #cetak .lt-kotak span{font-size:24pt;line-height:1}
+  #cetak .lt-tulis{flex:1}
+  #cetak .lt-baris{border-bottom:1px solid #666;height:16pt;margin-top:4pt}
   .cetak-nota{margin-top:5pt;font-size:6.6pt;color:#777;text-align:right;letter-spacing:.2px}
 }

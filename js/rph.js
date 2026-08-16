@@ -787,6 +787,7 @@ function halEditor(){
         <button class="btn btn-primary" onclick="simpanRph('lengkap')">Simpan sebagai lengkap</button>
         <button class="btn" onclick="simpanRph('draf')">Simpan draf</button>
         <button class="btn" onclick="cetakRph()">🖨️ Cetak / PDF</button>
+        <button class="btn btn-ungu" onclick="modalLatihan()">📝 Jana soalan latihan</button>
       ${driveSedia() ? `<button class="btn" onclick="simpanRphKeDrive()">📁 Simpan ke Drive</button>` : ''}
         <button class="btn" onclick="salinRph()">📋 Salin ke tarikh lain</button>
         <button class="btn btn-danger" onclick="padamRph()">Padam</button>
@@ -847,6 +848,186 @@ async function simpanRph(status){
   await rujuk('rph').doc(S.editRphId).update(d);
   await muatRph(); sibuk(false); halEditor(); toast('RPH disimpan','jaya');
 }
+/* ================= SOALAN LATIHAN ================= */
+function modalLatihan(){
+  const r = { ...S.rph.find(x => x.id === S.editRphId), ...bacaEditor() };
+  if(!r.objektif || r.objektif.trim().length < 10)
+    return toast('Isi objektif pembelajaran dahulu — soalan dijana daripadanya','salah');
+
+  const sedia = r.latihan;
+  modal('Jana soalan latihan', `
+    <div style="font-size:12.5px;color:var(--teks-2);margin-bottom:12px">
+      Soalan dijana daripada objektif pembelajaran RPH ini —
+      <b>${esc(r.subjek)} · ${esc(r.kelas)}${r.tajuk ? ' · '+esc(r.tajuk) : ''}</b>.</div>
+
+    ${sedia ? `<div class="kad" style="background:var(--ungu-t);border-color:#ddd3fb;padding:11px;margin-bottom:13px;font-size:12.5px">
+      Sudah ada latihan tersimpan: <b>${esc(sedia.tajuk||JENIS_LATIHAN[sedia.jenis]?.label||'Latihan')}</b>.
+      Menjana yang baharu akan menggantikannya.
+      <button class="btn btn-sm" style="margin-top:8px" onclick="tutupModal();lihatLatihan()">Lihat yang sedia ada</button>
+    </div>` : ''}
+
+    <label class="fld"><span>Jenis latihan</span>
+      <select id="ltJenis" onchange="ubahJenisLatihan()">
+        <optgroup label="Latihan bertulis">
+          ${Object.entries(JENIS_LATIHAN).filter(([,v]) => !v.main)
+            .map(([k,v]) => `<option value="${k}">${v.label}</option>`).join('')}
+        </optgroup>
+        <optgroup label="Permainan">
+          ${Object.entries(JENIS_LATIHAN).filter(([,v]) => v.main)
+            .map(([k,v]) => `<option value="${k}">${v.label}</option>`).join('')}
+        </optgroup>
+      </select></label>
+
+    <label class="fld" id="ltBilBaris"><span>Bilangan soalan <em>(minimum 10)</em></span>
+      <select id="ltBil"><option selected>10</option><option>12</option><option>15</option><option>20</option></select></label>
+
+    <label class="fld"><span>Aras kesukaran</span>
+      <select id="ltAras">
+        <option value="mudah">Mudah — untuk murid pemulihan</option>
+        <option value="sederhana" selected>Sederhana — untuk majoriti murid</option>
+        <option value="kbat">KBAT — untuk murid pengayaan</option>
+      </select></label>
+
+    <p style="font-size:11.5px;color:var(--teks-3);margin-top:4px" id="ltNota"></p>`,
+    `<button class="btn" onclick="tutupModal()">Batal</button>
+     <button class="btn btn-primary" onclick="janaLatihan()">✨ Jana</button>`);
+  ubahJenisLatihan();
+}
+
+function ubahJenisLatihan(){
+  const j = $('#ltJenis')?.value;
+  const main = JENIS_LATIHAN[j]?.main;
+  if($('#ltBilBaris')) $('#ltBilBaris').style.display = main ? 'none' : '';
+  if($('#ltNota')) $('#ltNota').textContent = main
+    ? 'AI membekalkan istilah dan klu; susun atur grid dibina oleh aplikasi supaya sentiasa sah.'
+    : 'Setiap soalan disertakan jawapan dan huraian ringkas untuk rujukan guru.';
+}
+
+async function janaLatihan(){
+  const jenis = $('#ltJenis').value, aras = $('#ltAras').value;
+  const bilangan = $('#ltBil') ? +$('#ltBil').value : 8;
+  tutupModal();
+  const r = { ...S.rph.find(x => x.id === S.editRphId), ...bacaEditor() };
+  sibuk(true, 'AI sedang menyediakan latihan…');
+  try{
+    const latihan = await janaSoalanAI({ jenis, aras, bilangan, subjek:r.subjek, kelas:r.kelas,
+      tajuk:r.tajuk, sk:r.sk, sp:r.sp, objektif:r.objektif });
+    await rujuk('rph').doc(S.editRphId).update({ latihan, dikemas: Date.now() });
+    await muatRph(); sibuk(false);
+    lihatLatihan();
+    toast('Latihan siap dijana','jaya');
+  }catch(e){ sibuk(false); toast('Gagal: '+e.message,'salah'); }
+}
+
+function lihatLatihan(){
+  const r = S.rph.find(x => x.id === S.editRphId);
+  const L = r?.latihan;
+  if(!L) return toast('Belum ada latihan untuk RPH ini');
+  modal(L.tajuk || 'Latihan', `
+    <div class="lt-pratonton">${htmlLatihan(r, L, false)}</div>`,
+    `<button class="btn" onclick="tutupModal()">Tutup</button>
+     <button class="btn" onclick="cetakLatihan(true)">🖨️ Cetak + skema</button>
+     <button class="btn btn-primary" onclick="cetakLatihan(false)">🖨️ Cetak lembaran murid</button>`);
+}
+
+function cetakLatihan(denganSkema){
+  const r = S.rph.find(x => x.id === S.editRphId);
+  if(!r?.latihan) return toast('Belum ada latihan');
+  tutupModal();
+  keluarkanCetak(htmlLatihan(r, r.latihan, denganSkema) + notaCetak());
+}
+
+/* ---------- Paparan & cetakan lembaran ---------- */
+function htmlLatihan(r, L, skema){
+  const kepala = `<div class="lt-kepala">
+    <div class="lt-sekolah">${esc((S.sekolah?.nama||'').toUpperCase())}</div>
+    <h2>${esc(L.tajuk || 'Lembaran Kerja')}</h2>
+    <div class="lt-meta">${esc(r.subjek)} · ${esc(r.kelas)}${r.tajuk?' · '+esc(r.tajuk):''}
+      &nbsp;|&nbsp; ${ARAS_LATIHAN[L.aras]?.split('—')[0].trim() || ''}</div>
+    <div class="lt-nama">Nama: ______________________________ &nbsp;&nbsp; Tarikh: ______________</div>
+    ${L.arahan ? `<p class="lt-arahan"><b>Arahan:</b> ${esc(L.arahan)}</p>` : ''}
+  </div>`;
+
+  if(L.jenis === 'silangKata') return kepala + htmlSilangKata(L, skema);
+  if(L.jenis === 'cariKata')   return kepala + htmlCariKata(L, skema);
+  if(L.jenis === 'gambarAyat') return kepala + htmlGambarAyat(L, skema);
+
+  const bank = L.bankPerkataan?.length ? `<div class="lt-bank"><b>Bank perkataan:</b>
+    ${L.bankPerkataan.map(x => `<span>${esc(x)}</span>`).join('')}</div>` : '';
+
+  const ruang = s => {
+    if(L.jenis === 'subjektif') return `<div class="lt-kerja"><small>Jalan kerja:</small></div>
+      <div class="lt-akhir">Jawapan: ______________________</div>`;
+    if(s.pilihan?.length) return `<div class="lt-pilihan">${s.pilihan.map(p => `<div>${esc(p)}</div>`).join('')}</div>`;
+    return `<div class="lt-jawab">${'_'.repeat(L.jenis==='struktur'?60:34)}</div>`;
+  };
+
+  const soalan = (L.soalan||[]).map(s => `<div class="lt-soalan">
+    <div class="lt-s"><b>${s.no}.</b> ${esc(s.soalan)}${s.markah?` <em>[${s.markah} markah]</em>`:''}</div>
+    ${ruang(s)}
+  </div>`).join('');
+
+  return kepala + bank + `<div class="lt-senarai">${soalan}</div>` + (skema ? htmlSkema(L) : '');
+}
+
+function htmlGambarAyat(L, skema){
+  const item = (L.soalan||[]).map(s => `<div class="lt-gambar">
+    <div class="lt-kotak"><span>${esc(s.emoji||'🖼️')}</span></div>
+    <div class="lt-tulis">
+      <div class="lt-s"><b>${s.no}.</b>${s.kataBantu?.length
+        ? ` <em>Kata bantu: ${s.kataBantu.map(esc).join(', ')}</em>` : ''}</div>
+      <div class="lt-baris"></div><div class="lt-baris"></div>
+    </div>
+  </div>`).join('');
+
+  return `<div class="lt-gambar-senarai">${item}</div>
+    ${skema ? `<div class="lt-skema"><h3>CONTOH JAWAPAN <small>(untuk guru)</small></h3>
+      ${(L.soalan||[]).map(s => `<div class="lt-sk"><b>${s.no}.</b> ${esc(s.emoji||'')}
+        ${esc(s.perihal||'')} — <em>${esc(s.jawapan||'')}</em></div>`).join('')}</div>` : ''}`;
+}
+
+function htmlSkema(L){
+  const langkah = s => s.langkah?.length
+    ? `<div class="lt-langkah">${s.langkah.map(x => `<span>${esc(x)}</span>`).join('')}</div>` : '';
+  return `<div class="lt-skema"><h3>SKEMA JAWAPAN <small>(untuk guru sahaja)</small></h3>
+    ${(L.soalan||[]).map(s => `<div class="lt-sk">
+      <b>${s.no}.</b> ${esc(s.jawapan||'-')}${s.markah?` <em>[${s.markah}m]</em>`:''}${langkah(s)}${s.huraian?` <em>— ${esc(s.huraian)}</em>`:''}</div>`).join('')}
+  </div>`;
+}
+
+function htmlSilangKata(L, skema){
+  const g = L.grid; if(!g) return '';
+  const baris = g.sel.map((b,ri) => `<tr>${b.map((ch,ci) => {
+    if(!ch) return '<td class="lt-kosong"></td>';
+    const no = g.nombor[ri+','+ci];
+    return `<td class="lt-sel">${no?`<i>${no}</i>`:''}${skema?esc(ch):''}</td>`;
+  }).join('')}</tr>`).join('');
+
+  const klu = arah => (g.kunci||[]).filter(k => k.mendatar === arah)
+    .map(k => `<li><b>${k.no}.</b> ${esc(k.klu)} <em>(${k.perkataan.length} huruf)</em>${skema?` — <b>${esc(k.perkataan)}</b>`:''}</li>`).join('');
+
+  return `<table class="lt-grid">${baris}</table>
+    <div class="lt-klu">
+      <div><h4>Melintang</h4><ul>${klu(true)}</ul></div>
+      <div><h4>Menegak</h4><ul>${klu(false)}</ul></div>
+    </div>`;
+}
+
+function htmlCariKata(L, skema){
+  const g = L.grid; if(!g) return '';
+  const tanda = new Set();
+  if(skema) (g.kunci||[]).forEach(k => {
+    for(let i=0;i<k.perkataan.length;i++) tanda.add((k.r+k.dr*i)+','+(k.c+k.dc*i));
+  });
+  const baris = g.sel.map((b,ri) => `<tr>${b.map((ch,ci) =>
+    `<td class="lt-sel${tanda.has(ri+','+ci)?' lt-jumpa':''}">${esc(ch)}</td>`).join('')}</tr>`).join('');
+  return `<table class="lt-grid lt-cari">${baris}</table>
+    <div class="lt-senarai-kata"><b>Cari perkataan ini:</b>
+      ${(L.kata||[]).map(k => `<span>${esc(k.perkataan)}</span>`).join('')}</div>
+    ${skema ? `<div class="lt-skema"><h3>KLU ISTILAH <small>(untuk guru)</small></h3>
+      ${(L.kata||[]).map(k => `<div class="lt-sk"><b>${esc(k.perkataan)}</b> — ${esc(k.klu)}</div>`).join('')}</div>` : ''}`;
+}
+
 function padamRph(){
   sahkan('Padam RPH ini secara kekal?', async () => {
     sibuk(true,'Memadam…'); await rujuk('rph').doc(S.editRphId).delete();

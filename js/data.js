@@ -346,18 +346,57 @@ function gridJadual(){
       <th class="jw-hari">${SINGKAT_HARI[h] || h.slice(0,3).toUpperCase()}</th>${sel}</tr>`;
   }).join('');
 
+  window._jwTbl = jadualTbl(waktu, baris);
+
   return `<div class="kad">
     <div class="kad-h"><h3>Jadual waktu saya</h3>
-      <button class="btn btn-sm" onclick="pergi('jadual')">Sunting</button></div>
-    <div class="jw-skrol">
-      <table class="jw-tbl">
-        <tr><th class="jw-hari"></th>
-          ${waktu.map((w,i) => `<th class="jw-kepala"><b>${i+1}</b><small>${esc(w.mula)} – ${esc(w.tamat)}</small></th>`).join('')}</tr>
-        ${baris}
-      </table>
-    </div>
+      <div class="jw-alat">
+        <button class="btn btn-sm" onclick="jadualPenuh()" title="Lihat skrin penuh & putar">⟳ Putar</button>
+        <button class="btn btn-sm" onclick="pergi('jadual')">Sunting</button>
+      </div></div>
+    <div class="jw-skrol">${jadualTbl(waktu, baris)}</div>
     <p class="jw-nota">Hari ini ditandakan. Ketik mana-mana slot untuk jana RPH.</p>
   </div>`;
+}
+
+function jadualTbl(waktu, baris){
+  return `<table class="jw-tbl">
+    <tr><th class="jw-hari"></th>
+      ${waktu.map((w,i) => `<th class="jw-kepala"><b>${i+1}</b><small>${esc(w.mula)}</small><small>${esc(w.tamat)}</small></th>`).join('')}</tr>
+    ${baris}
+  </table>`;
+}
+
+/* Paparan skrin penuh. Pada telefon, jadual diputar 90° supaya muat melintang;
+   jika peranti menyokong kunci orientasi, itu digunakan dahulu kerana lebih baik. */
+async function jadualPenuh(){
+  const kad = document.createElement('div');
+  kad.className = 'jw-penuh';
+  kad.id = 'jwPenuh';
+  kad.innerHTML = `<div class="jw-penuh-bar">
+      <b>Jadual waktu saya</b>
+      <button class="btn btn-sm" onclick="togglePutar()" id="jwBtnPutar">⟳ Putar</button>
+      <button class="btn btn-sm" onclick="tutupJadualPenuh()">Tutup</button>
+    </div>
+    <div class="jw-skrol"><div id="jwBungkus">${window._jwTbl || ''}</div></div>`;
+  document.body.appendChild(kad);
+  try{
+    if(kad.requestFullscreen) await kad.requestFullscreen();
+    if(screen.orientation?.lock) await screen.orientation.lock('landscape');
+    kad.dataset.terkunci = '1';
+  }catch(e){ /* peranti tidak menyokong — guna putaran CSS */ }
+}
+
+function togglePutar(){
+  const b = $('#jwBungkus'); if(!b) return;
+  b.classList.toggle('jw-putar');
+  $('#jwBtnPutar').textContent = b.classList.contains('jw-putar') ? '⟲ Betulkan' : '⟳ Putar';
+}
+
+function tutupJadualPenuh(){
+  try{ screen.orientation?.unlock?.(); }catch(e){}
+  if(document.fullscreenElement) document.exitFullscreen().catch(()=>{});
+  $('#jwPenuh')?.remove();
 }
 
 /* ================= DASHBOARD ================= */
@@ -374,6 +413,17 @@ function halDashboard(){
 
   const perluSetup = !S.jadual.length || !S.kelas.length || !S.subjek.length || !S.takwim;
 
+  /* Slot seterusnya hari ini, berdasarkan jam sebenar */
+  const jamKini = (() => { const d = new Date(); return d.getHours()*60 + d.getMinutes(); })();
+  const slotKini = slotHariIni.find(s => jamKini >= minitJam(s.mula) && jamKini < minitJam(s.tamat));
+  const slotSeterus = slotHariIni.find(s => minitJam(s.mula) > jamKini);
+  const sorot = slotKini || slotSeterus;
+  const rphSorot = sorot ? S.rph.find(r => r.tarikh === hariIni && r.slotId === sorot.id) : null;
+
+  /* Kemajuan RPH minggu ini berbanding jumlah slot dalam seminggu */
+  const slotSeminggu = S.jadual.filter(s => HARI_SEKOLAH.includes(s.hari)).length;
+  const peratus = slotSeminggu ? Math.min(100, Math.round(rphMinggu.length / slotSeminggu * 100)) : 0;
+
   $('#kandungan').innerHTML = `
     ${S.langganPeringatan ? `<div class="kad" style="background:#fdf3dd;border-color:#f0dcae;margin-bottom:14px">
       <b style="font-size:13.5px">⏳ Langganan anda berbaki ${S.langganPeringatan.baki} hari</b>
@@ -381,16 +431,29 @@ function halDashboard(){
     </div>` : ''}
     ${perluSetup ? kadWizard() : ''}
     <div class="hero">
-      <h3>Selamat datang, ${esc((S.profil.nama||'Cikgu').split(' ').slice(0,2).join(' '))} 👋</h3>
+      <h3>Selamat datang, ${esc(S.profil.nama || 'Cikgu')} 👋</h3>
       <p>${tarikhCantik(hariIni)} · ${mgg || 'Takwim belum ditetapkan'}${cuti ? ' · '+esc(cuti.nama) : ''}</p>
+      ${slotSeminggu ? `<div class="hero-maju">
+        <div class="hero-bar"><i style="width:${peratus}%"></i></div>
+        <small>${rphMinggu.length} daripada ${slotSeminggu} slot minggu ini sudah ada RPH · ${peratus}%</small>
+      </div>` : ''}
       <button class="btn" onclick="pergi('jana')">✨ Jana RPH hari ini</button>
     </div>
 
+    ${sorot && !cuti ? `<div class="kad kad-sorot" onclick="${rphSorot ? `bukaRph('${rphSorot.id}')` : `janaSlot('${sorot.id}','${hariIni}')`}">
+      <div class="sorot-cop">${slotKini ? '🔴 Sedang berlangsung' : '⏭️ Slot seterusnya'}</div>
+      <div class="sorot-baris">
+        <div class="sorot-masa">${esc(sorot.mula)}<small>${esc(sorot.tamat)}</small></div>
+        <div class="sorot-info"><b>${esc(sorot.subjek)}</b><small>${esc(sorot.kelas)} · ${minit(sorot.mula,sorot.tamat)} minit</small></div>
+        <span class="btn btn-sm ${rphSorot ? '' : 'btn-primary'}">${rphSorot ? 'Buka RPH' : '✨ Jana RPH'}</span>
+      </div>
+    </div>` : ''}
+
     <div class="stat-grid">
-      <div class="stat b"><b>${rphMinggu.length}</b><small>RPH minggu ini</small></div>
-      <div class="stat h"><b>${lengkap}</b><small>Lengkap</small></div>
-      <div class="stat k"><b>${draf}</b><small>Draf</small></div>
-      <div class="stat m"><b>${Math.max(0, slotHariIni.length - S.rph.filter(r=>r.tarikh===hariIni).length)}</b><small>Belum disediakan hari ini</small></div>
+      <div class="stat b" onclick="pergi('rph')"><b>${rphMinggu.length}</b><small>RPH minggu ini</small></div>
+      <div class="stat h" onclick="pergi('rph')"><b>${lengkap}</b><small>Lengkap</small></div>
+      <div class="stat k" onclick="pergi('rph')"><b>${draf}</b><small>Draf</small></div>
+      <div class="stat m" onclick="pergi('audit')"><b>${Math.max(0, slotHariIni.length - S.rph.filter(r=>r.tarikh===hariIni).length)}</b><small>Belum disediakan hari ini</small></div>
     </div>
 
     ${gridJadual()}

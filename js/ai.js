@@ -714,6 +714,264 @@ const ISU_TAK_AUTO = ['bentrok','sk','sp','rpt','kelas','aktiviti','objektif','k
 /* Isu yang perlu AI jana semula RPH */
 const ISU_PERLU_AI = ['skSama','skPanjang','objUkur','masa','ulang','pak21'];
 
+/* ================= SOALAN LATIHAN ================= */
+
+const JENIS_LATIHAN = {
+  objektif:   { label:'Aneka pilihan (A–D)',            main:false },
+  subjektif:  { label:'Subjektif — tunjuk jalan kerja', main:false },
+  struktur:   { label:'Soalan struktur',                main:false },
+  isiTempat:  { label:'Isi tempat kosong',              main:false },
+  padanan:    { label:'Padanan',                        main:false },
+  gambarAyat: { label:'Bina ayat berdasarkan gambar',   main:false },
+  silangKata: { label:'Silang kata',                    main:true  },
+  cariKata:   { label:'Cari perkataan',                 main:true  }
+};
+
+const ARAS_LATIHAN = {
+  mudah:     'Aras rendah (Mengingat & Memahami) — untuk murid pemulihan.',
+  sederhana: 'Aras sederhana (Memahami & Mengaplikasi) — untuk majoriti murid.',
+  kbat:      'Aras tinggi KBAT (Menganalisis, Menilai, Mencipta) — untuk murid pengayaan.'
+};
+
+function promptSoalan(ctx){
+  const permainan = ctx.jenis === 'silangKata' || ctx.jenis === 'cariKata';
+  const tahunNombor = (String(ctx.kelas||'').match(/\b([1-6])\b/) || [])[1] || '4';
+
+  const asas = `Anda guru sekolah rendah Malaysia yang menyediakan bahan latihan murid.
+Pulangkan SATU objek JSON sahaja. Tiada teks pengenalan, tiada pagar kod markdown.
+
+KONTEKS PELAJARAN
+  Subjek              : ${ctx.subjek}
+  Kelas / Tahun       : ${ctx.kelas} (Tahun ${tahunNombor})
+  Tajuk               : ${ctx.tajuk || '-'}
+  Standard Kandungan  : ${ctx.sk || '-'}
+  Standard Pembelajaran: ${ctx.sp || '-'}
+  Objektif pembelajaran:
+${(ctx.objektif||'').split('\n').filter(Boolean).map(o => '    - '+o).join('\n') || '    -'}
+
+ARAS: ${ARAS_LATIHAN[ctx.aras] || ARAS_LATIHAN.sederhana}
+
+PERATURAN WAJIB
+1. Soalan mesti menguji objektif pembelajaran di atas — bukan topik lain dalam subjek yang sama.
+2. Bahasa dan panjang ayat mesti sesuai untuk murid Tahun ${tahunNombor}. Ayat pendek, perkataan biasa.
+3. Konteks setempat Malaysia (nama Ali, Siti, Muthu, Lee; ringgit; buah tempatan; sekolah kebangsaan).
+4. Bahasa Melayu baku. JANGAN guna: berbasis, mereview, sessi, menggunapakai, kemampuan.
+5. Setiap soalan mesti ada jawapan yang betul dan boleh disemak.
+6. JANGAN reka fakta buku teks atau nombor muka surat.`;
+
+  if(!permainan){
+    const bentuk = {
+      objektif: `"soalan": [ { "no":1, "soalan":"...", "pilihan":["A. ...","B. ...","C. ...","D. ..."], "jawapan":"B", "huraian":"kenapa B betul, satu ayat" } ]
+- Semua pengecoh mesti munasabah. JANGAN buat pengecoh yang jelas mengarut.
+- Sebarkan jawapan betul secara rawak antara A, B, C dan D.`,
+      subjektif: `"soalan": [ { "no":1, "soalan":"...", "markah":2, "jawapan":"jawapan akhir dengan unit", "langkah":["ayat matematik atau langkah 1","langkah 2"], "huraian":"" } ]
+- Setiap soalan mesti soalan berayat yang memerlukan murid MENGIRA, bukan sekadar mengingat.
+- "langkah" ialah jalan kerja penuh untuk skema guru: tulis ayat matematik sebenar
+  (contoh: "3 kg 250 g = 3 250 g", "3 250 g − 850 g = 2 400 g").
+- Jawapan akhir mesti disertakan unit yang betul.
+- Campurkan soalan satu langkah dan dua langkah. Sekurang-kurangnya 3 soalan dua langkah.`,
+      struktur: `"soalan": [ { "no":1, "soalan":"...", "markah":2, "jawapan":"jawapan penuh yang diterima", "huraian":"skema pemarkahan ringkas" } ]
+- Campurkan soalan 1 markah dan 2 markah.`,
+      isiTempat: `"soalan": [ { "no":1, "soalan":"Ayat dengan ______ sebagai tempat kosong.", "jawapan":"perkataan", "huraian":"" } ]
+- Sediakan juga "bankPerkataan": senarai semua jawapan dalam susunan rawak sebagai bantuan murid.`,
+      padanan: `"soalan": [ { "no":1, "soalan":"item lajur A", "jawapan":"item lajur B yang sepadan", "huraian":"" } ]
+- Pastikan setiap padanan unik dan tiada dua jawapan yang sama.`,
+      gambarAyat: `"soalan": [ { "no":1, "emoji":"🐟🎣", "perihal":"Seorang budak lelaki memancing ikan di tepi sungai.", "kataBantu":["memancing","sungai","ikan"], "jawapan":"Contoh ayat: Ali memancing ikan di tepi sungai.", "huraian":"" } ]
+- "emoji" ialah 1 hingga 3 emoji yang MEWAKILI gambar itu. Pilih emoji yang jelas dan biasa.
+- "perihal" ialah keterangan gambar untuk rujukan guru, satu ayat sahaja.
+- "kataBantu" ialah 3 perkataan panduan untuk murid bina ayat.
+- "jawapan" ialah satu contoh ayat lengkap yang betul dari segi tatabahasa.
+- Situasi mesti pelbagai dan berkaitan tajuk pelajaran.`
+    }[ctx.jenis];
+
+    return `${asas}
+
+Jana TEPAT ${Math.max(10, ctx.bilangan)} soalan jenis: ${JENIS_LATIHAN[ctx.jenis].label}.
+Bilangan minimum ialah 10 soalan. JANGAN pulangkan kurang daripada itu.
+
+FORMAT JSON:
+{
+  "tajuk": "Tajuk lembaran kerja yang ringkas",
+  "arahan": "Satu ayat arahan untuk murid",
+  ${bentuk}
+}`;
+  }
+
+  /* Permainan: AI hanya bekalkan perkataan + klu. Susun atur grid dibuat oleh aplikasi. */
+  const had = ctx.jenis === 'silangKata' ? 10 : 12;
+  return `${asas}
+
+Jana istilah untuk permainan ${JENIS_LATIHAN[ctx.jenis].label} berdasarkan pelajaran di atas.
+
+PERATURAN ISTILAH
+- Antara 6 hingga ${had} perkataan.
+- Setiap perkataan 3 hingga 11 huruf, SATU perkataan sahaja (tiada ruang, tiada tanda sempang).
+- Huruf besar semua, tanpa tanda baca dan tanpa nombor.
+- Perkataan mesti istilah sebenar daripada tajuk pelajaran ini, bukan perkataan am.
+- Klu mesti pendek (bawah 12 patah perkataan) dan tidak menyebut perkataan jawapan itu sendiri.
+
+FORMAT JSON:
+{
+  "tajuk": "Tajuk permainan",
+  "arahan": "Satu ayat arahan untuk murid",
+  "kata": [ { "perkataan":"JISIM", "klu":"Ukuran berat sesuatu objek" } ]
+}`;
+}
+
+async function janaSoalanAI(ctx){
+  const j = ambilJSON(await panggilAiSelamat(promptSoalan(ctx), null, ctx.lapor));
+  j.jenis = ctx.jenis; j.aras = ctx.aras;
+
+  if(ctx.jenis === 'silangKata' || ctx.jenis === 'cariKata'){
+    const kata = (j.kata||[])
+      .map(k => ({ perkataan: String(k.perkataan||'').toUpperCase().replace(/[^A-Z]/g,''),
+                   klu: betulEjaan(k.klu||'') }))
+      .filter(k => k.perkataan.length >= 3 && k.perkataan.length <= 11);
+    if(kata.length < 4) throw new Error('AI tidak menghasilkan cukup perkataan yang sah');
+    j.kata = kata;
+    j.grid = ctx.jenis === 'silangKata' ? binaSilangKata(kata) : binaCariPerkataan(kata);
+  }else{
+    j.soalan = (j.soalan||[]).map((s,i) => ({ ...s, no:i+1,
+      soalan: betulEjaan(s.soalan||''), huraian: betulEjaan(s.huraian||''),
+      perihal: betulEjaan(s.perihal||''), jawapan: betulEjaan(s.jawapan||'') }));
+    if(!j.soalan.length) throw new Error('AI tidak menghasilkan soalan');
+    if(j.soalan.length < 10) j.amaran = `AI hanya menghasilkan ${j.soalan.length} soalan, bukan 10.`;
+  }
+  j.tajuk = betulEjaan(j.tajuk||''); j.arahan = betulEjaan(j.arahan||'');
+  j.dijana = Date.now();
+  return j;
+}
+
+/* ---------- Susun atur silang kata ---------- */
+/* Perkataan pertama diletak mendatar di tengah, selebihnya disilang pada huruf
+   yang sepadan. Perkataan yang tidak dapat disilang dengan sah akan digugurkan. */
+function binaSilangKata(kata){
+  /* Susunan perkataan menentukan berapa banyak yang berjaya disilang, jadi kita
+     cuba banyak susunan dan simpan yang paling banyak berjaya diletak. */
+  let terbaik = null;
+  for(let cuba = 0; cuba < 60; cuba++){
+    const susun = cuba === 0
+      ? kata.slice().sort((a,b) => b.perkataan.length - a.perkataan.length)
+      : kata.slice().sort(() => Math.random() - .5);
+    const hasil = cubaSilangKata(susun);
+    if(!terbaik || hasil.kunci.length > terbaik.kunci.length
+       || (hasil.kunci.length === terbaik.kunci.length && hasil.luas < terbaik.luas))
+      terbaik = hasil;
+    if(terbaik.kunci.length === kata.length) break;
+  }
+  terbaik.gugur = kata.length - terbaik.kunci.length;
+  return terbaik;
+}
+
+function cubaSilangKata(isih){
+  const N = 21;
+  const grid = Array.from({length:N}, () => Array(N).fill(null));
+  const letak = [];
+
+  const bolehLetak = (p, r, c, mendatar) => {
+    let silang = 0;
+    for(let i = 0; i < p.length; i++){
+      const rr = mendatar ? r : r+i, cc = mendatar ? c+i : c;
+      if(rr < 0 || cc < 0 || rr >= N || cc >= N) return -1;
+      const ada = grid[rr][cc];
+      if(ada){
+        if(ada !== p[i]) return -1;
+        silang++;
+      }else{
+        // jiran sisi mesti kosong supaya tiada perkataan tak sengaja
+        const j1 = mendatar ? grid[rr-1]?.[cc] : grid[rr]?.[cc-1];
+        const j2 = mendatar ? grid[rr+1]?.[cc] : grid[rr]?.[cc+1];
+        if(j1 || j2) return -1;
+      }
+    }
+    // hujung depan & belakang mesti kosong
+    const sebelum = mendatar ? grid[r]?.[c-1] : grid[r-1]?.[c];
+    const selepas = mendatar ? grid[r]?.[c+p.length] : grid[r+p.length]?.[c];
+    if(sebelum || selepas) return -1;
+    return silang;
+  };
+  const tulis = (p, r, c, mendatar) => {
+    for(let i = 0; i < p.length; i++){
+      if(mendatar) grid[r][c+i] = p[i]; else grid[r+i][c] = p[i];
+    }
+  };
+
+  const pertama = isih[0].perkataan;
+  const r0 = 10, c0 = Math.max(0, 10 - (pertama.length >> 1));
+  tulis(pertama, r0, c0, true);
+  letak.push({ ...isih[0], r:r0, c:c0, mendatar:true });
+
+  for(const k of isih.slice(1)){
+    let terbaik = null;
+    for(let i = 0; i < k.perkataan.length; i++){
+      for(const sedia of letak){
+        for(let j = 0; j < sedia.perkataan.length; j++){
+          if(sedia.perkataan[j] !== k.perkataan[i]) continue;
+          const mendatar = !sedia.mendatar;
+          const r = mendatar ? (sedia.mendatar ? sedia.r : sedia.r + j) : (sedia.mendatar ? sedia.r - i : sedia.r);
+          const c = mendatar ? (sedia.mendatar ? sedia.c - i : sedia.c) : (sedia.mendatar ? sedia.c + j : sedia.c);
+          const skor = bolehLetak(k.perkataan, r, c, mendatar);
+          if(skor > 0 && (!terbaik || skor > terbaik.skor)) terbaik = { r, c, mendatar, skor };
+        }
+      }
+    }
+    if(terbaik){
+      tulis(k.perkataan, terbaik.r, terbaik.c, terbaik.mendatar);
+      letak.push({ ...k, r:terbaik.r, c:terbaik.c, mendatar:terbaik.mendatar });
+    }
+  }
+
+  // potong grid kepada kawasan berisi sahaja
+  let r1=N, r2=-1, c1=N, c2=-1;
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++) if(grid[r][c]){
+    r1=Math.min(r1,r); r2=Math.max(r2,r); c1=Math.min(c1,c); c2=Math.max(c2,c);
+  }
+  const sel = grid.slice(r1, r2+1).map(baris => baris.slice(c1, c2+1));
+  const kunci = letak.map(k => ({ ...k, r:k.r-r1, c:k.c-c1 }))
+    .sort((a,b) => a.r-b.r || a.c-b.c);
+  // nombor petunjuk pada sel permulaan
+  const nombor = {}; let n = 0;
+  kunci.forEach(k => {
+    const kk = k.r+','+k.c;
+    if(!nombor[kk]) nombor[kk] = ++n;
+    k.no = nombor[kk];
+  });
+  return { sel, nombor, kunci, luas: sel.length * sel[0].length };
+}
+
+/* ---------- Susun atur cari perkataan ---------- */
+function binaCariPerkataan(kata){
+  const panjang = Math.max(...kata.map(k => k.perkataan.length));
+  const N = Math.min(16, Math.max(10, panjang + 3, Math.ceil(Math.sqrt(kata.length * 12))));
+  const grid = Array.from({length:N}, () => Array(N).fill(null));
+  const ARAH = [[0,1],[1,0],[1,1],[-1,1],[0,-1],[1,-1]];
+  const letak = [];
+
+  for(const k of kata.slice().sort((a,b) => b.perkataan.length - a.perkataan.length)){
+    const p = k.perkataan;
+    let siap = false;
+    for(let cuba = 0; cuba < 400 && !siap; cuba++){
+      const [dr,dc] = ARAH[Math.floor(Math.random()*ARAH.length)];
+      const r = Math.floor(Math.random()*N), c = Math.floor(Math.random()*N);
+      const rAkhir = r + dr*(p.length-1), cAkhir = c + dc*(p.length-1);
+      if(rAkhir<0||cAkhir<0||rAkhir>=N||cAkhir>=N) continue;
+      let ok = true;
+      for(let i=0;i<p.length;i++){
+        const ada = grid[r+dr*i][c+dc*i];
+        if(ada && ada !== p[i]){ ok = false; break; }
+      }
+      if(!ok) continue;
+      for(let i=0;i<p.length;i++) grid[r+dr*i][c+dc*i] = p[i];
+      letak.push({ ...k, r, c, dr, dc });
+      siap = true;
+    }
+  }
+  const HURUF = 'ABCDEFGHIJKLMNOPRSTUVW';
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++)
+    if(!grid[r][c]) grid[r][c] = HURUF[Math.floor(Math.random()*HURUF.length)];
+  return { sel:grid, kunci:letak, gugur: kata.length - letak.length };
+}
+
 function semakKualiti(r){
   const angka = semakAngkaMurid(r);
   const cek = [
