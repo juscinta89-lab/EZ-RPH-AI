@@ -1426,24 +1426,43 @@ function pratontonRph(id){
 
   const bingkai = document.getElementById('praBingkai');
   if(!bingkai) return;
-  bingkai.onload = () => muatSkalaPratonton(bingkai);
+  bingkai.onload = () => {
+    // Modal masih dianimasikan semasa onload, jadi lebar sebenar belum tetap.
+    // Ukur selepas dua bingkai, kemudian ikuti sebarang perubahan saiz skrin.
+    requestAnimationFrame(() => requestAnimationFrame(() => muatSkalaPratonton(bingkai)));
+    setTimeout(() => muatSkalaPratonton(bingkai), 260);
+    if(window.ResizeObserver && !bingkai._pemerhati){
+      bingkai._pemerhati = new ResizeObserver(() => muatSkalaPratonton(bingkai));
+      bingkai._pemerhati.observe(bingkai.closest('.pra-kanvas'));
+    }
+    window.addEventListener('orientationchange', () =>
+      setTimeout(() => muatSkalaPratonton(bingkai), 300), { once:true });
+  };
   bingkai.srcdoc = doc;
 }
 
 /* Helaian dirender pada lebar A4 sebenar (210mm) kemudian dikecilkan supaya muat
    dalam modal. Dengan cara ini nisbah dan susun atur kekal sama dengan cetakan. */
 function muatSkalaPratonton(bingkai){
-  const d = bingkai.contentDocument; if(!d) return;
+  const d = bingkai.contentDocument; if(!d?.body) return;
+  const kanvas = bingkai.closest('.pra-kanvas'); if(!kanvas) return;
+
   const LEBAR = 794;                                   // 210mm pada 96dpi
-  const tinggi = Math.max(400, d.body.scrollHeight);
   bingkai.style.width = LEBAR + 'px';
+  bingkai.style.height = 'auto';
+  const tinggi = Math.max(400, d.documentElement.scrollHeight, d.body.scrollHeight);
   bingkai.style.height = tinggi + 'px';
 
+  // Lebar dalaman kanvas tolak padding kiri-kanan
+  const g = getComputedStyle(kanvas);
+  const ruang = kanvas.clientWidth - parseFloat(g.paddingLeft) - parseFloat(g.paddingRight);
+  if(ruang <= 0) return;                               // belum dibentang, cuba lagi nanti
+
+  const skala = Math.min(1, ruang / LEBAR);
   const bungkus = bingkai.parentElement;
-  const skala = Math.min(1, (bungkus.parentElement.clientWidth - 20) / LEBAR);
   bingkai.style.transform = `scale(${skala})`;
-  bungkus.style.height = (tinggi * skala) + 'px';
   bungkus.style.width  = (LEBAR * skala) + 'px';
+  bungkus.style.height = (tinggi * skala) + 'px';
 }
 
 function tukarGayaPratonton(gaya, id){

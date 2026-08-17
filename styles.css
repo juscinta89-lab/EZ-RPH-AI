@@ -364,10 +364,12 @@ tr:last-child td{border-bottom:0}
 
 /* ---------- Modal, toast, busy ---------- */
 .modal-wrap{position:fixed;inset:0;background:rgba(20,28,48,.45);display:grid;place-items:center;z-index:80;padding:16px;backdrop-filter:blur(2px)}
-.modal{background:var(--putih);border-radius:18px;width:100%;max-width:560px;max-height:88dvh;display:flex;flex-direction:column;box-shadow:0 30px 70px rgba(0,0,0,.25)}
+.modal{background:var(--putih);border-radius:18px;width:100%;max-width:560px;max-height:88dvh;display:flex;flex-direction:column;box-shadow:0 30px 70px rgba(0,0,0,.25);min-width:0;overflow:hidden}
+/* Item grid mempunyai min-width:auto, jadi kandungan lebar seperti pratonton A4
+   boleh menolak modal melebihi skrin. min-width:0 menghalangnya. */
 .modal-head{display:flex;align-items:center;gap:10px;padding:16px 18px;border-bottom:1px solid var(--garis)}
 .modal-head h3{flex:1;font-size:16px}
-.modal-body{padding:18px;overflow-y:auto}
+.modal-body{padding:18px;overflow-y:auto;min-width:0}
 .modal-foot{padding:13px 18px;border-top:1px solid var(--garis);display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
 .toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,80px);background:#1b2333;color:#fff;padding:11px 18px;border-radius:30px;font-size:13.5px;z-index:95;opacity:0;transition:.25s;max-width:90vw;text-align:center}
 .toast.on{opacity:1;transform:translate(-50%,0)}
@@ -378,6 +380,20 @@ tr:last-child td{border-bottom:0}
 .busy-box p{margin-top:12px;font-size:13.5px;color:var(--teks-2)}
 .spin{width:32px;height:32px;border:3px solid var(--biru-t);border-top-color:var(--biru);border-radius:50%;margin:0 auto;animation:sp .8s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
+
+/* ---------- Jam bar atas ---------- */
+.jam{flex:none;text-align:right;line-height:1.15;padding:5px 13px;border-radius:12px;
+  background:var(--putih);border:1px solid var(--garis);cursor:pointer;transition:all .15s;
+  min-width:92px}
+.jam:hover{border-color:#ddd3fb;background:var(--ungu-t)}
+.jam b{display:block;font-size:16px;font-weight:700;color:var(--teks-1);
+  font-variant-numeric:tabular-nums;letter-spacing:.3px}
+.jam small{display:block;font-size:10.5px;color:var(--teks-3);white-space:nowrap;margin-top:1px}
+@media (max-width:640px){
+  .jam{padding:4px 10px;min-width:80px}
+  .jam b{font-size:14.5px}
+  .jam small{font-size:9.5px}
+}
 
 /* ---------- Butang ikon tindakan ---------- */
 .ikon-btn{width:34px;height:34px;border-radius:10px;border:1px solid var(--garis);
@@ -393,8 +409,9 @@ tr:last-child td{border-bottom:0}
 .pra-bar span{flex:1;min-width:0}
 .pra-bar select{width:auto;padding:6px 10px;font-size:12.5px}
 .pra-kanvas{background:#e9ebf2;border-radius:var(--r-sm);padding:10px;
-  max-height:64vh;overflow:auto;-webkit-overflow-scrolling:touch;display:flex;justify-content:center}
-.pra-skala{position:relative;flex:none}
+  max-height:64vh;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;
+  display:flex;justify-content:center}
+.pra-skala{position:relative;flex:none;min-width:0}
 #praBingkai{border:0;background:#fff;display:block;transform-origin:top left;
   box-shadow:0 2px 14px rgba(0,0,0,.14)}
 @media (max-width:640px){ .pra-kanvas{padding:6px;max-height:60vh} }

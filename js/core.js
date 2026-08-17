@@ -240,7 +240,27 @@ $('#btnLupa').onclick = async () => {
 
 $('#btnKeluar').onclick = () => sahkan('Log keluar daripada e-RPH AI?', () => auth.signOut());
 $('#btnMenu').onclick = () => $('.side').classList.toggle('buka');
-$('#btnAI').onclick = () => pergi('jana');
+/* Jam masa nyata pada bar atas. Kemas kini setiap saat, dan dihentikan
+   apabila tab tersembunyi supaya tidak membazir bateri. */
+let _jamPemasa = null;
+function lukisJam(){
+  const d = new Date();
+  const dua = n => String(n).padStart(2,'0');
+  const j = $('#jamJam'), h = $('#jamHari');
+  if(j) j.textContent = `${dua(d.getHours())}:${dua(d.getMinutes())}:${dua(d.getSeconds())}`;
+  if(h) h.textContent = `${HARI[d.getDay()]}, ${d.getDate()} ${BULAN[d.getMonth()]}`;
+}
+function mulaJam(){
+  if(_jamPemasa) clearInterval(_jamPemasa);
+  lukisJam();
+  _jamPemasa = setInterval(lukisJam, 1000);
+}
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'visible') mulaJam();
+  else if(_jamPemasa){ clearInterval(_jamPemasa); _jamPemasa = null; }
+});
+mulaJam();
+$('#jamMasa').onclick = () => pergi('jana');
 
 function statusLanggan(p){
   const t = (p && p.langganTamat) || '';
