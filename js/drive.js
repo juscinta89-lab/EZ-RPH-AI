@@ -18,7 +18,7 @@ const SKOP_DRIVE = 'https://www.googleapis.com/auth/drive.file';
    Guru TIDAK perlu buat apa-apa tetapan — mereka hanya tekan butang
    dan log masuk dengan akaun Google masing-masing.
    --------------------------------------------------------------- */
-const CLIENT_ID_TERBINA = "313464725222-2496bherbuls7iackl1q8dg0043m5ehp.apps.googleusercontent.com";   // <-- tampal Client ID anda di sini
+const CLIENT_ID_TERBINA = "";   // <-- tampal Client ID anda di sini
 let _tokenGoogle = null, _tokenTamat = 0, _klienToken = null, _gisSedang = null;
 
 function clientIdGoogle(){
@@ -530,6 +530,14 @@ const GAYA_DRIVE = [
   ['.pd-tbl table, .lp-tbl table', 'border-collapse:collapse;width:100%;border:0'],
   ['.pd-tbl table td, .lp-tbl table td', 'border:1px solid #444;padding:3px 5px'],
   ['.cetak-nota', 'font-size:8pt;color:#777;text-align:right;margin-top:4px'],
+  ['.ttd-blok', 'font-size:9pt;line-height:1.4'],
+  ['.ttd-label', 'margin-bottom:1px'],
+  ['.ttd-ruang', 'height:30pt'],
+  ['.ttd-ruang img', 'max-height:28pt;max-width:52mm;display:block'],
+  ['.ttd-nama', 'font-weight:700'],
+  ['.ttd-jawatan', 'font-size:8.5pt'],
+  ['.lp-kepala', 'text-align:center;margin-bottom:5px'],
+  ['.lp-kepala img', 'height:38px;max-height:14mm;width:auto'],
   ['.pd-tbl ol, .pd-tbl ul, .lp-tbl ol, .lp-tbl ul', 'margin:2px 0;padding-left:16px'],
   ['.pd-tbl p, .lp-tbl p', 'margin:2px 0']
 ];
@@ -555,6 +563,43 @@ function inlineGayaDrive(html){
   return bekas.innerHTML;
 }
 
+/* Kumpul SEMUA blok @media print daripada helaian gaya.
+   Cara lama menggunakan regex '@media print{' tetapi Chrome menulisnya sebagai
+   '@media print {' dengan ruang, jadi padanan tidak pernah berlaku dan dokumen
+   Drive dihantar tanpa sebarang CSS — itulah sebab garisan jadual hilang. */
+function cssCetak(){
+  const blok = [];
+  for(const helaian of document.styleSheets){
+    let peraturan;
+    try{ peraturan = helaian.cssRules; }catch(e){ continue; }   // helaian silang-asal
+    for(const p of peraturan){
+      if(p.type === CSSRule.MEDIA_RULE && /\bprint\b/.test(p.media.mediaText)){
+        for(const dalam of p.cssRules) blok.push(dalam.cssText);
+      }
+    }
+  }
+  return blok.join('\n');
+}
+
+/* CSS cetakan dikumpul dengan membaca objek peraturan secara terus.
+   Cara lama mencari teks "@media print{" gagal kerana pelayar menulisnya sebagai
+   "@media print {" — dengan satu ruang — jadi tiada satu pun peraturan disalin
+   dan dokumen Drive keluar tanpa garisan jadual. */
+function cssCetak(){
+  let keluar = '';
+  for(const helaian of document.styleSheets){
+    let peraturan;
+    try{ peraturan = [...helaian.cssRules]; }
+    catch(e){ continue; }                       // helaian silang-asal, langkau
+    for(const r of peraturan){
+      const media = r.conditionText || r.media?.mediaText || '';
+      if(r.cssRules && /\bprint\b/i.test(media))
+        keluar += [...r.cssRules].map(x => x.cssText).join('\n') + '\n';
+    }
+  }
+  return keluar;
+}
+
 function dokumenDrive(senarai, gaya, untukDocs){
   const asal = localStorage.getItem('erph_gaya_cetak');
   localStorage.setItem('erph_gaya_cetak', gaya);
@@ -572,8 +617,7 @@ function dokumenDrive(senarai, gaya, untukDocs){
     badan += semakanHari();
   }
   if(asal) localStorage.setItem('erph_gaya_cetak', asal);
-  const semua = [...document.styleSheets].map(ss => { try{ return [...ss.cssRules].map(x=>x.cssText).join('\n'); }catch(e){ return ''; } }).join('\n');
-  const cetak = (semua.match(/@media print\{[\s\S]*?\n\}/) || [''])[0].replace(/^@media print\{/,'').replace(/\}$/,'');
+  const cetak = cssCetak();
   // PDF dijana melalui pelayar, jadi helaian gaya memadai.
   // Docs membuang CSS kelas, jadi gaya perlu disalin terus ke elemen.
   if(untukDocs) badan = inlineGayaDrive(badan);

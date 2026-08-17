@@ -440,7 +440,7 @@ function halDashboard(){
       <button class="btn" onclick="pergi('jana')">✨ Jana RPH hari ini</button>
     </div>
 
-    ${sorot && !cuti ? `<div class="kad kad-sorot${slotKini ? ' sorot-live' : ''}"
+    ${sorot && !cuti ? `<div class="kad kad-sorot${slotKini ? ' sorot-live' : ' sorot-akan'}"
         onclick="${rphSorot ? `bukaRph('${rphSorot.id}')` : `janaSlot('${sorot.id}','${hariIni}')`}">
       <div class="sorot-cop">${slotKini
         ? '<i class="sorot-titik"></i> Sedang berlangsung'

@@ -394,6 +394,21 @@ tr:last-child td{border-bottom:0}
 .sorot-kelas{display:block;font-size:12.5px;color:var(--teks-3);margin-top:2px}
 .sorot-btn{flex-shrink:0;pointer-events:none}
 
+/* Slot akan datang — bingkai kuning berkelip dan anak panah bergerak
+   sebagai isyarat "bersedia", lebih perlahan daripada isyarat merah
+   supaya tidak mengganggu perhatian. */
+.sorot-akan{border-color:#f0d9a0}
+.sorot-akan .sorot-cop{color:#a3720f}
+.sorot-akan .sorot-anak{animation:sorotAnak 1.6s ease-in-out infinite}
+.sorot-akan:before{content:"";position:absolute;inset:0;border-radius:inherit;
+  border:2px solid #f0a500;opacity:0;pointer-events:none;
+  animation:sorotKuning 2s ease-in-out infinite}
+@keyframes sorotAnak{
+  0%,100%{transform:translateX(0)}
+  50%{transform:translateX(5px)}
+}
+@keyframes sorotKuning{ 0%,100%{opacity:0} 50%{opacity:.85} }
+
 /* Kelas sedang berlangsung — titik merah berdenyut dan bingkai berkelip perlahan */
 .sorot-live{border-color:#f3b0b0}
 .sorot-live .sorot-cop{color:#c0392b}
@@ -410,8 +425,9 @@ tr:last-child td{border-bottom:0}
 
 /* Hormati pilihan pengguna yang mematikan animasi pada peranti mereka */
 @media (prefers-reduced-motion:reduce){
-  .sorot-titik,.sorot-live:before{animation:none}
+  .sorot-titik,.sorot-live:before,.sorot-akan:before,.sorot-akan .sorot-anak{animation:none}
   .sorot-live:before{opacity:.6}
+  .sorot-akan:before{opacity:.5}
 }
 
 /* ---------- Pilih tajuk RPT minggu lain ---------- */
@@ -424,6 +440,14 @@ tr:last-child td{border-bottom:0}
 .jg-terpilih{margin-top:9px;padding:9px 11px;background:var(--ungu-t);border-radius:var(--r-sm)}
 .jg-terpilih b{display:block;font-size:13px}
 .jg-terpilih small{display:block;font-size:11.5px;color:var(--teks-2);margin-top:3px}
+
+/* ---------- Blok tandatangan ---------- */
+.ttd-blok{font-size:12.5px;line-height:1.45}
+.ttd-label{margin-bottom:2px}
+.ttd-ruang{height:40px;display:flex;align-items:flex-end}
+.ttd-ruang img{max-height:38px;max-width:190px;display:block}
+.ttd-nama{font-weight:700;letter-spacing:.2px}
+.ttd-jawatan{font-size:12px;color:var(--teks-2)}
 
 /* ---------- Lembaran latihan ---------- */
 .lt-pratonton{max-height:58vh;overflow-y:auto;font-size:13px;line-height:1.45}
@@ -574,6 +598,19 @@ tr:last-child td{border-bottom:0}
   .lp-refleksi{font-size:8.4pt;line-height:1.45}
 
   .lp-semakan .ttd{max-height:32pt;max-width:60%;display:block;margin:2pt 0}
+
+  /* ---- Blok tandatangan ---- */
+  #cetak .ttd-blok{font-size:9pt;line-height:1.4}
+  #cetak .ttd-label{margin-bottom:1pt}
+  #cetak .ttd-ruang{height:30pt;display:flex;align-items:flex-end}
+  #cetak .ttd-ruang img{max-height:28pt;max-width:52mm;display:block}
+  #cetak .ttd-nama{font-weight:700;letter-spacing:.2px}
+  #cetak .ttd-jawatan{font-size:8.5pt}
+  #cetak .pd-tbl .ttd-blok{font-size:8.4pt}
+  #cetak .pd-tbl .ttd-ruang{height:26pt}
+  #cetak .pd-tbl .ttd-ruang img{max-height:24pt}
+  /* Logo tidak boleh membesar walaupun helaian gaya digugurkan penerima */
+  #cetak .lp-kepala img{height:38px;max-height:14mm;width:auto}
 
   /* ---- Gaya PADAT (buku rekod) ---- */
   /* Satu lebar sempadan sahaja (1px) dan border-collapse supaya setiap garisan

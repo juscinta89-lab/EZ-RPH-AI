@@ -1407,7 +1407,7 @@ function htmlRph(r, tunjukSemakan){
       <td colspan="4" style="padding:0">
         ${akt.starter?`<div class="pd-sek">Pengenalan:-</div><div class="pd-isi2">${akt.starter}</div>`:''}
         <div class="pd-sek">Aktiviti:-</div><div class="pd-isi2">${akt.utama||'-'}</div>
-        <div class="pd-sek">Penutup:-</div><div class="pd-isi2">${teksBlok(r.penutup) || "-"}</div>
+        <div class="pd-sek">Penutup:-</div><div class="pd-isi2">${p(r.penutup)}</div>
       </td>
       <td colspan="2" class="pd-ref">${refleksiKanan}</td></tr>
     <tr><th ${th}>KBAT</th><td>${p(r.kbat)}</td>
@@ -1429,9 +1429,8 @@ function htmlRph(r, tunjukSemakan){
   <table class="pd-tbl lp-semakan">
     <colgroup><col style="width:26mm"><col><col style="width:60mm"></colgroup>
     <tr><th style="background:#cfe3f7;text-align:center;vertical-align:middle;font-size:9pt">SEMAKAN</th>
-      <td>Disediakan oleh:${tandatanganSaya() ? `<br><img src="${tandatanganSaya()}" class="ttd">` : '<br><br><br>'}
-        <b>${esc(S.profil.nama||'')}</b><br>${esc(S.profil.jawatan||'Guru')}</td>
-      <td>Disemak oleh:<br><br><br>${blokPengesah()}</td></tr>
+      <td>${ttdDisediakan()}</td>
+      <td>${ttdDisemak()}</td></tr>
   </table>`}`;
 }
 
@@ -1508,7 +1507,7 @@ function htmlRphPadat(r, noKelas){
       <td colspan="4" style="padding:0">
         ${akt.starter?`<div class="pd-sek">Pengenalan / Set Induksi</div><div class="pd-isi2">${akt.starter}</div>`:''}
         <div class="pd-sek">Aktiviti</div><div class="pd-isi2">${akt.utama||'-'}</div>
-        ${nilai(r.penutup)?`<div class="pd-sek">Penutup</div><div class="pd-isi2">${teksBlok(r.penutup)}</div>`:''}
+        ${nilai(r.penutup)?`<div class="pd-sek">Penutup</div><div class="pd-isi2">${esc(r.penutup)}</div>`:''}
       </td>
       <td colspan="2" class="pd-ref">${refleksi}<br><br><b>Intervensi:</b><br>______________________</td></tr>
     <tr><th style="background:${cerah}">KBAT</th><td>${p(r.kbat)}</td>
@@ -1530,17 +1529,25 @@ function pengesahBaris(){
   const p = t.split(/\s*[\/|·]\s*/);
   return { nama: p[0]||'', jawatan: p.slice(1).join(' / ') };
 }
-/* Medan penutup kadangkala mengandungi HTML daripada AI. Tukar tag blok kepada
-   baris baharu supaya tidak bercantum, kemudian buang tag dan lepaskan sebagai teks. */
-function teksBlok(nilai){
-  const t = String(nilai||'')
-    .replace(/<\/(p|div|li|ol|ul|h[1-6])>/gi, '\n')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<li[^>]*>/gi, '• ')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .split('\n').map(x => x.trim()).filter(Boolean).join('\n');
-  return esc(t).replace(/\n/g, '<br>');
+/* Blok tandatangan format surat rasmi:
+     Disediakan oleh,
+       (ruang tandatangan)
+     NAMA PENUH
+     (Jawatan)                                                          */
+function blokTtd(label, nama, jawatan, imej){
+  return `<div class="ttd-blok">
+    <div class="ttd-label">${esc(label)},</div>
+    <div class="ttd-ruang">${imej ? `<img src="${imej}" class="ttd">` : ''}</div>
+    <div class="ttd-nama">${esc(String(nama||'').toUpperCase()) || '&nbsp;'}</div>
+    ${jawatan ? `<div class="ttd-jawatan">(${esc(jawatan)})</div>` : ''}
+  </div>`;
+}
+function ttdDisediakan(){
+  return blokTtd('Disediakan oleh', S.profil.nama, S.profil.jawatan || 'Guru', tandatanganSaya());
+}
+function ttdDisemak(){
+  const g = pengesahBaris();
+  return blokTtd('Disemak oleh', g.nama, g.jawatan, '');
 }
 
 function blokPengesah(){
@@ -1550,9 +1557,9 @@ function blokPengesah(){
 
 function semakanHari(){
   return `<table class="pd-tbl pd-blok"><tr>
-    <th style="width:24mm;background:#cfe3f7">SEMAKAN</th>
-    <td>Disediakan oleh: <b>${esc(S.profil.nama||'')}</b>${tandatanganSaya()?` <img src="${tandatanganSaya()}" style="height:22pt;vertical-align:middle">`:''}</td>
-    <td style="width:60mm">Disemak oleh:<br>${blokPengesah()}<br><br></td>
+    <th style="width:24mm;background:#cfe3f7;vertical-align:middle">SEMAKAN</th>
+    <td>${ttdDisediakan()}</td>
+    <td style="width:60mm">${ttdDisemak()}</td>
   </tr></table>`;
 }
 
