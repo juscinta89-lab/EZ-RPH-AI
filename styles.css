@@ -379,6 +379,22 @@ tr:last-child td{border-bottom:0}
 .spin{width:32px;height:32px;border:3px solid var(--biru-t);border-top-color:var(--biru);border-radius:50%;margin:0 auto;animation:sp .8s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
 
+/* ---------- Foto profil ---------- */
+.hero-atas{display:flex;align-items:center;gap:14px;margin-bottom:4px}
+.hero-teks{flex:1;min-width:0}
+.hero-foto{width:54px;height:54px;border-radius:50%;flex:none;object-fit:cover;
+  border:2.5px solid rgba(255,255,255,.55);box-shadow:0 3px 12px rgba(0,0,0,.18)}
+span.hero-foto{display:grid;place-content:center;background:rgba(255,255,255,.22);
+  color:#fff;font-weight:800;font-size:19px;letter-spacing:.5px}
+.foto-baris{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.foto-besar{width:82px;height:82px;border-radius:50%;flex:none;object-fit:cover;
+  border:3px solid var(--garis)}
+span.foto-besar{display:grid;place-content:center;background:var(--gradien);
+  color:#fff;font-weight:800;font-size:28px;letter-spacing:.5px;border-color:transparent}
+.foto-alat{flex:1;min-width:210px}
+.avatar.ada-foto{background:none;padding:0;overflow:hidden}
+.avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block}
+
 /* ---------- Kad slot seterusnya / sedang berlangsung ---------- */
 .kad-sorot{cursor:pointer;transition:box-shadow .18s,transform .18s;position:relative;overflow:hidden}
 .kad-sorot:active{transform:scale(.995)}

@@ -33,6 +33,8 @@ async function muatData(){
   S.sesi = S.takwim ? S.takwim.id : null;
   await muatRpt();
   await muatRph();
+  // Peringatan kelas bergantung pada jadual & RPH, jadi dijadualkan selepas kedua-duanya siap
+  if(typeof jadualIngat === 'function'){ jadualIngat(); pasangPemerhatiIngat(); }
 }
 
 async function muatRph(){
@@ -431,8 +433,13 @@ function halDashboard(){
     </div>` : ''}
     ${perluSetup ? kadWizard() : ''}
     <div class="hero">
-      <h3>Selamat datang, ${esc(S.profil.nama || 'Cikgu')} 👋</h3>
-      <p>${tarikhCantik(hariIni)} · ${mgg || 'Takwim belum ditetapkan'}${cuti ? ' · '+esc(cuti.nama) : ''}</p>
+      <div class="hero-atas">
+        ${avatarHtml('hero-foto')}
+        <div class="hero-teks">
+          <h3>Selamat datang, ${esc(S.profil.nama || 'Cikgu')} 👋</h3>
+          <p>${tarikhCantik(hariIni)} · ${mgg || 'Takwim belum ditetapkan'}${cuti ? ' · '+esc(cuti.nama) : ''}</p>
+        </div>
+      </div>
       ${slotSeminggu ? `<div class="hero-maju">
         <div class="hero-bar"><i style="width:${peratus}%"></i></div>
         <small>${rphMinggu.length} daripada ${slotSeminggu} slot minggu ini sudah ada RPH · ${peratus}%</small>
@@ -1290,9 +1297,94 @@ function pecahkanMuka(muka, meta){
 }
 
 /* ================= TETAPAN ================= */
+/* ---------- Foto profil ---------- */
+/* Foto Google diambil sekali semasa log masuk (lihat boot.js). Jika guru memuat
+   naik foto sendiri, ia disimpan sebagai data URL dan menjadi keutamaan. */
+function hurufAwal(nama){
+  const p = String(nama || S.user?.email || '?').trim().split(/\s+/);
+  return ((p[0]?.[0] || '') + (p.length > 1 ? p[p.length-1][0] : '')).toUpperCase() || '?';
+}
+function avatarHtml(kelas){
+  const f = S.profil?.foto;
+  return f
+    ? `<img src="${esc(f)}" class="${kelas} avatar-img" alt="Foto profil" referrerpolicy="no-referrer"
+         onerror="this.outerHTML='<span class=&quot;${kelas} avatar-huruf&quot;>${hurufAwal(S.profil?.nama)}</span>'">`
+    : `<span class="${kelas} avatar-huruf">${hurufAwal(S.profil?.nama)}</span>`;
+}
+
+/* Avatar dalam menu sisi — dikemas selepas log masuk dan selepas foto ditukar */
+function segarAvatar(){
+  const el = document.getElementById('avUser'); if(!el) return;
+  const f = S.profil?.foto;
+  el.innerHTML = f ? `<img src="${esc(f)}" alt="" referrerpolicy="no-referrer">` : '';
+  el.classList.toggle('ada-foto', !!f);
+  if(!f) el.textContent = hurufAwal(S.profil?.nama);
+}
+
+async function pilihFotoProfil(input){
+  const f = input.files?.[0]; if(!f) return;
+  if(!/^image\//.test(f.type)) return toast('Sila pilih fail imej','salah');
+  sibuk(true,'Memproses foto…');
+  try{
+    let d = await kecilkanImej(f, 256, 0.85);
+    if(saizBase64(d) > 120) d = await kecilkanImej(f, 192, 0.75);
+    if(saizBase64(d) > 250){ sibuk(false); return toast('Imej terlalu besar. Cuba fail lain.','salah'); }
+    await db.collection('pengguna').doc(S.user.email.toLowerCase())
+      .set({ foto:d, fotoSendiri:true },{merge:true});
+    S.profil.foto = d; S.profil.fotoSendiri = true; segarAvatar();
+    sibuk(false); pergi('tetapan');
+    toast('Foto profil dikemas ('+saizBase64(d)+' KB)','jaya');
+  }catch(e){ sibuk(false); toast('Gagal: '+e.message,'salah'); }
+}
+
+async function gunaFotoGoogle(){
+  const url = auth.currentUser?.photoURL;
+  if(!url) return toast('Akaun Google anda tiada foto','salah');
+  sibuk(true,'Mengambil foto Google…');
+  const bersih = url.replace(/=s\d+(-c)?$/, '=s256-c');
+  await db.collection('pengguna').doc(S.user.email.toLowerCase())
+    .set({ foto:bersih, fotoSendiri:false },{merge:true});
+  S.profil.foto = bersih; S.profil.fotoSendiri = false; segarAvatar();
+  sibuk(false); pergi('tetapan'); toast('Foto Google digunakan','jaya');
+}
+
+async function padamFotoProfil(){
+  sahkan('Buang foto profil? Huruf awal nama akan dipaparkan sebagai ganti.', async () => {
+    sibuk(true,'Membuang…');
+    await db.collection('pengguna').doc(S.user.email.toLowerCase())
+      .set({ foto:'', fotoSendiri:true },{merge:true});
+    S.profil.foto = ''; S.profil.fotoSendiri = true; segarAvatar();
+    sibuk(false); pergi('tetapan'); toast('Foto dibuang','jaya');
+  });
+}
+
+function kadFoto(){
+  const adaGoogle = !!auth.currentUser?.photoURL;
+  return `<div class="kad">
+    <div class="kad-h"><h3>Foto profil</h3></div>
+    <div class="foto-baris">
+      ${avatarHtml('foto-besar')}
+      <div class="foto-alat">
+        <p style="font-size:12.5px;color:var(--teks-2);margin-bottom:9px">
+          Dipaparkan pada dashboard dan menu sisi. Foto tidak muncul pada RPH bercetak.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <label class="btn btn-sm btn-primary" style="cursor:pointer">
+            📷 Muat naik foto
+            <input type="file" accept="image/*" onchange="pilihFotoProfil(this)" style="display:none">
+          </label>
+          ${adaGoogle ? `<button class="btn btn-sm" onclick="gunaFotoGoogle()">Guna foto Google</button>` : ''}
+          ${S.profil?.foto ? `<button class="btn btn-sm btn-danger" onclick="padamFotoProfil()">Buang</button>` : ''}
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
 function halTetapan(){
   const ai = tetapanAI();
   $('#kandungan').innerHTML = `
+    ${kadFoto()}
+    ${typeof kadIngat === "function" ? kadIngat() : ""}
     <div class="kad">
       <div class="kad-h"><h3>Profil guru</h3></div>
       <div class="grid2">

@@ -18,7 +18,7 @@ const SKOP_DRIVE = 'https://www.googleapis.com/auth/drive.file';
    Guru TIDAK perlu buat apa-apa tetapan — mereka hanya tekan butang
    dan log masuk dengan akaun Google masing-masing.
    --------------------------------------------------------------- */
-const CLIENT_ID_TERBINA = "313464725222-2496bherbuls7iackl1q8dg0043m5ehp.apps.googleusercontent.com";   // <-- tampal Client ID anda di sini
+const CLIENT_ID_TERBINA = "";   // <-- tampal Client ID anda di sini
 let _tokenGoogle = null, _tokenTamat = 0, _klienToken = null, _gisSedang = null;
 
 function clientIdGoogle(){

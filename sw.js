@@ -5,11 +5,11 @@
  * Penggunaan, pengedaran atau pengubahsuaian tanpa kebenaran bertulis adalah dilarang.
  */
 /* e-RPH AI — Service Worker */
-const CACHE = 'erph-v46';
+const CACHE = 'erph-v48';
 const FAIL = [
   './','./index.html','./styles.css','./manifest.json',
   './firebase-config.js','./js/core.js','./js/data.js','./js/ai.js',
-  './js/rph.js','./js/drive.js','./js/rujukan.js','./js/admin.js','./js/boot.js',
+  './js/rph.js','./js/drive.js','./js/rujukan.js','./js/admin.js','./js/ingat.js','./js/boot.js',
   './icons/icon-192.png','./icons/icon-512.png','./icons/icon-maskable-192.png','./icons/icon-maskable-512.png'
 ];
 
@@ -35,4 +35,14 @@ self.addEventListener('fetch', e => {
       return r;
     }).catch(() => caches.match(e.request).then(r => r || caches.match('./index.html')))
   );
+});
+
+/* Ketik pemberitahuan — bawa pengguna ke app, jangan buka tab baharu */
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  e.waitUntil((async () => {
+    const senarai = await self.clients.matchAll({ type:'window', includeUncontrolled:true });
+    for(const c of senarai){ if('focus' in c) return c.focus(); }
+    if(self.clients.openWindow) return self.clients.openWindow('./');
+  })());
 });

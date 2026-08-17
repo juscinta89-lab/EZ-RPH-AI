@@ -26,6 +26,14 @@ auth.onAuthStateChanged(async user => {
     }
     S.profil = doc.data();
 
+    /* Foto Google diambil sekali sahaja semasa log masuk. Jika guru memuat naik
+       foto sendiri kemudian, pilihan itu dikekalkan dan tidak ditulis ganti. */
+    if(!S.profil.foto && !S.profil.fotoSendiri && user.photoURL){
+      const url = user.photoURL.replace(/=s\d+(-c)?$/, '=s256-c');
+      await ref.set({ foto:url },{merge:true});
+      S.profil.foto = url;
+    }
+
     /* Naik taraf automatik untuk e-mel pemilik */
     if(EMEL_PEMILIK.includes(emel) && S.profil.peranan !== 'pemilik'){
       await ref.set({ peranan:'pemilik' },{merge:true});
@@ -102,7 +110,8 @@ auth.onAuthStateChanged(async user => {
 function papar(){
   $('#uNama').textContent = S.profil.nama || S.user.email;
   $('#uPeranan').textContent = S.peranan;
-  $('#avUser').textContent = (S.profil.nama || S.user.email)[0].toUpperCase();
+  segarAvatar();
+  lukisAvatar();
   $('#sideSekolah').textContent = S.sekolah?.nama || 'Tiada sekolah';
 }
 
