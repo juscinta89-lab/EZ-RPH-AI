@@ -1407,7 +1407,7 @@ function htmlRph(r, tunjukSemakan){
       <td colspan="4" style="padding:0">
         ${akt.starter?`<div class="pd-sek">Pengenalan:-</div><div class="pd-isi2">${akt.starter}</div>`:''}
         <div class="pd-sek">Aktiviti:-</div><div class="pd-isi2">${akt.utama||'-'}</div>
-        <div class="pd-sek">Penutup:-</div><div class="pd-isi2">${p(r.penutup)}</div>
+        <div class="pd-sek">Penutup:-</div><div class="pd-isi2">${teksBlok(r.penutup) || "-"}</div>
       </td>
       <td colspan="2" class="pd-ref">${refleksiKanan}</td></tr>
     <tr><th ${th}>KBAT</th><td>${p(r.kbat)}</td>
@@ -1508,7 +1508,7 @@ function htmlRphPadat(r, noKelas){
       <td colspan="4" style="padding:0">
         ${akt.starter?`<div class="pd-sek">Pengenalan / Set Induksi</div><div class="pd-isi2">${akt.starter}</div>`:''}
         <div class="pd-sek">Aktiviti</div><div class="pd-isi2">${akt.utama||'-'}</div>
-        ${nilai(r.penutup)?`<div class="pd-sek">Penutup</div><div class="pd-isi2">${esc(r.penutup)}</div>`:''}
+        ${nilai(r.penutup)?`<div class="pd-sek">Penutup</div><div class="pd-isi2">${teksBlok(r.penutup)}</div>`:''}
       </td>
       <td colspan="2" class="pd-ref">${refleksi}<br><br><b>Intervensi:</b><br>______________________</td></tr>
     <tr><th style="background:${cerah}">KBAT</th><td>${p(r.kbat)}</td>
@@ -1530,6 +1530,19 @@ function pengesahBaris(){
   const p = t.split(/\s*[\/|·]\s*/);
   return { nama: p[0]||'', jawatan: p.slice(1).join(' / ') };
 }
+/* Medan penutup kadangkala mengandungi HTML daripada AI. Tukar tag blok kepada
+   baris baharu supaya tidak bercantum, kemudian buang tag dan lepaskan sebagai teks. */
+function teksBlok(nilai){
+  const t = String(nilai||'')
+    .replace(/<\/(p|div|li|ol|ul|h[1-6])>/gi, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<li[^>]*>/gi, '• ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .split('\n').map(x => x.trim()).filter(Boolean).join('\n');
+  return esc(t).replace(/\n/g, '<br>');
+}
+
 function blokPengesah(){
   const g = pengesahBaris();
   return `<b>${esc(g.nama)}</b>${g.jawatan ? `<br>${esc(g.jawatan)}` : ''}`;

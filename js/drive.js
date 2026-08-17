@@ -18,7 +18,7 @@ const SKOP_DRIVE = 'https://www.googleapis.com/auth/drive.file';
    Guru TIDAK perlu buat apa-apa tetapan — mereka hanya tekan butang
    dan log masuk dengan akaun Google masing-masing.
    --------------------------------------------------------------- */
-const CLIENT_ID_TERBINA = "313464725222-2496bherbuls7iackl1q8dg0043m5ehp.apps.googleusercontent.com";   // <-- tampal Client ID anda di sini
+const CLIENT_ID_TERBINA = "";   // <-- tampal Client ID anda di sini
 let _tokenGoogle = null, _tokenTamat = 0, _klienToken = null, _gisSedang = null;
 
 function clientIdGoogle(){
@@ -358,7 +358,7 @@ async function teruskanMuatNaik(senarai, label, gaya){
   const format = $('#dvFormat')?.value || 'pdf';
   try{
     sibuk(true,'Menyediakan dokumen…');
-    const html = dokumenDrive(senarai, gaya);
+    const html = dokumenDrive(senarai, gaya, format !== 'pdf');
     const nama = `RPH ${label} — ${S.profil.nama||''}`.trim().slice(0,120);
     let fail;
     if(format === 'pdf'){
@@ -509,7 +509,53 @@ async function binaPdf(html, lapor){
 }
 
 /* Bina HTML dokumen menggunakan templat cetakan sedia ada */
-function dokumenDrive(senarai, gaya){
+/* Google Docs membuang hampir semua CSS berasaskan kelas semasa import HTML.
+   Warna latar terselamat kerana ia inline pada elemen, tetapi sempadan jadual
+   yang datang daripada .pd-tbl td hilang sepenuhnya. Penyelesaiannya ialah
+   menyalin gaya penting terus ke atribut style setiap elemen sebelum dihantar. */
+const GAYA_DRIVE = [
+  ['table.pd-tbl, table.lp-tbl',
+   'border-collapse:collapse;width:100%;border:1px solid #444;table-layout:fixed'],
+  ['table.pd-tbl > tbody > tr > td, table.pd-tbl > tbody > tr > th',
+   'border:1px solid #444;padding:3px 5px;vertical-align:top;font-size:9pt;word-wrap:break-word'],
+  ['table.lp-tbl > tbody > tr > td, table.lp-tbl > tbody > tr > th',
+   'border:1px solid #444;padding:4px 6px;vertical-align:top;font-size:9.5pt;word-wrap:break-word'],
+  ['.pd-tbl th, .lp-tbl th', 'font-weight:700;text-align:left'],
+  ['.pd-band td, .lp-band td', 'font-weight:700;letter-spacing:.2px'],
+  ['.pd-sek, .lp-seksyen',
+   'background:#f0f0f0;border-bottom:1px solid #444;font-weight:700;font-size:8.5pt;padding:3px 5px'],
+  ['.pd-isi2, .lp-isi', 'padding:3px 5px;border-bottom:1px solid #444'],
+  ['.pd-ref, .lp-refleksi', 'background:#fdf6e6;font-size:8.5pt;line-height:1.4'],
+  ['.pd-hari td', 'background:#f5b301;font-weight:600'],
+  ['.pd-tbl table, .lp-tbl table', 'border-collapse:collapse;width:100%;border:0'],
+  ['.pd-tbl table td, .lp-tbl table td', 'border:1px solid #444;padding:3px 5px'],
+  ['.cetak-nota', 'font-size:8pt;color:#777;text-align:right;margin-top:4px'],
+  ['.pd-tbl ol, .pd-tbl ul, .lp-tbl ol, .lp-tbl ul', 'margin:2px 0;padding-left:16px'],
+  ['.pd-tbl p, .lp-tbl p', 'margin:2px 0']
+];
+
+function inlineGayaDrive(html){
+  const bekas = document.createElement('div');
+  bekas.innerHTML = html;
+  for(const [pemilih, gaya] of GAYA_DRIVE){
+    let elemen;
+    try{ elemen = bekas.querySelectorAll(pemilih); }catch(e){ continue; }
+    elemen.forEach(el => {
+      // Gaya inline sedia ada (cth. warna latar kepala) mesti menang
+      el.setAttribute('style', gaya + ';' + (el.getAttribute('style') || ''));
+    });
+  }
+  // Bahagian terakhir dalam sel tidak perlu garisan bawah — sempadan sel sudah ada
+  bekas.querySelectorAll('td > .pd-isi2:last-child, td > .pd-sek:last-child, td > .lp-isi:last-child, td > .lp-seksyen:last-child')
+    .forEach(el => el.style.borderBottom = '0');
+  // Sel kosong boleh runtuh dan kehilangan sempadan dalam Docs
+  bekas.querySelectorAll('td, th').forEach(el => {
+    if(!el.textContent.trim() && !el.children.length) el.innerHTML = '&nbsp;';
+  });
+  return bekas.innerHTML;
+}
+
+function dokumenDrive(senarai, gaya, untukDocs){
   const asal = localStorage.getItem('erph_gaya_cetak');
   localStorage.setItem('erph_gaya_cetak', gaya);
   let badan = '';
@@ -528,6 +574,9 @@ function dokumenDrive(senarai, gaya){
   if(asal) localStorage.setItem('erph_gaya_cetak', asal);
   const semua = [...document.styleSheets].map(ss => { try{ return [...ss.cssRules].map(x=>x.cssText).join('\n'); }catch(e){ return ''; } }).join('\n');
   const cetak = (semua.match(/@media print\{[\s\S]*?\n\}/) || [''])[0].replace(/^@media print\{/,'').replace(/\}$/,'');
+  // PDF dijana melalui pelayar, jadi helaian gaya memadai.
+  // Docs membuang CSS kelas, jadi gaya perlu disalin terus ke elemen.
+  if(untukDocs) badan = inlineGayaDrive(badan);
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
     body{font-family:Arial,sans-serif;font-size:9pt}
     ${cetak}

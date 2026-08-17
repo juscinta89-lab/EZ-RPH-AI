@@ -440,12 +440,18 @@ function halDashboard(){
       <button class="btn" onclick="pergi('jana')">✨ Jana RPH hari ini</button>
     </div>
 
-    ${sorot && !cuti ? `<div class="kad kad-sorot" onclick="${rphSorot ? `bukaRph('${rphSorot.id}')` : `janaSlot('${sorot.id}','${hariIni}')`}">
-      <div class="sorot-cop">${slotKini ? '🔴 Sedang berlangsung' : '⏭️ Slot seterusnya'}</div>
+    ${sorot && !cuti ? `<div class="kad kad-sorot${slotKini ? ' sorot-live' : ''}"
+        onclick="${rphSorot ? `bukaRph('${rphSorot.id}')` : `janaSlot('${sorot.id}','${hariIni}')`}">
+      <div class="sorot-cop">${slotKini
+        ? '<i class="sorot-titik"></i> Sedang berlangsung'
+        : '<i class="sorot-anak">⏭</i> Slot seterusnya'}</div>
       <div class="sorot-baris">
-        <div class="sorot-masa">${esc(sorot.mula)}<small>${esc(sorot.tamat)}</small></div>
-        <div class="sorot-info"><b>${esc(sorot.subjek)}</b><small>${esc(sorot.kelas)} · ${minit(sorot.mula,sorot.tamat)} minit</small></div>
-        <span class="btn btn-sm ${rphSorot ? '' : 'btn-primary'}">${rphSorot ? 'Buka RPH' : '✨ Jana RPH'}</span>
+        <div class="sorot-kiri">
+          <div class="sorot-masa">${esc(sorot.mula)} – ${esc(sorot.tamat)}</div>
+          <b class="sorot-subjek">${esc(sorot.subjek)}</b>
+          <small class="sorot-kelas">${esc(sorot.kelas)} · ${minit(sorot.mula,sorot.tamat)} minit</small>
+        </div>
+        <span class="btn btn-sm ${rphSorot ? '' : 'btn-primary'} sorot-btn">${rphSorot ? 'Buka RPH' : '✨ Jana RPH'}</span>
       </div>
     </div>` : ''}
 
