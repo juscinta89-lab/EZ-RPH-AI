@@ -379,6 +379,26 @@ tr:last-child td{border-bottom:0}
 .spin{width:32px;height:32px;border:3px solid var(--biru-t);border-top-color:var(--biru);border-radius:50%;margin:0 auto;animation:sp .8s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
 
+/* ---------- Butang ikon tindakan ---------- */
+.ikon-btn{width:34px;height:34px;border-radius:10px;border:1px solid var(--garis);
+  background:var(--putih);color:var(--teks-2);display:grid;place-content:center;
+  cursor:pointer;flex:none;transition:all .15s;padding:0}
+.ikon-btn svg{width:17px;height:17px}
+.ikon-btn:hover{background:var(--ungu-t);border-color:#ddd3fb;color:#5b3fbe}
+.ikon-btn:active{transform:scale(.94)}
+
+/* ---------- Pratonton RPH ---------- */
+.pra-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:11px;
+  font-size:12.5px;color:var(--teks-3)}
+.pra-bar span{flex:1;min-width:0}
+.pra-bar select{width:auto;padding:6px 10px;font-size:12.5px}
+.pra-kanvas{background:#e9ebf2;border-radius:var(--r-sm);padding:10px;
+  max-height:64vh;overflow:auto;-webkit-overflow-scrolling:touch;display:flex;justify-content:center}
+.pra-skala{position:relative;flex:none}
+#praBingkai{border:0;background:#fff;display:block;transform-origin:top left;
+  box-shadow:0 2px 14px rgba(0,0,0,.14)}
+@media (max-width:640px){ .pra-kanvas{padding:6px;max-height:60vh} }
+
 /* ---------- Foto profil ---------- */
 .hero-atas{display:flex;align-items:center;gap:14px;margin-bottom:4px}
 .hero-teks{flex:1;min-width:0}

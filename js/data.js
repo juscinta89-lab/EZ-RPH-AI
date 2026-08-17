@@ -353,7 +353,7 @@ function gridJadual(){
   return `<div class="kad">
     <div class="kad-h"><h3>Jadual waktu saya</h3>
       <div class="jw-alat">
-        <button class="btn btn-sm" onclick="jadualPenuh()" title="Lihat skrin penuh & putar">⟳ Putar</button>
+        <button class="ikon-btn" onclick="jadualPenuh()" title="Skrin penuh" aria-label="Skrin penuh">${IKON_PENUH}</button>
         <button class="btn btn-sm" onclick="pergi('jadual')">Sunting</button>
       </div></div>
     <div class="jw-skrol">${jadualTbl(waktu, baris)}</div>
@@ -481,7 +481,10 @@ function halDashboard(){
           <div class="slot-masa">${esc(s.mula)}<br>${esc(s.tamat)}</div>
           <div class="slot-info"><b>${esc(s.subjek)}</b><small>${esc(s.kelas)} · ${minit(s.mula,s.tamat)} minit</small></div>
           ${ada ? `<span class="pil ${ada.status==='lengkap'?'hijau':'kuning'}">${ada.status==='lengkap'?'Lengkap':'Draf'}</span>
-                  <button class="btn btn-sm" onclick="bukaRph('${ada.id}')">Buka</button>`
+                  <button class="ikon-btn" title="Pratonton RPH" aria-label="Pratonton RPH"
+                    onclick="pratontonRph('${ada.id}')">${IKON_MATA}</button>
+                  <button class="ikon-btn" title="Edit RPH" aria-label="Edit RPH"
+                    onclick="bukaRph('${ada.id}')">${IKON_PENSEL}</button>`
                 : `<button class="btn btn-sm btn-primary" onclick="janaSlot('${s.id}','${hariIni}')">✨ Jana RPH</button>`}
         </div>`; }).join('')
         : `<div class="kosong"><b>Tiada slot pada hari ini</b>Tambah jadual waktu untuk melihat sesi PdP anda.<br><br><button class="btn btn-primary btn-sm" onclick="pergi('jadual')">Tetapkan jadual waktu</button></div>`}
@@ -1378,6 +1381,74 @@ function kadFoto(){
       </div>
     </div>
   </div>`;
+}
+
+/* ---------- Ikon tindakan ---------- */
+const IKON_MATA = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+  stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>`;
+const IKON_PENSEL = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+  stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
+const IKON_PENUH = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+  stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>`;
+
+/* Pratonton RPH penuh — sama rupa dengan yang dicetak.
+   Kandungan diletak dalam iframe supaya gaya cetakan terasing sepenuhnya
+   daripada gaya aplikasi; apa yang dilihat betul-betul apa yang keluar dicetak. */
+function pratontonRph(id){
+  const r = S.rph.find(x => x.id === id);
+  if(!r) return toast('RPH tidak dijumpai','salah');
+  const gaya = localStorage.getItem('erph_gaya_cetak') || 'padat';
+  const badan = gaya === 'penuh'
+    ? htmlRph(r, true)
+    : kepalaHari(r.tarikh) + htmlRphPadat(r, 1) + semakanHari();
+  const css = typeof cssCetak === 'function' ? cssCetak() : '';
+
+  const doc = `<!doctype html><html><head><meta charset="utf-8"><style>
+    html,body{margin:0;background:#fff}
+    body{font-family:Arial,Helvetica,sans-serif;font-size:9pt;color:#000;
+      width:190mm;padding:9mm 10mm;box-sizing:content-box}
+    ${css}
+    #cetak{display:block !important}
+  </style></head><body><div id="cetak">${badan}</div></body></html>`;
+
+  modal(`${esc(r.subjek)} · ${esc(r.kelas)}`, `
+    <div class="pra-bar">
+      <span>${tarikhCantik(r.tarikh)} · ${esc(r.mula||'')}–${esc(r.tamat||'')}</span>
+      <select onchange="tukarGayaPratonton(this.value,'${id}')">
+        <option value="padat"${gaya==='padat'?' selected':''}>Gaya padat</option>
+        <option value="penuh"${gaya==='penuh'?' selected':''}>Gaya penuh</option>
+      </select>
+    </div>
+    <div class="pra-kanvas"><div class="pra-skala"><iframe id="praBingkai" title="Pratonton RPH"></iframe></div></div>`,
+    `<button class="btn" onclick="tutupModal()">Tutup</button>
+     <button class="btn" onclick="tutupModal();bukaRph('${id}')">✏️ Edit</button>
+     <button class="btn btn-primary" onclick="tutupModal();S.editRphId='${id}';cetakRph()">🖨️ Cetak</button>`);
+
+  const bingkai = document.getElementById('praBingkai');
+  if(!bingkai) return;
+  bingkai.onload = () => muatSkalaPratonton(bingkai);
+  bingkai.srcdoc = doc;
+}
+
+/* Helaian dirender pada lebar A4 sebenar (210mm) kemudian dikecilkan supaya muat
+   dalam modal. Dengan cara ini nisbah dan susun atur kekal sama dengan cetakan. */
+function muatSkalaPratonton(bingkai){
+  const d = bingkai.contentDocument; if(!d) return;
+  const LEBAR = 794;                                   // 210mm pada 96dpi
+  const tinggi = Math.max(400, d.body.scrollHeight);
+  bingkai.style.width = LEBAR + 'px';
+  bingkai.style.height = tinggi + 'px';
+
+  const bungkus = bingkai.parentElement;
+  const skala = Math.min(1, (bungkus.parentElement.clientWidth - 20) / LEBAR);
+  bingkai.style.transform = `scale(${skala})`;
+  bungkus.style.height = (tinggi * skala) + 'px';
+  bungkus.style.width  = (LEBAR * skala) + 'px';
+}
+
+function tukarGayaPratonton(gaya, id){
+  localStorage.setItem('erph_gaya_cetak', gaya);
+  tutupModal(); pratontonRph(id);
 }
 
 function halTetapan(){
