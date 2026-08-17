@@ -18,7 +18,7 @@ const SKOP_DRIVE = 'https://www.googleapis.com/auth/drive.file';
    Guru TIDAK perlu buat apa-apa tetapan — mereka hanya tekan butang
    dan log masuk dengan akaun Google masing-masing.
    --------------------------------------------------------------- */
-const CLIENT_ID_TERBINA = "313464725222-2496bherbuls7iackl1q8dg0043m5ehp.apps.googleusercontent.com";   // <-- tampal Client ID anda di sini
+const CLIENT_ID_TERBINA = "";   // <-- tampal Client ID anda di sini
 let _tokenGoogle = null, _tokenTamat = 0, _klienToken = null, _gisSedang = null;
 
 function clientIdGoogle(){
@@ -49,6 +49,23 @@ function pramuatGIS(){
     }
   });
   return _gisSedang;
+}
+
+/* Menterjemah ralat OAuth Google kepada ayat yang guru boleh fahami.
+   Fungsi ini dipanggil dua kali di bawah tetapi tidak pernah ditakrifkan —
+   menyebabkan ralat sebenar bertukar menjadi "huraiRalatOAuth is not defined". */
+function huraiRalatOAuth(r){
+  const kod = String(r?.error || r?.type || '').toLowerCase();
+  const teks = r?.error_description || r?.message || '';
+  if(kod.includes('popup_closed') || kod.includes('popup_failed'))
+    return 'Tetingkap kebenaran Google ditutup sebelum selesai. Cuba lagi.';
+  if(kod.includes('popup_blocked'))
+    return 'Pelayar menyekat tetingkap Google. Benarkan pop-up untuk laman ini, kemudian cuba lagi.';
+  if(kod.includes('access_denied'))
+    return 'Kebenaran Google Drive tidak diberi. Sila benarkan akses untuk menyimpan fail.';
+  if(kod.includes('idpiframe') || kod.includes('invalid_client'))
+    return 'Tetapan Client ID Google tidak sah untuk domain ini.';
+  return teks || kod || 'Ralat kebenaran Google yang tidak diketahui.';
 }
 
 /* Minta kebenaran SERTA-MERTA dalam klik pengguna — tiada await sebelum ini,

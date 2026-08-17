@@ -111,7 +111,6 @@ function papar(){
   $('#uNama').textContent = S.profil.nama || S.user.email;
   $('#uPeranan').textContent = S.peranan;
   segarAvatar();
-  lukisAvatar();
   $('#sideSekolah').textContent = S.sekolah?.nama || 'Tiada sekolah';
 }
 
