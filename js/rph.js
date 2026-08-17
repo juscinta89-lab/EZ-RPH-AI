@@ -813,8 +813,8 @@ function lihatHari(iso){
       const r = rphHari.find(x => x.slotId === s.id);
       return `<div class="slot"><div class="slot-masa">${esc(s.mula)}<br>${esc(s.tamat)}</div>
         <div class="slot-info"><b>${esc(s.subjek)}</b><small>${esc(s.kelas)}</small></div>
-        ${r ? `<button class="btn btn-sm" onclick="tutupModal();bukaRph('${r.id}')">Buka</button>`
-            : `<button class="btn btn-sm btn-primary" onclick="tutupModal();janaSlot('${s.id}','${iso}')">✨ Jana</button>`}</div>`;
+        <div class="slot-aksi">${r ? `<button class="btn btn-sm" onclick="tutupModal();bukaRph('${r.id}')">Buka</button>`
+            : `<button class="btn btn-sm btn-primary" onclick="tutupModal();janaSlot('${s.id}','${iso}')">✨ Jana</button>`}</div></div>`;
     }).join('') : '<div class="kosong">Tiada slot PdP pada hari ini.</div>'),
     (S.rph.some(r=>r.tarikh===iso) ? `<button class="btn" onclick="tutupModal()">Tutup</button>
       <button class="btn btn-primary" onclick="tutupModal();cetakHari('${iso}')">🖨️ Cetak semua RPH hari ini</button>` : null));

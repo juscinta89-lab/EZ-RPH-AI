@@ -480,12 +480,14 @@ function halDashboard(){
         return `<div class="slot">
           <div class="slot-masa">${esc(s.mula)}<br>${esc(s.tamat)}</div>
           <div class="slot-info"><b>${esc(s.subjek)}</b><small>${esc(s.kelas)} · ${minit(s.mula,s.tamat)} minit</small></div>
+          <div class="slot-aksi">
           ${ada ? `<span class="pil ${ada.status==='lengkap'?'hijau':'kuning'}">${ada.status==='lengkap'?'Lengkap':'Draf'}</span>
                   <button class="ikon-btn" title="Pratonton RPH" aria-label="Pratonton RPH"
                     onclick="pratontonRph('${ada.id}')">${IKON_MATA}</button>
                   <button class="ikon-btn" title="Edit RPH" aria-label="Edit RPH"
                     onclick="bukaRph('${ada.id}')">${IKON_PENSEL}</button>`
                 : `<button class="btn btn-sm btn-primary" onclick="janaSlot('${s.id}','${hariIni}')">✨ Jana RPH</button>`}
+          </div>
         </div>`; }).join('')
         : `<div class="kosong"><b>Tiada slot pada hari ini</b>Tambah jadual waktu untuk melihat sesi PdP anda.<br><br><button class="btn btn-primary btn-sm" onclick="pergi('jadual')">Tetapkan jadual waktu</button></div>`}
     </div>
@@ -701,8 +703,10 @@ function halJadual(){
         ${slot.map(s => `<div class="slot">
           <div class="slot-masa">${esc(s.mula)}<br>${esc(s.tamat)}</div>
           <div class="slot-info"><b>${esc(s.subjek)}</b><small>${esc(s.kelas)} · ${minit(s.mula,s.tamat)} min${s.bilik?' · '+esc(s.bilik):''}</small></div>
-          <button class="btn btn-sm" onclick="formSlot('${s.id}')">Edit</button>
-          <button class="btn btn-sm btn-danger" onclick="hapusSlot('${s.id}')">✕</button>
+          <div class="slot-aksi">
+            <button class="btn btn-sm" onclick="formSlot('${s.id}')">Edit</button>
+            <button class="btn btn-sm btn-danger" onclick="hapusSlot('${s.id}')">✕</button>
+          </div>
         </div>`).join('')}</div>`;
     }).join('') || `<div class="kosong"><b>Jadual waktu masih kosong</b>Tambah slot PdP mengikut hari, masa, subjek dan kelas.</div>`}`;
 }

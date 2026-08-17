@@ -179,11 +179,26 @@ textarea{resize:vertical;min-height:88px;line-height:1.6}
 .hero p{opacity:.9;font-size:13px}
 .hero .btn{margin-top:14px;background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.3);color:#fff;backdrop-filter:blur(4px)}
 
-.slot{display:flex;gap:12px;align-items:center;padding:12px;border:1px solid var(--garis);border-radius:var(--r-sm);margin-bottom:9px;background:var(--putih)}
-.slot-masa{font-family:var(--disp);font-weight:700;font-size:13px;color:var(--ungu);min-width:96px;line-height:1.35}
-.slot-info{flex:1;min-width:0}
-.slot-info b{display:block;font-size:14px}
-.slot-info small{color:var(--teks-3);font-size:12px}
+/* Baris slot PdP.
+   Susun atur ini tidak bergantung pada titik putus skrin. Nama subjek diberi
+   lebar asas 15em; sebaik sahaja ruang tidak mencukupi, kumpulan tindakan
+   terus turun ke barisnya sendiri. Ia juga betul apabila pengguna membesarkan
+   saiz fon peranti, kerana ukurannya dalam em bukan piksel. */
+.slot{display:flex;gap:10px 12px;align-items:center;padding:12px 13px;
+  border:1px solid var(--garis);border-radius:var(--r-sm);margin-bottom:9px;
+  background:var(--putih);flex-wrap:wrap;transition:border-color .15s}
+.slot:hover{border-color:#ddd3fb}
+.slot-masa{font-family:var(--disp);font-weight:700;font-size:13px;color:var(--ungu);
+  flex:none;width:4.4em;line-height:1.35;font-variant-numeric:tabular-nums}
+.slot-info{flex:1 1 15em;min-width:0}
+.slot-info b{display:block;font-size:14px;line-height:1.3;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.slot-info small{color:var(--teks-3);font-size:12px;display:block;margin-top:1px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* margin-left:auto menjajarkan tindakan ke kanan sama ada ia kekal pada baris
+   yang sama atau terpaksa turun ke baris bawah. */
+.slot-aksi{display:flex;gap:8px;align-items:center;margin-left:auto;flex:none}
+.slot-aksi .pil{white-space:nowrap}
 
 .pil{display:inline-flex;align-items:center;font-size:11.3px;font-weight:650;padding:3.5px 9px;
   border-radius:20px;white-space:nowrap;letter-spacing:.01em}
