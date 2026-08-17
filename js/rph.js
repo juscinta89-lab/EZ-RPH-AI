@@ -946,13 +946,16 @@ function halEditor(){
 function bukaAiDrawer(){ $('#aiDrawer').classList.add('buka'); $('#aiTirai').classList.add('buka'); }
 function tutupAiDrawer(){ $('#aiDrawer').classList.remove('buka'); $('#aiTirai').classList.remove('buka'); }
 
+function editorTerbuka(){ return !!document.getElementById('eTarikh'); }
+
 function bacaEditor(){
   const g = id => $('#'+id) ? $('#'+id).value.trim() : '';
+  if(!editorTerbuka()) return {};          // dipanggil di luar editor — jangan meletup
   return {
-    tarikh:g('eTarikh'), hari:namaHari($('#eTarikh').value), mula:g('eMula'), tamat:g('eTamat'),
+    tarikh:g('eTarikh'), hari:namaHari(g('eTarikh')), mula:g('eMula'), tamat:g('eTamat'),
     tempoh:minit(g('eMula'),g('eTamat')), subjek:g('eSubjek'), kelas:g('eKelas'), minggu:g('eMinggu'),
     tema:g('eTema'), tajuk:g('eTajuk'), kodSk:g('eKodSk'), kodSp:g('eKodSp'), sk:g('eSk'), sp:g('eSp'), tp:g('eTp'),
-    objektif:g('eObjektif'), kriteria:g('eKriteria'), aktiviti:$('#eAktiviti').innerHTML,
+    objektif:g('eObjektif'), kriteria:g('eKriteria'), aktiviti:$('#eAktiviti')?.innerHTML || '',
     pengayaan:g('ePengayaan'), pemulihan:g('ePemulihan'), penutup:g('ePenutup'),
     strategi:g('eStrategi'), pak21:g('ePak21'), kbat:g('eKbat'), emk:g('eEmk'), nilai:g('eNilai'),
     bbm:g('eBbm'), pentaksiran:g('ePentaksiran'), refleksi:g('eRefleksi'), dikemas:Date.now()
@@ -1407,7 +1410,7 @@ function htmlRph(r, tunjukSemakan){
       <td colspan="4" style="padding:0">
         ${akt.starter?`<div class="pd-sek">Pengenalan:-</div><div class="pd-isi2">${akt.starter}</div>`:''}
         <div class="pd-sek">Aktiviti:-</div><div class="pd-isi2">${akt.utama||'-'}</div>
-        <div class="pd-sek">Penutup:-</div><div class="pd-isi2">${p(r.penutup)}</div>
+        <div class="pd-sek">Penutup:-</div><div class="pd-isi2">${paparPenutup(r.penutup) || "-"}</div>
       </td>
       <td colspan="2" class="pd-ref">${refleksiKanan}</td></tr>
     <tr><th ${th}>KBAT</th><td>${p(r.kbat)}</td>
@@ -1507,7 +1510,7 @@ function htmlRphPadat(r, noKelas){
       <td colspan="4" style="padding:0">
         ${akt.starter?`<div class="pd-sek">Pengenalan / Set Induksi</div><div class="pd-isi2">${akt.starter}</div>`:''}
         <div class="pd-sek">Aktiviti</div><div class="pd-isi2">${akt.utama||'-'}</div>
-        ${nilai(r.penutup)?`<div class="pd-sek">Penutup</div><div class="pd-isi2">${esc(r.penutup)}</div>`:''}
+        ${nilai(r.penutup)?`<div class="pd-sek">Penutup</div><div class="pd-isi2">${paparPenutup(r.penutup)}</div>`:''}
       </td>
       <td colspan="2" class="pd-ref">${refleksi}<br><br><b>Intervensi:</b><br>______________________</td></tr>
     <tr><th style="background:${cerah}">KBAT</th><td>${p(r.kbat)}</td>
@@ -1550,6 +1553,23 @@ function ttdDisemak(){
   return blokTtd('Disemak oleh', g.nama, g.jawatan, '');
 }
 
+/* Sesetengah RPH lama menyimpan HTML mentah dalam medan penutup (daripada versi
+   awal penjana AI). Teks biasa dilepaskan seperti biasa; pembersihan hanya
+   berlaku apabila tag HTML benar-benar dikesan, supaya paparan RPH lain tidak
+   berubah sedikit pun. */
+function paparPenutup(nilaiPenutup){
+  const t = String(nilaiPenutup || '');
+  if(!/<\s*(p|ol|ul|li|br|div)[\s>/]/i.test(t)) return esc(t);
+  const bersih = t
+    .replace(/<\/(p|div|li|ol|ul|h[1-6])>/gi, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<li[^>]*>/gi, '• ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .split('\n').map(x => x.trim()).filter(Boolean).join('\n');
+  return esc(bersih).replace(/\n/g, '<br>');
+}
+
 function blokPengesah(){
   const g = pengesahBaris();
   return `<b>${esc(g.nama)}</b>${g.jawatan ? `<br>${esc(g.jawatan)}` : ''}`;
@@ -1573,10 +1593,22 @@ function keluarkanCetak(html){
   setTimeout(()=> window.print(), 150);
 }
 
-function cetakRph(){
-  const r = { ...S.rph.find(x=>x.id===S.editRphId), ...bacaEditor() };
-  if(gayaCetak() === 'penuh') return keluarkanCetak(htmlRph(r) + notaCetak());
-  keluarkanCetak(kepalaHari(r.tarikh) + htmlRphPadat(r, 1) + semakanHari() + notaCetak());
+function cetakRph(){ cetakRphId(S.editRphId); }
+
+/* Cetak satu RPH. Boleh dipanggil dari editor mahupun dari pratonton dashboard —
+   suntingan yang belum disimpan hanya diambil apabila editor benar-benar terbuka. */
+function cetakRphId(id){
+  const asal = S.rph.find(x => x.id === id);
+  if(!asal) return toast('RPH tidak dijumpai','salah');
+  const r = (editorTerbuka() && S.editRphId === id) ? { ...asal, ...bacaEditor() } : asal;
+  keluarkanCetak(badanCetakRph(r) + notaCetak());
+}
+
+/* Satu sumber untuk kedua-dua cetakan dan pratonton, supaya tidak boleh terpesong. */
+function badanCetakRph(r){
+  return gayaCetak() === 'penuh'
+    ? htmlRph(r, true)
+    : kepalaHari(r.tarikh) + htmlRphPadat(r, 1) + semakanHari();
 }
 
 /* Cetak banyak RPH — satu RPH satu muka surat.

@@ -1391,22 +1391,24 @@ const IKON_PENSEL = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" 
 const IKON_PENUH = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
   stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>`;
 
-/* Pratonton RPH penuh — sama rupa dengan yang dicetak.
-   Kandungan diletak dalam iframe supaya gaya cetakan terasing sepenuhnya
-   daripada gaya aplikasi; apa yang dilihat betul-betul apa yang keluar dicetak. */
+/* Pratonton RPH penuh — SATU SUMBER dengan cetakan.
+   Kandungan diambil daripada badanCetakRph(), fungsi yang sama digunakan oleh
+   butang cetak di mana-mana, jadi pratonton dan cetakan tidak mungkin berbeza.
+   Butang Cetak mencetak iframe ini sendiri: apa yang dilihat itulah yang dicetak. */
 function pratontonRph(id){
   const r = S.rph.find(x => x.id === id);
   if(!r) return toast('RPH tidak dijumpai','salah');
-  const gaya = localStorage.getItem('erph_gaya_cetak') || 'padat';
-  const badan = gaya === 'penuh'
-    ? htmlRph(r, true)
-    : kepalaHari(r.tarikh) + htmlRphPadat(r, 1) + semakanHari();
+  const gaya = gayaCetak();
+  const badan = badanCetakRph(r) + notaCetak();
   const css = typeof cssCetak === 'function' ? cssCetak() : '';
 
   const doc = `<!doctype html><html><head><meta charset="utf-8"><style>
     html,body{margin:0;background:#fff}
     body{font-family:Arial,Helvetica,sans-serif;font-size:9pt;color:#000;
-      width:190mm;padding:9mm 10mm;box-sizing:content-box}
+      width:190mm;padding:9mm 10mm;box-sizing:content-box;
+      -webkit-print-color-adjust:exact;print-color-adjust:exact}
+    @page{size:A4 portrait;margin:9mm 10mm}
+    @media print{ body{width:auto;padding:0} }
     ${css}
     #cetak{display:block !important}
   </style></head><body><div id="cetak">${badan}</div></body></html>`;
@@ -1422,13 +1424,11 @@ function pratontonRph(id){
     <div class="pra-kanvas"><div class="pra-skala"><iframe id="praBingkai" title="Pratonton RPH"></iframe></div></div>`,
     `<button class="btn" onclick="tutupModal()">Tutup</button>
      <button class="btn" onclick="tutupModal();bukaRph('${id}')">✏️ Edit</button>
-     <button class="btn btn-primary" onclick="tutupModal();S.editRphId='${id}';cetakRph()">🖨️ Cetak</button>`);
+     <button class="btn btn-primary" onclick="cetakPratonton()">🖨️ Cetak</button>`);
 
   const bingkai = document.getElementById('praBingkai');
   if(!bingkai) return;
   bingkai.onload = () => {
-    // Modal masih dianimasikan semasa onload, jadi lebar sebenar belum tetap.
-    // Ukur selepas dua bingkai, kemudian ikuti sebarang perubahan saiz skrin.
     requestAnimationFrame(() => requestAnimationFrame(() => muatSkalaPratonton(bingkai)));
     setTimeout(() => muatSkalaPratonton(bingkai), 260);
     if(window.ResizeObserver && !bingkai._pemerhati){
@@ -1441,8 +1441,22 @@ function pratontonRph(id){
   bingkai.srcdoc = doc;
 }
 
-/* Helaian dirender pada lebar A4 sebenar (210mm) kemudian dikecilkan supaya muat
-   dalam modal. Dengan cara ini nisbah dan susun atur kekal sama dengan cetakan. */
+/* Cetak dokumen dalam iframe pratonton itu sendiri. Modal kekal terbuka;
+   dialog cetak dibuka di atasnya. Jika pelayar menghalang (sesetengah PWA
+   Android), jatuh kembali ke laluan cetakan biasa. */
+function cetakPratonton(){
+  const bingkai = document.getElementById('praBingkai');
+  try{
+    bingkai.contentWindow.focus();
+    bingkai.contentWindow.print();
+  }catch(e){
+    const html = bingkai?.contentDocument?.getElementById('cetak')?.innerHTML;
+    tutupModal();
+    if(html) keluarkanCetak(html);
+    else toast('Tidak dapat membuka dialog cetak','salah');
+  }
+}
+
 function muatSkalaPratonton(bingkai){
   const d = bingkai.contentDocument; if(!d?.body) return;
   const kanvas = bingkai.closest('.pra-kanvas'); if(!kanvas) return;
@@ -1466,7 +1480,7 @@ function muatSkalaPratonton(bingkai){
 }
 
 function tukarGayaPratonton(gaya, id){
-  localStorage.setItem('erph_gaya_cetak', gaya);
+  setGayaCetak(gaya);
   tutupModal(); pratontonRph(id);
 }
 

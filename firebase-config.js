@@ -40,4 +40,4 @@ const APP = {
 /* ---------- Google Classroom (pilihan) ----------
    Kosongkan jika tidak digunakan. Cara mendapatkan Client ID ada dalam
    menu "Google Classroom" di dalam aplikasi. */
-const GOOGLE_CLIENT_ID = "";
+const GOOGLE_CLIENT_ID = "313464725222-2496bherbuls7iackl1q8dg0043m5ehp.apps.googleusercontent.com";
