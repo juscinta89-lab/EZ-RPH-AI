@@ -1017,6 +1017,16 @@ function modalLatihan(){
         <option value="kbat">KBAT — untuk murid pengayaan</option>
       </select></label>
 
+    <label class="fld" id="ltGambarBaris" style="display:none"><span>Gambar untuk setiap item</span>
+      <select id="ltGambar">
+        <option value="emoji">Emoji besar berwarna</option>
+        <option value="kosong">Kotak kosong — saya tampal gambar sendiri</option>
+      </select></label>
+
+    <label class="fld"><span>Arahan khas anda <em>(pilihan)</em></span>
+      <textarea id="ltArahan" rows="3"
+        placeholder="Cth: Fokus pada penukaran unit sahaja. Guna nama murid kelas saya. Elakkan soalan berayat panjang."></textarea></label>
+
     <p style="font-size:11.5px;color:var(--teks-3);margin-top:4px" id="ltNota"></p>`,
     `<button class="btn" onclick="tutupModal()">Batal</button>
      <button class="btn btn-primary" onclick="janaLatihan()">✨ Jana</button>`);
@@ -1027,20 +1037,25 @@ function ubahJenisLatihan(){
   const j = $('#ltJenis')?.value;
   const main = JENIS_LATIHAN[j]?.main;
   if($('#ltBilBaris')) $('#ltBilBaris').style.display = main ? 'none' : '';
+  if($('#ltGambarBaris')) $('#ltGambarBaris').style.display = j === 'gambarAyat' ? '' : 'none';
   if($('#ltNota')) $('#ltNota').textContent = main
     ? 'AI membekalkan istilah dan klu; susun atur grid dibina oleh aplikasi supaya sentiasa sah.'
-    : 'Setiap soalan disertakan jawapan dan huraian ringkas untuk rujukan guru.';
+    : j === 'padanan'
+      ? 'Dua lajur bersebelahan — murid memadankan dengan melukis garisan.'
+      : 'Setiap soalan disertakan jawapan dan huraian ringkas untuk rujukan guru.';
 }
 
 async function janaLatihan(){
   const jenis = $('#ltJenis').value, aras = $('#ltAras').value;
   const bilangan = $('#ltBil') ? +$('#ltBil').value : 8;
+  const arahanGuru = $('#ltArahan') ? $('#ltArahan').value.trim() : '';
+  const gambar = $('#ltGambar') ? $('#ltGambar').value : 'emoji';
   tutupModal();
   const r = { ...S.rph.find(x => x.id === S.editRphId), ...bacaEditor() };
   sibuk(true, 'AI sedang menyediakan latihan…');
   try{
-    const latihan = await janaSoalanAI({ jenis, aras, bilangan, subjek:r.subjek, kelas:r.kelas,
-      tajuk:r.tajuk, sk:r.sk, sp:r.sp, objektif:r.objektif });
+    const latihan = await janaSoalanAI({ jenis, aras, bilangan, arahanGuru, gambar,
+      subjek:r.subjek, kelas:r.kelas, tajuk:r.tajuk, sk:r.sk, sp:r.sp, objektif:r.objektif });
     await rujuk('rph').doc(S.editRphId).update({ latihan, dikemas: Date.now() });
     await muatRph(); sibuk(false);
     lihatLatihan();
@@ -1080,6 +1095,7 @@ function htmlLatihan(r, L, skema){
   if(L.jenis === 'silangKata') return kepala + htmlSilangKata(L, skema);
   if(L.jenis === 'cariKata')   return kepala + htmlCariKata(L, skema);
   if(L.jenis === 'gambarAyat') return kepala + htmlGambarAyat(L, skema);
+  if(L.jenis === 'padanan')    return kepala + htmlPadanan(L, skema);
 
   const bank = L.bankPerkataan?.length ? `<div class="lt-bank"><b>Bank perkataan:</b>
     ${L.bankPerkataan.map(x => `<span>${esc(x)}</span>`).join('')}</div>` : '';
@@ -1099,9 +1115,37 @@ function htmlLatihan(r, L, skema){
   return kepala + bank + `<div class="lt-senarai">${soalan}</div>` + (skema ? htmlSkema(L) : '');
 }
 
+/* Padanan sebenar: dua lajur bersebelahan, murid melukis garisan dari kiri ke
+   kanan. Lajur kanan dikocok supaya jawapan tidak sebaris dengan soalannya. */
+function htmlPadanan(L, skema){
+  const item = L.soalan || [];
+  const kanan = (L.padananKanan && L.padananKanan.length === item.length)
+    ? L.padananKanan : item.map(x => x.jawapan);
+  const huruf = i => String.fromCharCode(65 + i);
+
+  const kiri = item.map(s => `<div class="pd-kad">
+      <span class="pd-no">${s.no}</span><span class="pd-teks">${esc(s.soalan)}</span>
+      <i class="pd-titik"></i></div>`).join('');
+  const kananHtml = kanan.map((x,i) => `<div class="pd-kad pd-kanan">
+      <i class="pd-titik"></i><span class="pd-no">${huruf(i)}</span>
+      <span class="pd-teks">${esc(x)}</span></div>`).join('');
+
+  const skemaHtml = skema ? `<div class="lt-skema"><h3>SKEMA JAWAPAN <small>(untuk guru sahaja)</small></h3>
+    ${item.map(s => `<div class="lt-sk"><b>${s.no}.</b> ${esc(s.soalan)} —
+      <b>${huruf(kanan.indexOf(s.jawapan))}. ${esc(s.jawapan)}</b></div>`).join('')}</div>` : '';
+
+  return `<div class="pd-grid"><div class="pd-lajur">${kiri}</div>
+    <div class="pd-lajur">${kananHtml}</div></div>${skemaHtml}`;
+}
+
 function htmlGambarAyat(L, skema){
+  const kosong = L.gambar === 'kosong';
   const item = (L.soalan||[]).map(s => `<div class="lt-gambar">
-    <div class="lt-kotak"><span>${esc(s.emoji||'🖼️')}</span></div>
+    <div class="lt-kotak${kosong ? ' lt-kotak-kosong' : ''}">
+      ${kosong ? '<em>Tampal<br>gambar</em>' : `
+        ${s.latar ? `<span class="gm-latar">${esc(s.latar)}</span>` : ''}
+        <span class="gm-emoji">${esc(s.emoji||'🖼️')}</span>`}
+    </div>
     <div class="lt-tulis">
       <div class="lt-s"><b>${s.no}.</b>${s.kataBantu?.length
         ? ` <em>Kata bantu: ${s.kataBantu.map(esc).join(', ')}</em>` : ''}</div>
@@ -1111,7 +1155,7 @@ function htmlGambarAyat(L, skema){
 
   return `<div class="lt-gambar-senarai">${item}</div>
     ${skema ? `<div class="lt-skema"><h3>CONTOH JAWAPAN <small>(untuk guru)</small></h3>
-      ${(L.soalan||[]).map(s => `<div class="lt-sk"><b>${s.no}.</b> ${esc(s.emoji||'')}
+      ${(L.soalan||[]).map(s => `<div class="lt-sk"><b>${s.no}.</b>
         ${esc(s.perihal||'')} — <em>${esc(s.jawapan||'')}</em></div>`).join('')}</div>` : ''}`;
 }
 

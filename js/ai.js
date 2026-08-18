@@ -774,6 +774,11 @@ KONTEKS PELAJARAN
 ${(ctx.objektif||'').split('\n').filter(Boolean).map(o => '    - '+o).join('\n') || '    -'}
 
 ARAS: ${ARAS_LATIHAN[ctx.aras] || ARAS_LATIHAN.sederhana}
+${ctx.arahanGuru ? `
+ARAHAN KHAS DARIPADA GURU — PATUHI INI DAHULU SEBELUM PERATURAN LAIN:
+${ctx.arahanGuru}
+Jika arahan ini bercanggah dengan cadangan lazim, ikut arahan guru.
+Jangan langgar peraturan keselamatan atau kesesuaian umur.` : ''}
 
 PERATURAN WAJIB
 1. Soalan mesti menguji objektif pembelajaran di atas — bukan topik lain dalam subjek yang sama.
@@ -798,14 +803,24 @@ PERATURAN WAJIB
 - Campurkan soalan 1 markah dan 2 markah.`,
       isiTempat: `"soalan": [ { "no":1, "soalan":"Ayat dengan ______ sebagai tempat kosong.", "jawapan":"perkataan", "huraian":"" } ]
 - Sediakan juga "bankPerkataan": senarai semua jawapan dalam susunan rawak sebagai bantuan murid.`,
-      padanan: `"soalan": [ { "no":1, "soalan":"item lajur A", "jawapan":"item lajur B yang sepadan", "huraian":"" } ]
-- Pastikan setiap padanan unik dan tiada dua jawapan yang sama.`,
-      gambarAyat: `"soalan": [ { "no":1, "emoji":"🐟🎣", "perihal":"Seorang budak lelaki memancing ikan di tepi sungai.", "kataBantu":["memancing","sungai","ikan"], "jawapan":"Contoh ayat: Ali memancing ikan di tepi sungai.", "huraian":"" } ]
-- "emoji" ialah 1 hingga 3 emoji yang MEWAKILI gambar itu. Pilih emoji yang jelas dan biasa.
+      padanan: `"soalan": [ { "no":1, "soalan":"item LAJUR KIRI", "jawapan":"item LAJUR KANAN yang sepadan", "huraian":"" } ]
+- Ini latihan memadan DUA LAJUR. Murid melukis garisan dari kiri ke kanan.
+- Lajur kiri dan lajur kanan mestilah PASANGAN PENDEK, bukan soalan dan ayat jawapan.
+  BETUL  : kiri "kuku"        kanan "jari"
+  BETUL  : kiri "batu"        kanan "nisan"
+  BETUL  : kiri "Tulang"      kanan "Kalsium"
+  SALAH  : kiri "Contoh bahan ketagihan yang disedut dan menghasilkan asap beracun"  kanan "Rokok"
+- Setiap item maksimum 4 patah perkataan. Kalau lebih panjang, ia bukan padanan.
+- Setiap jawapan mesti unik dan hanya sepadan dengan satu item kiri sahaja.`,
+      gambarAyat: `"soalan": [ { "no":1, "emoji":"👦🎣🐟", "latar":"🌊", "perihal":"Seorang budak lelaki memancing ikan di tepi sungai.", "kataBantu":["memancing","sungai","ikan"], "jawapan":"Ali memancing ikan di tepi sungai.", "huraian":"" } ]
+- "emoji" ialah 2 hingga 4 emoji yang disusun membentuk SATU PEMANDANGAN, bukan satu objek.
+  Mulakan dengan watak (👦 👧 👨‍🌾 👩‍🏫 dsb), diikuti perbuatan atau alat, kemudian objek.
+  Contoh baik: "👩‍🌾🥭🌳"  "👦🚲🏫"  "👧📚🪑"  "👨‍🍳🍲🔥"
+- "latar" ialah SATU emoji latar belakang sahaja (🌊 🌳 🏫 🏠 ☀️ 🌾) atau "" jika tiada.
 - "perihal" ialah keterangan gambar untuk rujukan guru, satu ayat sahaja.
 - "kataBantu" ialah 3 perkataan panduan untuk murid bina ayat.
 - "jawapan" ialah satu contoh ayat lengkap yang betul dari segi tatabahasa.
-- Situasi mesti pelbagai dan berkaitan tajuk pelajaran.`
+- Situasi mesti pelbagai, berkaitan tajuk pelajaran, dan mudah dikenali murid sekolah rendah.`
     }[ctx.jenis];
 
     return `${asas}
@@ -855,6 +870,13 @@ async function janaSoalanAI(ctx){
     j.kata = kata;
     j.grid = ctx.jenis === 'silangKata' ? binaSilangKata(kata) : binaCariPerkataan(kata, ctx.aras);
   }else{
+    if(ctx.jenis === 'padanan'){
+      // Susunan lajur kanan dikocok supaya bukan sekadar sebaris dengan lajur kiri
+      const jw = (j.soalan||[]).map(x => x.jawapan);
+      const kocok = jw.slice().sort(() => Math.random() - .5);
+      j.padananKanan = kocok;
+    }
+    if(ctx.jenis === 'gambarAyat') j.gambar = ctx.gambar || 'emoji';
     j.soalan = (j.soalan||[]).map((s,i) => ({ ...s, no:i+1,
       soalan: betulEjaan(s.soalan||''), huraian: betulEjaan(s.huraian||''),
       perihal: betulEjaan(s.perihal||''), jawapan: betulEjaan(s.jawapan||'') }));
