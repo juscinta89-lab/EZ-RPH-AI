@@ -757,6 +757,78 @@ const ARAS_LATIHAN = {
   kbat:      'Aras tinggi KBAT (Menganalisis, Menilai, Mencipta) — untuk murid pengayaan.'
 };
 
+/* ---------- Semakan jawapan ---------- */
+/* Model yang menjana soalan cenderung menerima jawapannya sendiri. Pusingan
+   kedua ini memaksanya menyemak semula sebagai PEMERIKSA, bukan penulis —
+   itu menangkap kesilapan logik dan tatabahasa yang terlepas pada pusingan
+   pertama, terutamanya susunan sebab-akibat dalam ayat majmuk. */
+function promptSemakSoalan(ctx, L){
+  const tahunNombor = (String(ctx.kelas||'').match(/\b([1-6])\b/) || [])[1] || '4';
+  return `Anda pemeriksa kertas soalan sekolah rendah Malaysia. Tugas anda MENYEMAK,
+bukan menulis soalan baharu. Bersikap tegas seperti ketua panitia yang menyemak kertas rakan.
+
+KONTEKS
+  Subjek : ${ctx.subjek}
+  Kelas  : ${ctx.kelas} (Tahun ${tahunNombor})
+  Tajuk  : ${ctx.tajuk || '-'}
+  Standard Pembelajaran : ${ctx.sp || '-'}
+
+SOALAN YANG PERLU DISEMAK:
+${JSON.stringify({ tajuk:L.tajuk, arahan:L.arahan, jenis:L.jenis, soalan:L.soalan }, null, 1)}
+
+SEMAK SETIAP ITEM TERHADAP PERKARA INI:
+
+1. TATABAHASA — jawapan mesti gramatis mengikut Bahasa Melayu baku.
+   Semak imbuhan, kata sendi, susunan subjek-predikat dan ejaan.
+
+2. LOGIK KATA HUBUNG — ini kesilapan paling kerap, periksa dengan teliti:
+   - "supaya / agar / untuk" menyatakan TUJUAN. Perbuatan datang dahulu, tujuan kemudian.
+     SALAH : "Aiman ingin menjadi petani moden supaya dia belajar bersungguh-sungguh."
+     BETUL : "Aiman belajar bersungguh-sungguh supaya dia menjadi petani moden."
+   - "kerana / sebab" menyatakan SEBAB. Kesan dahulu, sebab kemudian.
+   - "sehingga / lalu" menyatakan AKIBAT yang berlaku selepasnya.
+   - "walaupun / meskipun" menyatakan PERTENTANGAN.
+   - "sambil / semasa" menyatakan dua perbuatan SERENTAK oleh pelaku yang sama.
+   - "manakala / sedangkan" membandingkan dua perkara BERBEZA.
+   Jika hubungan logik terbalik, betulkan susunan klausa.
+
+3. PADAN DENGAN KEHENDAK SOALAN — jika soalan meminta ayat majmuk pancangan
+   keterangan, jawapan mesti benar-benar ayat majmuk pancangan keterangan.
+   Jika label jenis ayat tidak sepadan dengan ayat itu, betulkan label ATAU ayat.
+
+4. PENGIRAAN — untuk soalan matematik, kira semula dari awal.
+   Semak nilai, unit dan penukaran unit. Jangan percaya jawapan asal.
+
+5. JAWAPAN TUNGGAL — untuk aneka pilihan, pastikan hanya SATU pilihan betul
+   dan pengecoh lain benar-benar salah.
+
+6. KESESUAIAN UMUR — perbendaharaan kata sesuai untuk murid Tahun ${tahunNombor}.
+
+PULANGKAN JSON SAHAJA:
+{
+  "soalan": [ ...senarai penuh selepas dibetulkan, susunan dan medan sama seperti asal... ],
+  "pembetulan": [ "No 15: susunan klausa 'supaya' terbalik — tujuan diletakkan sebelum perbuatan" ],
+  "bersih": true
+}
+
+- "soalan" mesti mengandungi SEMUA item, termasuk yang tidak diubah.
+- "pembetulan" senaraikan setiap perubahan dalam satu ayat pendek. Kosongkan jika tiada.
+- "bersih" ialah true jika tiada apa-apa yang perlu dibetulkan.
+- JANGAN tambah atau buang soalan. Bilangan mesti kekal sama.`;
+}
+
+async function semakSoalanAI(ctx, L){
+  const j = ambilJSON(await panggilAiSelamat(promptSemakSoalan(ctx, L), null, ctx.lapor));
+  if(!Array.isArray(j.soalan) || j.soalan.length !== L.soalan.length){
+    L.semakanGagal = 'Semakan tidak lengkap — soalan asal dikekalkan.';
+    return L;
+  }
+  L.soalan = j.soalan.map((s,i) => ({ ...L.soalan[i], ...s, no:i+1 }));
+  L.pembetulan = (j.pembetulan||[]).map(betulEjaan).filter(Boolean);
+  L.disemak = true;
+  return L;
+}
+
 function promptSoalan(ctx){
   const permainan = ctx.jenis === 'silangKata' || ctx.jenis === 'cariKata';
   const tahunNombor = (String(ctx.kelas||'').match(/\b([1-6])\b/) || [])[1] || '4';
@@ -885,6 +957,13 @@ async function janaSoalanAI(ctx){
   }
   j.tajuk = betulEjaan(j.tajuk||''); j.arahan = betulEjaan(j.arahan||'');
   j.dijana = Date.now();
+
+  // Pusingan semakan — hanya untuk latihan bertulis; permainan tiada jawapan berayat
+  if(ctx.semak !== false && j.soalan?.length){
+    if(ctx.lapor) ctx.lapor('AI menyemak jawapan…');
+    try{ await semakSoalanAI(ctx, j); }
+    catch(e){ j.semakanGagal = 'Semakan gagal: ' + e.message; }
+  }
   return j;
 }
 

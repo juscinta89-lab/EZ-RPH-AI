@@ -1023,6 +1023,12 @@ function modalLatihan(){
         <option value="kosong">Kotak kosong — saya tampal gambar sendiri</option>
       </select></label>
 
+    <label class="baris" style="cursor:pointer;align-items:flex-start;margin-bottom:13px">
+      <input type="checkbox" id="ltSemak" checked style="width:auto;margin-top:3px">
+      <div class="baris-t"><b>Semak jawapan dengan AI</b>
+        <small>Pusingan kedua menyemak tatabahasa, logik kata hubung dan pengiraan.
+        Mengambil masa tambahan dan satu panggilan AI lagi.</small></div></label>
+
     <label class="fld"><span>Arahan khas anda <em>(pilihan)</em></span>
       <textarea id="ltArahan" rows="3"
         placeholder="Cth: Fokus pada penukaran unit sahaja. Guna nama murid kelas saya. Elakkan soalan berayat panjang."></textarea></label>
@@ -1050,16 +1056,22 @@ async function janaLatihan(){
   const bilangan = $('#ltBil') ? +$('#ltBil').value : 8;
   const arahanGuru = $('#ltArahan') ? $('#ltArahan').value.trim() : '';
   const gambar = $('#ltGambar') ? $('#ltGambar').value : 'emoji';
+  const semak = $('#ltSemak') ? $('#ltSemak').checked : true;
   tutupModal();
   const r = { ...S.rph.find(x => x.id === S.editRphId), ...bacaEditor() };
   sibuk(true, 'AI sedang menyediakan latihan…');
   try{
-    const latihan = await janaSoalanAI({ jenis, aras, bilangan, arahanGuru, gambar,
-      subjek:r.subjek, kelas:r.kelas, tajuk:r.tajuk, sk:r.sk, sp:r.sp, objektif:r.objektif });
+    const latihan = await janaSoalanAI({ jenis, aras, bilangan, arahanGuru, gambar, semak,
+      subjek:r.subjek, kelas:r.kelas, tajuk:r.tajuk, sk:r.sk, sp:r.sp, objektif:r.objektif,
+      lapor: t => sibuk(true, t) });
     await rujuk('rph').doc(S.editRphId).update({ latihan, dikemas: Date.now() });
     await muatRph(); sibuk(false);
     lihatLatihan();
-    toast('Latihan siap dijana','jaya');
+    const n = latihan.pembetulan?.length || 0;
+    toast(latihan.semakanGagal ? latihan.semakanGagal
+      : n ? `Latihan siap · AI membetulkan ${n} jawapan`
+          : latihan.disemak ? 'Latihan siap · semakan AI tiada isu' : 'Latihan siap dijana',
+      latihan.semakanGagal ? 'salah' : 'jaya');
   }catch(e){ sibuk(false); toast('Gagal: '+e.message,'salah'); }
 }
 
@@ -1162,9 +1174,19 @@ function htmlGambarAyat(L, skema){
 function htmlSkema(L){
   const langkah = s => s.langkah?.length
     ? `<div class="lt-langkah">${s.langkah.map(x => `<span>${esc(x)}</span>`).join('')}</div>` : '';
+  const nota = L.semakanGagal
+    ? `<div class="lt-semak lt-semak-gagal"><b>⚠ ${esc(L.semakanGagal)}</b>
+         Sila semak jawapan secara manual sebelum diedarkan.</div>`
+    : L.disemak
+      ? `<div class="lt-semak"><b>✓ Disemak semula oleh AI</b>${
+          L.pembetulan?.length
+            ? `<ul>${L.pembetulan.map(x => `<li>${esc(x)}</li>`).join('')}</ul>`
+            : ' Tiada pembetulan diperlukan.'}</div>`
+      : '';
   return `<div class="lt-skema"><h3>SKEMA JAWAPAN <small>(untuk guru sahaja)</small></h3>
     ${(L.soalan||[]).map(s => `<div class="lt-sk">
       <b>${s.no}.</b> ${esc(s.jawapan||'-')}${s.markah?` <em>[${s.markah}m]</em>`:''}${langkah(s)}${s.huraian?` <em>— ${esc(s.huraian)}</em>`:''}</div>`).join('')}
+    ${nota}
   </div>`;
 }
 
