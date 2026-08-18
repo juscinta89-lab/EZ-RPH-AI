@@ -821,7 +821,7 @@ function lihatHari(iso){
 }
 
 /* ================= EDITOR RPH ================= */
-function bukaRph(id){ S.editRphId = id; pergi('editor'); }
+function bukaRph(id){ S.editRphId = id; window._stdManual = false; window._stdSumberMinggu = ''; pergi('editor'); }
 
 function rte(id, isi, tinggi){
   return `<div class="rte-bar">
@@ -871,7 +871,11 @@ function halEditor(){
         <label class="fld"><span>Standard Kandungan</span><textarea id="eSk">${esc(r.sk||'')}</textarea></label>
         <label class="fld"><span>Standard Pembelajaran</span><textarea id="eSp">${esc(r.sp||'')}</textarea></label>
         <label class="fld"><span>Standard Prestasi</span><textarea id="eTp">${esc(r.tp||'')}</textarea></label>
-        <button class="btn btn-sm" onclick="pilihRpt()">📗 Ambil daripada RPT</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-sm" onclick="pilihRpt()">📗 Ambil daripada RPT</button>
+          <button class="btn btn-sm btn-ungu" onclick="janaDariStandard()"
+            title="Jana semula seluruh RPH berdasarkan SK/SP di atas">✨ Jana baru ikut SK/SP ini</button>
+        </div>
 
         <div class="seksyen-tajuk">Objektif & kriteria</div>
         <label class="fld"><span>Objektif pembelajaran <em>(satu baris satu objektif)</em></span><textarea id="eObjektif">${esc(r.objektif||'')}</textarea></label>
@@ -963,6 +967,10 @@ function bacaEditor(){
 }
 async function simpanRph(status){
   const d = { ...bacaEditor(), status };
+  // Asal-usul standard direkod supaya Semakan RPH tahu guru memang sengaja
+  // menggunakan SK/SP daripada minggu lain atau tulisan sendiri.
+  if(window._stdManual) d.rptManual = true;
+  if(window._stdSumberMinggu) d.rptMingguAsal = window._stdSumberMinggu;
   sibuk(true,'Menyimpan…');
   const lama = S.rph.find(x => x.id === S.editRphId);
   await rujuk('rph').doc(S.editRphId).collection('versi').add({ ...lama, disimpan:Date.now() }).catch(()=>{});
@@ -1202,7 +1210,53 @@ function pakaiRpt(i){
   $('#eKodSp').value = x.kodSp||''; $('#eSp').value = x.sp||''; $('#eTp').value = x.tp||'';
   if(!$('#eTajuk').value) $('#eTajuk').value = x.tajuk||'';
   if(!$('#eTema').value) $('#eTema').value = x.tema||'';
-  tutupModal(); toast('Maklumat RPT dimasukkan','jaya');
+  // Rekod dari minggu mana standard ini diambil, supaya Semakan RPH tidak
+  // menandakannya "SP tidak sepadan RPT" sedangkan guru memang sengaja memilihnya.
+  window._stdSumberMinggu = noMinggu(x.minggu) === noMinggu($('#eMinggu').value)
+    ? '' : (x.minggu || '');
+  tutupModal();
+  toast(window._stdSumberMinggu
+    ? `Standard ${labelMinggu(x.minggu)} dimasukkan — tekan "Jana baru" untuk bina semula RPH`
+    : 'Maklumat RPT dimasukkan','jaya');
+}
+
+/* Jana semula seluruh RPH berdasarkan SK/SP yang ada dalam editor sekarang.
+   Berbeza daripada janaSemula(): fungsi ini TIDAK merujuk RPT minggu semasa —
+   ia mengikut standard yang guru pilih atau tulis sendiri, walau daripada
+   minggu mana sekalipun. Refleksi dan maklumat slot dikekalkan. */
+async function janaDariStandard(){
+  const r = { ...S.rph.find(x => x.id === S.editRphId), ...bacaEditor() };
+  if(!String(r.sp||'').trim() && !String(r.sk||'').trim())
+    return toast('Isi Standard Kandungan atau Standard Pembelajaran dahulu','salah');
+
+  sahkan(`Jana semula RPH ini berdasarkan SK/SP di atas?\n\n` +
+    `Objektif, kriteria kejayaan, aktiviti, KBAT, PAK-21, PBD, BBM, pemulihan dan pengayaan ` +
+    `akan diganti. Refleksi anda dikekalkan. Perubahan belum disimpan sehingga anda tekan Simpan.`,
+    async () => {
+      sibuk(true,'AI menjana RPH baharu…');
+      try{
+        const fokus = { kodSk:r.kodSk, kodSp:r.kodSp, sk:r.sk, sp:r.sp, tp:r.tp,
+                        tajuk:r.tajuk, tema:r.tema };
+        const baru = await janaRphAI({
+          slotId:r.slotId, tarikh:r.tarikh, subjek:r.subjek, kelas:r.kelas, tahun:r.tahun,
+          mula:r.mula, tamat:r.tamat, tempoh:r.tempoh || minit(r.mula,r.tamat),
+          minggu:r.minggu, tajuk:r.tajuk || r.tema,
+          rptFokus:fokus, rptManual:true, cadangSp:!(r.sk && r.sp)
+        });
+        const set = (id,v) => { if(v != null && $('#'+id)) $('#'+id).value = v; };
+        set('eTajuk', baru.tajuk); set('eTema', baru.tema);
+        set('eObjektif', baru.objektif); set('eKriteria', baru.kriteria);
+        if(baru.aktiviti) $('#eAktiviti').innerHTML = baru.aktiviti;
+        set('ePenutup', stripHtml(baru.penutup||''));
+        set('ePemulihan', stripHtml(baru.pemulihan||'')); set('ePengayaan', stripHtml(baru.pengayaan||''));
+        set('eStrategi', baru.strategi); set('ePak21', baru.pak21); set('eKbat', baru.kbat);
+        set('eEmk', baru.emk); set('eNilai', baru.nilai); set('eBbm', baru.bbm);
+        set('ePentaksiran', baru.pentaksiran);
+        window._stdManual = true;                    // ditulis semasa simpan
+        sibuk(false);
+        toast('RPH baharu dijana. Semak dan tekan Simpan.','jaya');
+      }catch(e){ sibuk(false); toast('Gagal: '+e.message,'salah'); }
+    });
 }
 
 /* ---------- AI dalam editor ---------- */
