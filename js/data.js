@@ -272,7 +272,7 @@ const TEMPLAT = {
   kelas:  ['nama_kelas','tahun_tingkatan','bilangan_murid','tahap','nota'],
   subjek: ['nama_subjek','kod','peringkat'],
   rpt:    ['minggu','tahun_tingkatan','subjek','tema_bidang','tajuk_kemahiran','kod_sk','standard_kandungan','kod_sp','standard_pembelajaran','tp','catatan'],
-  buku:   ['tahun','subjek','buku','bab','unit','tajuk','kandungan'],
+  buku:   ['tahun','subjek','buku','bab','unit','tajuk','muka_surat','kandungan'],
   cuti:   ['nama','mula','tamat'],
   jadual: ['hari','masa_mula','masa_tamat','subjek','kelas','bilik','catatan']
 };
@@ -727,13 +727,30 @@ function formSlot(id){
     </div>`,
     `<button class="btn" onclick="tutupModal()">Batal</button><button class="btn btn-primary" onclick="simpanSlot('${id||''}')">Simpan</button>`);
 }
-/* RPH yang slotnya sudah tiada dalam jadual, bermula dari tarikh berkuat kuasa.
-   RPH sebelum tarikh itu ialah rekod PdP yang sudah berlaku — ia TIDAK disentuh
-   walaupun slotnya sudah dibuang, kerana ia bukti pengajaran yang telah dijalankan. */
-function rphYatim(mulaBerkuatKuasa){
+/* RPH yang slotnya sudah tiada dalam jadual, dalam julat tarikh yang diberi.
+   Secara lalai julat bermula hari ini — RPH sebelum hari ini ialah rekod PdP
+   yang sudah berlaku dan ia bukti pengajaran, jadi tidak disentuh. */
+function rphYatim(dari, hingga){
   const idSlot = new Set(S.jadual.map(s => s.id));
-  return S.rph.filter(r => r.tarikh >= mulaBerkuatKuasa && r.slotId && !idSlot.has(r.slotId))
-              .sort((a,b) => String(a.tarikh).localeCompare(b.tarikh));
+  return S.rph.filter(r => {
+    if(dari && r.tarikh < dari) return false;
+    if(hingga && r.tarikh > hingga) return false;
+    return r.slotId && !idSlot.has(r.slotId);
+  }).sort((a,b) => String(a.tarikh).localeCompare(b.tarikh));
+}
+
+/* Julat tarikh mengikut skop yang dipilih guru */
+function julatYatim(skop){
+  const kini = tarikhISO();
+  if(skop === 'semua') return { dari:'', hingga:'', label:'semua tarikh' };
+  if(skop === 'minggu'){
+    const d = new Date(kini + 'T00:00:00');
+    const isnin = new Date(d); isnin.setDate(d.getDate() - d.getDay());   // Ahad = mula minggu
+    const khamis = new Date(isnin); khamis.setDate(isnin.getDate() + 6);
+    const iso = x => x.toISOString().slice(0,10);
+    return { dari:iso(isnin), hingga:iso(khamis), label:'minggu ini' };
+  }
+  return { dari:kini, hingga:'', label:'hari ini dan seterusnya' };
 }
 
 /* Dipanggil selepas jadual disimpan. Menunjukkan senarai penuh sebelum memadam —
@@ -765,13 +782,13 @@ async function semakRphYatim(){
     <p style="font-size:12px;color:var(--teks-3)">
       RPH sebelum ${tarikhCantik(dari)} tidak disentuh — itu rekod PdP yang sudah berlaku.</p>`,
     `<button class="btn" onclick="tutupModal()">Simpan semua</button>
-     <button class="btn btn-danger" onclick="padamRphYatim('${dari}')">🗑️ Padam ${yatim.length} RPH</button>`);
+     <button class="btn btn-danger" onclick="padamRphYatim('${dari}','')">🗑️ Padam ${yatim.length} RPH</button>`);
 }
 
-async function padamRphYatim(dari){
-  const yatim = rphYatim(dari);
+async function padamRphYatim(dari, hingga){
+  const yatim = rphYatim(dari, hingga);
   tutupModal();
-  if(!yatim.length) return;
+  if(!yatim.length) return toast('Tiada RPH untuk dipadam','jaya');
   sibuk(true, `Memadam ${yatim.length} RPH…`);
   try{
     for(let i = 0; i < yatim.length; i += 300){
@@ -779,9 +796,59 @@ async function padamRphYatim(dari){
       yatim.slice(i, i+300).forEach(r => b.delete(rujuk('rph').doc(r.id)));
       await b.commit();
     }
-    await muatRph(); sibuk(false); pergi('jadual');
+    await muatRph(); sibuk(false); pergi(S.hal === 'audit' ? 'audit' : 'jadual');
     toast(`${yatim.length} RPH dipadam`,'jaya');
   }catch(e){ sibuk(false); toast('Gagal: '+e.message,'salah'); }
+}
+
+/* Butang tetap dalam Semakan RPH — guru boleh bersihkan bila-bila masa,
+   tanpa perlu menunggu jadual diubah. */
+function kadRphYatim(){
+  const skop = window._skopYatim || 'hadapan';
+  const j = julatYatim(skop);
+  const yatim = rphYatim(j.dari, j.hingga);
+  const semua = rphYatim('', '');
+  if(!semua.length) return '';
+
+  const adaRefleksi = yatim.filter(r => String(r.refleksi||'').trim()).length;
+  return `<div class="kad" style="background:#fdeaea;border-color:#f5cfcf">
+    <div class="kad-h"><h3 style="color:#a33">RPH tidak ada dalam jadual waktu</h3></div>
+    <p style="font-size:12.5px;color:var(--teks-2);margin-bottom:11px">
+      RPH ini merujuk slot yang sudah dibuang atau diubah dalam jadual waktu anda.
+      Ia takkan muncul pada dashboard dan tidak boleh dijana semula.</p>
+
+    <label class="fld"><span>Julat tarikh</span>
+      <select onchange="window._skopYatim=this.value;pergi('audit')">
+        <option value="minggu"${skop==='minggu'?' selected':''}>Minggu ini sahaja</option>
+        <option value="hadapan"${skop==='hadapan'?' selected':''}>Hari ini dan seterusnya</option>
+        <option value="semua"${skop==='semua'?' selected':''}>Semua tarikh (termasuk yang lepas)</option>
+      </select></label>
+
+    ${yatim.length ? `
+      <div class="kad" style="background:var(--putih);padding:10px;margin:0 0 11px;max-height:30vh;overflow:auto">
+        ${yatim.slice(0,50).map(r => `<div style="font-size:12.5px;padding:5px 0;border-bottom:1px solid var(--garis)">
+          <b>${esc(r.subjek||'—')}</b> · ${esc(r.kelas||'—')}
+          <span style="color:var(--teks-3)"> — ${tarikhCantik(r.tarikh)}${r.mula?' · '+esc(r.mula):''}</span>
+          ${String(r.refleksi||'').trim() ? '<span class="pil hijau" style="margin-left:6px">ada refleksi</span>' : ''}
+        </div>`).join('')}
+        ${yatim.length>50 ? `<div style="font-size:12px;color:var(--teks-3);padding-top:6px">…dan ${yatim.length-50} lagi</div>`:''}
+      </div>
+
+      ${adaRefleksi ? `<p style="font-size:12px;color:#8a6106;margin-bottom:10px">
+        <b>${adaRefleksi} daripadanya sudah ada refleksi</b> — kemungkinan sudah diajar.
+        Pertimbangkan untuk menyimpannya sebagai rekod.</p>` : ''}
+
+      <button class="btn btn-danger" onclick="sahkanPadamYatim('${j.dari}','${j.hingga}',${yatim.length})">
+        🗑️ Padam ${yatim.length} RPH (${esc(j.label)})</button>`
+    : `<p style="font-size:12.5px;color:var(--teks-2)">
+        Tiada RPH yatim dalam julat ini. Terdapat <b>${semua.length}</b> pada tarikh lain —
+        tukar julat di atas untuk melihatnya.</p>`}
+  </div>`;
+}
+
+function sahkanPadamYatim(dari, hingga, bil){
+  sahkan(`Padam ${bil} RPH yang tidak ada dalam jadual waktu?\n\nTindakan ini tidak boleh dibatalkan.`,
+    () => padamRphYatim(dari, hingga));
 }
 
 async function simpanSlot(id){
@@ -1309,11 +1376,11 @@ function halBuku(){
       <button class="btn" onclick="importBuku()">📥 Import Excel/CSV</button>
       <button class="btn" onclick="templatExcel('templat-bukuteks.xlsx',TEMPLAT.buku)">⬇️ Templat</button></div>
     <div class="kad" style="margin-bottom:14px"><p style="font-size:12.5px;color:var(--teks-2)">
-      Format: <code>tahun,subjek,buku,bab,unit,tajuk,kandungan</code><br>
+      Format: <code>tahun,subjek,buku,bab,unit,tajuk,muka_surat,kandungan</code><br>
       Masukkan hanya bahan yang anda ada hak untuk gunakan. AI hanya merujuk kandungan yang dimasukkan di sini.</p></div>
     <div class="senarai">${S.buku.length ? S.buku.map(b => `
       <div class="baris"><div class="baris-t"><b>${esc(b.tajuk||b.unit||'—')}</b>
-        <small>${esc(b.subjek)} ${esc(b.tahun)} · ${esc(b.buku||'')} ${b.bab?'· Bab '+esc(b.bab):''} ${b.unit?'· '+esc(b.unit):''}</small></div>
+        <small>${esc(b.subjek)} ${esc(b.tahun)} · ${esc(b.buku||'')} ${b.bab?'· Bab '+esc(b.bab):''} ${b.unit?'· '+esc(b.unit):''} ${b.ms?'· m/s '+esc(b.ms):''}</small></div>
         ${b.pautan?`<a class="btn btn-sm" href="${esc(b.pautan)}" target="_blank" rel="noopener">🔗</a>`:''}
         <button class="btn btn-sm" onclick="formBuku('${b.id}')">Edit</button>
         <button class="btn btn-sm btn-danger" onclick="hapusItem('buku','${b.id}')">✕</button></div>`).join('')
@@ -1333,7 +1400,11 @@ function formBuku(id){
       <label class="fld"><span>Bab</span><input id="fbBab" value="${esc(b.bab||'')}"></label>
       <label class="fld"><span>Unit</span><input id="fbUnit" value="${esc(b.unit||'')}"></label>
     </div>
-    <label class="fld"><span>Tajuk</span><input id="fbTajuk" value="${esc(b.tajuk||'')}"></label>
+    <div class="grid2">
+      <label class="fld"><span>Tajuk</span><input id="fbTajuk" value="${esc(b.tajuk||'')}"></label>
+      <label class="fld"><span>Muka surat <em>(pilihan)</em></span>
+        <input id="fbMs" value="${esc(b.ms||'')}" placeholder="Cth: 154–158"></label>
+    </div>
     <label class="fld"><span>Pautan rujukan <em>(pilihan — buku teks digital, video, bahan)</em></span>
       <input id="fbPautan" value="${esc(b.pautan||'')}" placeholder="https://…"></label>
     <label class="fld"><span>Ringkasan kandungan</span><textarea id="fbIsi" placeholder="Isi pelajaran, aktiviti dalam buku, latihan…">${esc(b.kandungan||'')}</textarea></label>`,
@@ -1342,6 +1413,7 @@ function formBuku(id){
 async function simpanBuku(id){
   const d = { tahun:$('#fbTahun').value.trim(), subjek:$('#fbSubjek').value.trim(), buku:$('#fbBuku').value.trim(),
     bab:$('#fbBab').value.trim(), unit:$('#fbUnit').value.trim(), tajuk:$('#fbTajuk').value.trim(),
+    ms:$('#fbMs').value.trim(),
     pautan:$('#fbPautan').value.trim(), kandungan:$('#fbIsi').value.trim() };
   if(!d.subjek) return toast('Subjek diperlukan','salah');
   sibuk(true,'Menyimpan…');
@@ -1358,7 +1430,8 @@ function importBuku(){
     for(let i=0;i<rows.length;i+=400){
       const b = db.batch();
       rows.slice(i,i+400).forEach(r => b.set(rujuk('buku').doc(), {
-        tahun:r[0], subjek:r[1], buku:r[2], bab:r[3], unit:r[4], tajuk:r[5], kandungan:r[6]||'' }));
+        tahun:r[0], subjek:r[1], buku:r[2], bab:r[3], unit:r[4], tajuk:r[5],
+        ms:(r[6]||'').trim(), kandungan:r[7]||r[6]||'' }));
       await b.commit();
     }
     await muatData(); sibuk(false); pergi('buku'); toast(rows.length+' rekod diimport','jaya');

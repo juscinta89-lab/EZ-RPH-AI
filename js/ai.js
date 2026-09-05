@@ -253,9 +253,48 @@ function ambilJSON(teks){
 }
 
 /* ---------- Kumpul konteks daripada pangkalan data ---------- */
-function kontekBuku(subjek, tahun){
-  const sn = norma(subjek);
-  return S.buku.filter(x => norma(x.subjek) === sn).slice(0,40);
+/* Rujukan buku teks yang paling berkaitan dengan tajuk yang sedang dirancang.
+   Sebelum ini ia menapis mengikut subjek sahaja lalu mengambil 40 baris pertama —
+   bermakna bab Tahun 6 boleh masuk ke dalam RPH Tahun 4, dan bab yang langsung
+   tidak berkaitan menenggelamkan bab yang betul. Sekarang ia menapis ikut tahun
+   juga, dan menyusun ikut pertindihan perkataan dengan tajuk, SK dan SP. */
+function kontekBuku(subjek, tahun, fokus, had){
+  const sn = norma(subjek), tn = norma(tahun);
+  let senarai = S.buku.filter(x => norma(x.subjek) === sn);
+
+  // Padanan tahun jika ada; jika tiada langsung, guna semua supaya tidak kosong
+  if(tn){
+    const sepadan = senarai.filter(x => !x.tahun || norma(x.tahun) === tn);
+    if(sepadan.length) senarai = sepadan;
+  }
+  if(!fokus) return senarai.slice(0, had || 40);
+
+  const kunci = norma([fokus.tajuk, fokus.tema, fokus.sk, fokus.sp].filter(Boolean).join(' '))
+    .split(/\W+/).filter(w => w.length > 3);
+  if(!kunci.length) return senarai.slice(0, had || 40);
+
+  const skor = b => {
+    const teks = norma([b.tajuk, b.unit, b.bab, b.buku, b.kandungan].filter(Boolean).join(' '));
+    return kunci.reduce((n, w) => n + (teks.includes(w) ? 1 : 0), 0);
+  };
+  return senarai.map(b => ({ b, s: skor(b) }))
+    .sort((x, y) => y.s - x.s)
+    .slice(0, had || 25)
+    .filter((x, i) => x.s > 0 || i < 8)      // sentiasa beri sedikit konteks am
+    .map(x => x.b);
+}
+
+/* Satu format rujukan buku digunakan di semua prompt supaya AI melihat
+   struktur yang konsisten sama ada menjana RPT, RPH atau soalan latihan. */
+function barisBuku(b){
+  return `- ${b.buku||'Buku Teks'} | ${b.tahun||'-'} | Bab ${b.bab||'-'}`
+    + `${b.unit?' | '+b.unit:''}${b.tajuk?' | '+b.tajuk:''}`
+    + `${b.ms?' | m/s '+b.ms:''}${b.pautan?' | pautan: '+b.pautan:''}`
+    + `${b.kandungan?`\n  Kandungan: ${String(b.kandungan).slice(0,320)}`:''}`;
+}
+function blokBuku(senarai, kosongTeks){
+  return senarai.length ? senarai.map(barisBuku).join('\n')
+    : (kosongTeks || 'Tiada rujukan buku teks dimasukkan untuk subjek ini.');
 }
 function rphSebelum(subjek, kelas, tarikh, n){
   return S.rph.filter(r => r.subjek === subjek && r.kelas === kelas && r.tarikh < tarikh)
@@ -288,10 +327,9 @@ function promptRph(ctx){
     : (rpt.minggu.length ? rpt.minggu.map(barisRpt).join('\n') : 'TIADA BARIS RPT UNTUK MINGGU INI.');
   const rptSekitar = abaiMingguIni ? 'Tidak berkaitan — guru telah menetapkan fokus PdP secara khusus.'
     : (rpt.sekitar.length ? rpt.sekitar.map(barisRpt).join('\n') : 'Tiada.');
-  const buku = kontekBuku(ctx.subjek, ctx.tahun);
-  const bukuTeks = buku.length
-    ? buku.map(b => `- ${b.buku||'Buku Teks'} | Bab ${b.bab||'-'} | ${b.unit||''} | ${b.tajuk||''}${b.pautan?' | pautan: '+b.pautan:''}: ${(b.kandungan||'').slice(0,300)}`).join('\n')
-    : 'TIADA RUJUKAN BUKU TEKS DALAM PANGKALAN DATA.';
+  const bukuTeks = blokBuku(
+    kontekBuku(ctx.subjek, ctx.tahun, fokus || { tajuk: ctx.tajuk }, 20),
+    'TIADA RUJUKAN BUKU TEKS DALAM PANGKALAN DATA.');
   const lalu = rphSebelum(ctx.subjek, ctx.kelas, ctx.tarikh, 3);
   const laluTeks = lalu.length
     ? lalu.map(r => `- ${r.tarikh}: ${r.tajuk||'-'} | SP: ${(r.sp||'').slice(0,120)} | Aktiviti: ${stripHtml(r.aktiviti||'').slice(0,200)}`).join('\n')
@@ -355,7 +393,11 @@ PERATURAN WAJIB
 ${ctx.cadangSp ? `2. MOD CADANGAN: RPT tidak tersedia untuk sesi ini. Cadangkan SATU pasangan SK dan SP yang paling tepat daripada DSKP KPM sebenar bagi subjek "${ctx.subjek}" ${ctx.tahun||''}${ctx.tajuk?', selari dengan tajuk "'+ctx.tajuk+'"':''}, dengan mengambil kira ini ialah ${ctx.minggu||'pertengahan tahun'}. Gunakan nombor kod dan ayat standard sebenar seperti dalam dokumen DSKP rasmi — bukan rekaan. Jika anda tidak pasti ayat tepat sesuatu standard, berikan yang paling hampir dan WAJIB masukkan dalam "amaran": "SK/SP adalah cadangan AI — sila sahkan dengan DSKP rasmi sebelum digunakan".`
 : `2. Jika tiada baris RPT untuk minggu ini, isi medan sk/sp dengan "Sila lengkapkan RPT bagi minggu ini" dan senaraikan dalam "amaran". Jangan ambil standard daripada minggu lain.`}
 3. Aktiviti mesti muat dalam ${ctx.tempoh} minit. Nyatakan anggaran minit setiap langkah, jumlahnya mesti ${ctx.tempoh} minit.
-4. Jangan dakwa kandungan buku teks yang tiada dalam senarai di atas.
+4. RUJUK BUKU TEKS DI ATAS. Jika ada bab atau unit yang sepadan dengan tajuk ini,
+   sebutkan dalam medan "bbm" (contoh: "Buku Teks Matematik Tahun 4, Bab 5") dan
+   kaitkan aktiviti dengan kandungan bab itu. Sertakan muka surat HANYA jika ia
+   tertulis dalam senarai di atas. Jangan dakwa kandungan buku teks yang TIADA
+   dalam senarai, dan JANGAN sekali-kali reka nombor muka surat sendiri.
 5. Objektif mesti terukur dan selari dengan SP. Pentaksiran mesti selari dengan objektif.
 6. Bahasa Melayu baku, sesuai untuk dokumen rasmi sekolah.
 
@@ -846,6 +888,12 @@ KONTEKS PELAJARAN
 ${(ctx.objektif||'').split('\n').filter(Boolean).map(o => '    - '+o).join('\n') || '    -'}
 
 ARAS: ${ARAS_LATIHAN[ctx.aras] || ARAS_LATIHAN.sederhana}
+
+KANDUNGAN BUKU TEKS BERKAITAN:
+${blokBuku(kontekBuku(ctx.subjek, ctx.kelas, { tajuk:ctx.tajuk, sk:ctx.sk, sp:ctx.sp }, 12),
+  'Tiada rujukan buku teks. Bina soalan berdasarkan objektif sahaja.')}
+Gunakan istilah, contoh dan konteks yang SELARI dengan buku teks di atas supaya
+murid mengenali bahasa yang sama seperti dalam kelas. Jangan reka nombor muka surat.
 ${ctx.arahanGuru ? `
 ARAHAN KHAS DARIPADA GURU — PATUHI INI DAHULU SEBELUM PERATURAN LAIN:
 ${ctx.arahanGuru}
@@ -1128,6 +1176,10 @@ SUBJEK  : ${ctx.subjek}
 TAHUN   : ${ctx.tahun}${tahunNombor ? ` (KSSR Tahun ${tahunNombor})` : ''}
 MINGGU  : ${ctx.mula} hingga ${ctx.tamat} (${ctx.tamat - ctx.mula + 1} minggu)
 ${ctx.sudahAda?.length ? `\nTAJUK YANG SUDAH DIRANCANG PADA MINGGU TERDAHULU — JANGAN ULANG:\n${ctx.sudahAda.map(x => `  M${x.minggu}: ${x.tajuk} (${x.kodSp})`).join('\n')}` : ''}
+
+KANDUNGAN BUKU TEKS YANG GURU MASUKKAN:
+${blokBuku(kontekBuku(ctx.subjek, ctx.tahun, null, 60),
+  'Tiada. Susun mengikut turutan DSKP biasa bagi subjek dan tahun ini.')}
 ${ctx.arahan ? `\nARAHAN GURU — PATUHI DAHULU:\n${ctx.arahan}` : ''}
 
 PERATURAN
@@ -1136,6 +1188,10 @@ PERATURAN
    (contoh Bahasa Melayu: SK 1.1 dengan SP 1.1.1; Matematik: SK 5.1 dengan SP 5.1.3).
 3. Susunan tajuk mesti mengikut turutan pembelajaran yang munasabah — kemahiran
    asas dahulu, kemahiran kompleks kemudian.
+3b. JIKA ADA KANDUNGAN BUKU TEKS DI ATAS, jadikan ia tulang belakang susunan RPT.
+   Ikut turutan bab dan unit buku teks, dan gunakan tajuk unit sebenar dalam medan
+   "tajuk". Catatkan rujukan bab dalam "catatan" (contoh: "Bab 5, Unit 12").
+   Ini penting kerana guru mengajar mengikut buku teks yang ada di sekolah.
 4. Agihkan tema secara seimbang sepanjang tahun. Jangan letak semua tajuk berat berturut-turut.
 5. Ayat Standard Kandungan dan Standard Pembelajaran mesti BERBEZA. SP lebih khusus daripada SK.
 6. Bahasa Melayu baku. JANGAN guna: berbasis, mereview, sessi, menggunapakai, kemampuan.

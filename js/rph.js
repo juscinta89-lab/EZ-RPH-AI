@@ -520,6 +520,8 @@ function halAudit(){
       </div>
     </div>` : ''}
 
+    ${typeof kadRphYatim === 'function' ? kadRphYatim() : ''}
+
     ${(pendua.length || bolehBaiki || bolehKemas) ? `<div class="kad" style="background:var(--ungu-t);border-color:#ddd3fb">
       <div class="kad-h"><h3 style="color:#5b3fbe">Pembersihan automatik</h3></div>
       <p style="font-size:13px;color:var(--teks-2);margin-bottom:12px">
@@ -1094,37 +1096,93 @@ function cetakLatihan(denganSkema){
 }
 
 /* ---------- Paparan & cetakan lembaran ---------- */
+/* Nama bahagian mengikut jenis, seperti dalam buku latihan sebenar */
+const BAHAGIAN_LATIHAN = {
+  objektif:'Aneka Pilihan', subjektif:'Penyelesaian Masalah', struktur:'Soalan Struktur',
+  isiTempat:'Isi Tempat Kosong', padanan:'Padanan', gambarAyat:'Bina Ayat',
+  silangKata:'Silang Kata', cariKata:'Cari Perkataan'
+};
+
 function htmlLatihan(r, L, skema){
-  const kepala = `<div class="lt-kepala">
-    <div class="lt-sekolah">${esc((S.sekolah?.nama||'').toUpperCase())}</div>
-    <h2>${esc(L.tajuk || 'Lembaran Kerja')}</h2>
-    <div class="lt-meta">${esc(r.subjek)} · ${esc(r.kelas)}${r.tajuk?' · '+esc(r.tajuk):''}
-      &nbsp;|&nbsp; ${ARAS_LATIHAN[L.aras]?.split('—')[0].trim() || ''}</div>
-    <div class="lt-nama">Nama: ______________________________ &nbsp;&nbsp; Tarikh: ______________</div>
-    ${L.arahan ? `<p class="lt-arahan"><b>Arahan:</b> ${esc(L.arahan)}</p>` : ''}
+  const bil = (L.soalan||[]).length || (L.kata||[]).length;
+  const markah = (L.soalan||[]).reduce((n,s) => n + (Number(s.markah) || 1), 0) || bil;
+
+  const kepala = `<div class="lb-kepala">
+    <div class="lb-atas">
+      <div class="lb-sekolah">
+        <b>${esc((S.sekolah?.nama||'').toUpperCase())}</b>
+        <small>${esc(r.subjek)} · ${esc(r.kelas)}</small>
+      </div>
+      <div class="lb-markah"><small>Markah</small><b>${markah}</b></div>
+    </div>
+    <div class="lb-tajuk">${esc(L.tajuk || 'Lembaran Kerja')}</div>
+    <div class="lb-medan">
+      <div class="lb-isi"><span>Nama</span><i></i></div>
+      <div class="lb-isi lb-pendek"><span>Kelas</span><i>${esc(r.kelas||'')}</i></div>
+      <div class="lb-isi lb-pendek"><span>Tarikh</span><i></i></div>
+    </div>
   </div>`;
 
-  if(L.jenis === 'silangKata') return kepala + htmlSilangKata(L, skema);
-  if(L.jenis === 'cariKata')   return kepala + htmlCariKata(L, skema);
-  if(L.jenis === 'gambarAyat') return kepala + htmlGambarAyat(L, skema);
-  if(L.jenis === 'padanan')    return kepala + htmlPadanan(L, skema);
+  const bar = (nama, nota) => `<div class="lb-bar">
+    <b>BAHAGIAN A · ${esc(nama)}</b><span>${esc(nota)}</span></div>`;
 
-  const bank = L.bankPerkataan?.length ? `<div class="lt-bank"><b>Bank perkataan:</b>
-    ${L.bankPerkataan.map(x => `<span>${esc(x)}</span>`).join('')}</div>` : '';
+  const arahan = L.arahan ? `<div class="lb-arahan"><b>Arahan:</b> ${esc(L.arahan)}</div>` : '';
+  const bungkus = (nama, isi, nota) =>
+    kepala + bar(nama, nota || `${bil} soalan · ${markah} markah`) + arahan + isi;
 
-  const ruang = s => {
-    if(L.jenis === 'subjektif') return `<div class="lt-kerja"><small>Jalan kerja:</small></div>
-      <div class="lt-akhir">Jawapan: ______________________</div>`;
-    if(s.pilihan?.length) return `<div class="lt-pilihan">${s.pilihan.map(p => `<div>${esc(p)}</div>`).join('')}</div>`;
-    return `<div class="lt-jawab">${'_'.repeat(L.jenis==='struktur'?60:34)}</div>`;
-  };
+  if(L.jenis === 'silangKata')
+    return bungkus(BAHAGIAN_LATIHAN.silangKata, htmlSilangKata(L, skema), `${bil} istilah`);
+  if(L.jenis === 'cariKata')
+    return bungkus(BAHAGIAN_LATIHAN.cariKata, htmlCariKata(L, skema), `${bil} perkataan`);
+  if(L.jenis === 'gambarAyat')
+    return bungkus(BAHAGIAN_LATIHAN.gambarAyat, htmlGambarAyat(L, skema));
+  if(L.jenis === 'padanan')
+    return bungkus(BAHAGIAN_LATIHAN.padanan, htmlPadanan(L, skema));
 
-  const soalan = (L.soalan||[]).map(s => `<div class="lt-soalan">
-    <div class="lt-s"><b>${s.no}.</b> ${esc(s.soalan)}${s.markah?` <em>[${s.markah} markah]</em>`:''}</div>
-    ${ruang(s)}
-  </div>`).join('');
+  const bank = L.bankPerkataan?.length ? `<div class="lb-bank">
+    <b>Bank perkataan</b>
+    <div>${L.bankPerkataan.map(x => `<span>${esc(x)}</span>`).join('')}</div></div>` : '';
 
-  return kepala + bank + `<div class="lt-senarai">${soalan}</div>` + (skema ? htmlSkema(L) : '');
+  const HURUF = ['A','B','C','D','E'];
+  const soalan = (L.soalan||[]).map(s => {
+    if(s.pilihan?.length) return `<div class="lb-soalan">
+      <div class="lb-baris">
+        <span class="lb-no">${s.no}</span>
+        <div class="lb-badan">
+          <div class="lb-teks">${esc(s.soalan)}</div>
+          <div class="lb-pilihan">${s.pilihan.map((p,i) => {
+            const teks = String(p).replace(/^\s*[A-Da-d][.)]\s*/, '');
+            return `<div class="lb-opt"><i>${HURUF[i]||''}</i>${esc(teks)}</div>`;
+          }).join('')}</div>
+        </div>
+        <span class="lb-kotak"></span>
+      </div></div>`;
+
+    if(L.jenis === 'subjektif') return `<div class="lb-soalan">
+      <div class="lb-baris">
+        <span class="lb-no">${s.no}</span>
+        <div class="lb-badan">
+          <div class="lb-teks">${esc(s.soalan)}</div>
+          <div class="lb-kerja"></div>
+          <div class="lb-akhir"><span>Jawapan</span><i></i></div>
+        </div>
+        <span class="lb-mkh">${s.markah||2}<small>m</small></span>
+      </div></div>`;
+
+    const baris = L.jenis === 'struktur' ? 2 : 1;
+    return `<div class="lb-soalan">
+      <div class="lb-baris">
+        <span class="lb-no">${s.no}</span>
+        <div class="lb-badan">
+          <div class="lb-teks">${esc(s.soalan)}</div>
+          ${'<div class="lb-garis"></div>'.repeat(baris)}
+        </div>
+        ${s.markah?`<span class="lb-mkh">${s.markah}<small>m</small></span>`:''}
+      </div></div>`;
+  }).join('');
+
+  return bungkus(BAHAGIAN_LATIHAN[L.jenis] || 'Latihan',
+    bank + `<div class="lb-senarai">${soalan}</div>` + (skema ? htmlSkema(L) : ''));
 }
 
 /* Padanan sebenar: dua lajur bersebelahan, murid melukis garisan dari kiri ke
