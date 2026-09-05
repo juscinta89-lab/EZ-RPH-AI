@@ -14,7 +14,10 @@ function barisRph(r, ringkas){
     <div class="baris-t"><b>${esc(r.subjek)} <span class="sj-kelas">${esc(r.kelas)}</span></b>
       <small>${ringkas ? '' : tarikhCantik(r.tarikh)+' · '}${esc(r.mula)}-${esc(r.tamat)} · ${esc(r.tajuk||'Tiada tajuk')}</small></div>
     <span class="pil ${w}">${r.status === 'lengkap' ? 'Lengkap' : 'Draf'}</span>
-    <button class="btn btn-sm" onclick="bukaRph('${r.id}')">Buka</button>
+    <button class="ikon-btn" title="Pratonton RPH" aria-label="Pratonton RPH"
+      onclick="event.stopPropagation();pratontonRph('${r.id}')">${IKON_MATA}</button>
+    <button class="ikon-btn" title="Edit RPH" aria-label="Edit RPH"
+      onclick="event.stopPropagation();bukaRph('${r.id}')">${IKON_PENSEL}</button>
   </div>`;
 }
 
@@ -73,7 +76,8 @@ function lukisRph(){
         <div class="hari-blok">
           <div class="grp-hari"><span class="hari-titik"></span>${tarikhCantik(tarikh)}
             <small>· ${senarai.length} RPH</small>
-            <button class="btn btn-sm ikon-btn-kecil" title="Cetak hari ini" onclick="cetakHari('${tarikh}')">🖨️</button></div>
+            <button class="btn btn-sm" title="Cetak semua RPH pada tarikh ini"
+              onclick="cetakHari('${tarikh}')">🖨️ Cetak hari ini</button></div>
           <div class="senarai senarai-rapat">${senarai.sort((a,b)=>(a.mula||'').localeCompare(b.mula||''))
             .map(r => barisRph(r, true)).join('')}</div>
         </div>`).join('')}
@@ -924,8 +928,17 @@ function halEditor(){
     <div>
       <div class="kad ai-panel">
         <div class="kad-h"><h3>Semakan kualiti</h3><span class="pil ${warna}">${q.peratus}%</span></div>
-        ${q.cek.map(c=>`<div style="display:flex;gap:8px;font-size:12.5px;padding:3px 0;color:${c[1]?'var(--teks-2)':'var(--merah)'}">
-          <span>${c[1]?'✓':'✕'}</span><span>${c[0]}</span></div>`).join('')}
+        ${(() => {
+          const gagal = q.cek.filter(c => !c[1]), lulus = q.cek.filter(c => c[1]);
+          /* Hanya perkara yang gagal ditunjukkan. Yang lulus dilipat jadi satu
+             baris supaya mata guru terus jatuh pada apa yang perlu dibaiki. */
+          return `${gagal.map(c=>`<div class="sk-baris sk-gagal"><span>✕</span><span>${c[0]}</span></div>`).join('')}
+          ${lulus.length ? `<details class="sk-lulus">
+            <summary><span>✓</span> ${lulus.length} semakan lulus</summary>
+            ${lulus.map(c=>`<div class="sk-baris"><span>✓</span><span>${c[0]}</span></div>`).join('')}
+          </details>` : ''}
+          ${!gagal.length ? '<div class="sk-baris sk-ok"><span>✓</span><span>Tiada isu dikesan</span></div>' : ''}`;
+        })()}
         ${(() => { const a = semakAngkaMurid(r);
           return a.ok ? '' : `<p style="margin-top:10px;font-size:12px;background:#fdeaea;color:#a33;padding:9px;border-radius:8px">
             ⚠️ RPH menyebut <b>${esc(a.salah.join(', '))}</b> murid tetapi kelas ini ada <b>${a.jum}</b> murid.

@@ -351,7 +351,7 @@ function gridJadual(){
 
   window._jwTbl = jadualTbl(waktu, baris);
 
-  return `<div class="kad">
+  return `<div class="kad d-jadual">
     <div class="kad-h"><h3>Jadual waktu saya</h3>
       <div class="jw-alat">
         <button class="ikon-btn" onclick="jadualPenuh()" title="Skrin penuh" aria-label="Skrin penuh">${IKON_PENUH}</button>
@@ -424,10 +424,14 @@ function halDashboard(){
   const rphSorot = sorot ? S.rph.find(r => r.tarikh === hariIni && r.slotId === sorot.id) : null;
 
   /* Kemajuan RPH minggu ini berbanding jumlah slot dalam seminggu */
-  const slotSeminggu = S.jadual.filter(s => HARI_SEKOLAH.includes(s.hari)).length;
-  const peratus = slotSeminggu ? Math.min(100, Math.round(rphMinggu.length / slotSeminggu * 100)) : 0;
+  /* Semua slot dalam jadual dikira, termasuk kelas ganti pada hari bukan
+     persekolahan. Sebelum ini hanya Ahad–Khamis dikira sedangkan RPH dikira
+     semua, jadi paparan boleh jadi mustahil seperti "5 daripada 4 slot". */
+  const slotSeminggu = S.jadual.length;
+  const adaRph = Math.min(rphMinggu.length, slotSeminggu);
+  const peratus = slotSeminggu ? Math.round(adaRph / slotSeminggu * 100) : 0;
 
-  $('#kandungan').innerHTML = `
+  $('#kandungan').innerHTML = `<div class="dash">
     ${S.langganPeringatan ? `<div class="kad" style="background:#fdf3dd;border-color:#f0dcae;margin-bottom:14px">
       <b style="font-size:13.5px">⏳ Langganan anda berbaki ${S.langganPeringatan.baki} hari</b>
       <p style="font-size:12.5px;color:#8a6106;margin-top:4px">Tamat pada ${esc(S.langganPeringatan.tarikh)}. Hubungi pentadbir untuk melanjutkan supaya akses tidak terputus.</p>
@@ -443,12 +447,12 @@ function halDashboard(){
       </div>
       ${slotSeminggu ? `<div class="hero-maju">
         <div class="hero-bar"><i style="width:${peratus}%"></i></div>
-        <small>${rphMinggu.length} daripada ${slotSeminggu} slot minggu ini sudah ada RPH · ${peratus}%</small>
+        <small>${adaRph} daripada ${slotSeminggu} slot minggu ini sudah ada RPH · ${peratus}%</small>
       </div>` : ''}
       <button class="btn" onclick="pergi('jana')">✨ Jana RPH hari ini</button>
     </div>
 
-    ${sorot && !cuti ? `<div class="kad kad-sorot${slotKini ? ' sorot-live' : ' sorot-akan'}"
+    ${sorot && !cuti ? `<div class="kad kad-sorot d-sorot${slotKini ? ' sorot-live' : ' sorot-akan'}"
         onclick="${rphSorot ? `bukaRph('${rphSorot.id}')` : `janaSlot('${sorot.id}','${hariIni}')`}">
       <div class="sorot-cop">${slotKini
         ? '<i class="sorot-titik"></i> Sedang berlangsung'
@@ -463,7 +467,7 @@ function halDashboard(){
       </div>
     </div>` : ''}
 
-    <div class="stat-grid">
+    <div class="stat-grid d-stat">
       <div class="stat b" onclick="pergi('rph')"><b>${rphMinggu.length}</b><small>RPH minggu ini</small></div>
       <div class="stat h" onclick="pergi('rph')"><b>${lengkap}</b><small>Lengkap</small></div>
       <div class="stat k" onclick="pergi('rph')"><b>${draf}</b><small>Draf</small></div>
@@ -472,7 +476,7 @@ function halDashboard(){
 
     ${gridJadual()}
 
-    <div class="kad">
+    <div class="kad d-hariini">
       <div class="kad-h"><h3>Hari ini · ${hari.toUpperCase()}</h3><small>${slotHariIni.length} slot PdP</small>
         ${S.rph.some(r=>r.tarikh===hariIni)?`<button class="btn btn-sm" onclick="cetakHari('${hariIni}')">🖨️ Cetak semua</button>`:''}</div>
       ${cuti ? `<div class="kosong"><b>${esc(cuti.nama)}</b>Tiada sesi PdP pada tarikh ini.</div>`
@@ -497,7 +501,8 @@ function halDashboard(){
       <div class="kad-h"><h3>RPH terkini</h3><button class="btn btn-sm" onclick="pergi('rph')">Lihat semua</button></div>
       ${S.rph.length ? `<div class="senarai">${S.rph.slice(0,5).map(barisRph).join('')}</div>`
         : `<div class="kosong"><b>Belum ada RPH</b>Jana RPH pertama anda dengan AI.</div>`}
-    </div>`;
+    </div>
+  </div>`;
 }
 
 function kadWizard(){

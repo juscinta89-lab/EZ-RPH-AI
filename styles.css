@@ -104,7 +104,8 @@ textarea{resize:vertical;min-height:88px;line-height:1.6}
 .side{background:var(--putih);border-right:1px solid var(--garis);display:flex;flex-direction:column;position:sticky;top:0;height:100dvh}
 .side-brand{display:flex;gap:11px;align-items:center;padding:16px 16px 12px}
 .side-brand-txt b{display:block;font-family:var(--disp);font-size:15px}
-.side-brand-txt small{color:var(--teks-3);font-size:11.5px;display:block;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.side-brand-txt small{color:var(--teks-3);font-size:11.5px;display:block;max-width:150px;
+  line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .side-nav{flex:1;overflow-y:auto;padding:6px 10px}
 .nav-lbl{font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--teks-3);padding:14px 10px 6px}
 .nav-i{display:flex;align-items:center;gap:11px;width:100%;border:0;background:none;padding:9.5px 11px;border-radius:10px;font-size:13.8px;color:var(--teks-2);cursor:pointer;text-align:left;font-weight:500;transition:.14s}
@@ -395,6 +396,42 @@ tr:last-child td{border-bottom:0}
 .busy-box p{margin-top:12px;font-size:13.5px;color:var(--teks-2)}
 .spin{width:32px;height:32px;border:3px solid var(--biru-t);border-top-color:var(--biru);border-radius:50%;margin:0 auto;animation:sp .8s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
+
+/* ---------- Panel semakan kualiti ---------- */
+.sk-baris{display:flex;gap:8px;font-size:12.5px;padding:3px 0;color:var(--teks-2)}
+.sk-gagal{color:var(--merah);font-weight:600}
+.sk-ok{color:#1b7a4b}
+.sk-lulus{margin-top:6px}
+.sk-lulus summary{cursor:pointer;font-size:12.5px;color:var(--teks-3);padding:4px 0;
+  list-style:none;display:flex;gap:8px;align-items:center}
+.sk-lulus summary::-webkit-details-marker{display:none}
+.sk-lulus summary:after{content:"▸";margin-left:auto;font-size:10px}
+.sk-lulus[open] summary:after{content:"▾"}
+.sk-lulus[open] summary{margin-bottom:4px;border-bottom:1px solid var(--garis)}
+
+/* ---------- Susunan dashboard ---------- */
+.dash{display:flex;flex-direction:column;gap:0}
+.dash > *{order:5}
+.dash > .hero{order:1}
+.dash > .d-sorot{order:2}
+.dash > .d-stat{order:3}
+.dash > .d-jadual{order:4}
+
+/* Pada telefon, "Hari ini" ialah bahagian paling kerap digunakan, jadi ia naik
+   ke atas sebelum grid jadual dan statistik. Statistik pula jadi jalur ringkas
+   supaya tidak memakan hampir satu skrin penuh untuk empat nombor. */
+@media (max-width:760px){
+  .dash > .d-hariini{order:3}
+  .dash > .d-stat{order:4}
+  .dash > .d-jadual{order:5}
+  .stat-grid{grid-template-columns:repeat(4,1fr);gap:7px}
+  .stat{padding:10px 8px;text-align:center}
+  .stat b{font-size:19px}
+  .stat small{font-size:10px;line-height:1.25;display:block;margin-top:2px}
+}
+@media (max-width:400px){
+  .stat small{font-size:9px}
+}
 
 /* ---------- Menu "Lagi" dalam editor ---------- */
 .ed-lagi{position:relative}
