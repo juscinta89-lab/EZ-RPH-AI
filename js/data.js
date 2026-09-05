@@ -33,6 +33,7 @@ async function muatData(){
   S.sesi = S.takwim ? S.takwim.id : null;
   await muatRpt();
   await muatRph();
+  if(typeof muatSampah === 'function'){ await muatSampah(); bersihSampahLama(); }
   // Peringatan kelas bergantung pada jadual & RPH, jadi dijadualkan selepas kedua-duanya siap
   if(typeof jadualIngat === 'function'){ jadualIngat(); pasangPemerhatiIngat(); }
 }
@@ -791,11 +792,7 @@ async function padamRphYatim(dari, hingga){
   if(!yatim.length) return toast('Tiada RPH untuk dipadam','jaya');
   sibuk(true, `Memadam ${yatim.length} RPH…`);
   try{
-    for(let i = 0; i < yatim.length; i += 300){
-      const b = db.batch();
-      yatim.slice(i, i+300).forEach(r => b.delete(rujuk('rph').doc(r.id)));
-      await b.commit();
-    }
+    await buangKeSampah(yatim, 'Tiada dalam jadual waktu');
     await muatRph(); sibuk(false); pergi(S.hal === 'audit' ? 'audit' : 'jadual');
     toast(`${yatim.length} RPH dipadam`,'jaya');
   }catch(e){ sibuk(false); toast('Gagal: '+e.message,'salah'); }

@@ -660,12 +660,8 @@ async function jalankanBersih(){
     /* 1 — padam pendua */
     if(buatPendua && pendua?.length){
       const buang = pendua.flatMap(p => p.buang);
-      for(let i = 0; i < buang.length; i += 300){
-        sibuk(true, `Memadam pendua ${kira.padam}/${buang.length}…`);
-        const b = db.batch();
-        buang.slice(i, i+300).forEach(r => b.delete(rujuk('rph').doc(r.id)));
-        await b.commit(); kira.padam += Math.min(300, buang.length - i);
-      }
+      sibuk(true, `Memadam ${buang.length} pendua…`);
+      kira.padam = await buangKeSampah(buang, 'Pendua dibersihkan');
     }
 
     /* 2 — betulkan medan */
@@ -907,14 +903,21 @@ function halEditor(){
         <button class="btn btn-sm btn-ungu" onclick="janaRefleksi()">✨ Jana refleksi</button>
       </div>
 
-      <div class="toolbar" style="margin-top:14px">
+      <!-- Dua tindakan utama sahaja kekal kelihatan. Selebihnya dalam menu
+           "Lagi" supaya guru tidak berdepan 7 butang setiap kali membuka RPH. -->
+      <div class="toolbar ed-alat" style="margin-top:14px">
         <button class="btn btn-primary" onclick="simpanRph('lengkap')">Simpan sebagai lengkap</button>
-        <button class="btn" onclick="simpanRph('draf')">Simpan draf</button>
         <button class="btn" onclick="cetakRph()">🖨️ Cetak / PDF</button>
-        <button class="btn btn-ungu" onclick="modalLatihan()">📝 Jana soalan latihan</button>
-      ${driveSedia() ? `<button class="btn" onclick="simpanRphKeDrive()">📁 Simpan ke Drive</button>` : ''}
-        <button class="btn" onclick="salinRph()">📋 Salin ke tarikh lain</button>
-        <button class="btn btn-danger" onclick="padamRph()">Padam</button>
+        <div class="ed-lagi">
+          <button class="btn" onclick="togolLagi(event)">⋯ Lagi</button>
+          <div class="ed-menu" id="edMenu">
+            <button onclick="tutupLagi();simpanRph('draf')">💾 Simpan sebagai draf</button>
+            <button onclick="tutupLagi();modalLatihan()">📝 Jana soalan latihan</button>
+            ${driveSedia() ? `<button onclick="tutupLagi();simpanRphKeDrive()">📁 Simpan ke Google Drive</button>` : ''}
+            <button onclick="tutupLagi();salinRph()">📋 Salin ke tarikh lain</button>
+            <button class="merah" onclick="tutupLagi();padamRph()">🗑️ Padam RPH</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1286,9 +1289,20 @@ function htmlCariKata(L, skema){
       ${(L.kata||[]).map(k => `<div class="lt-sk"><b>${esc(k.perkataan)}</b> — ${esc(k.klu)}</div>`).join('')}</div>` : ''}`;
 }
 
+/* Menu "Lagi" dalam editor. Ditutup apabila pengguna klik di luar. */
+function togolLagi(e){
+  e?.stopPropagation();
+  const m = $('#edMenu'); if(!m) return;
+  const buka = m.classList.toggle('buka');
+  if(buka) setTimeout(() => document.addEventListener('click', tutupLagi, { once:true }), 0);
+}
+function tutupLagi(){ $('#edMenu')?.classList.remove('buka'); }
+
 function padamRph(){
   sahkan('Padam RPH ini secara kekal?', async () => {
-    sibuk(true,'Memadam…'); await rujuk('rph').doc(S.editRphId).delete();
+    const r = S.rph.find(x => x.id === S.editRphId);
+    sibuk(true,'Memadam…');
+    await buangKeSampah(r ? [r] : [], 'Dipadam dari editor');
     await muatRph(); sibuk(false); pergi('rph'); toast('RPH dipadam');
   });
 }

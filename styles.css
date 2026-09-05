@@ -396,6 +396,34 @@ tr:last-child td{border-bottom:0}
 .spin{width:32px;height:32px;border:3px solid var(--biru-t);border-top-color:var(--biru);border-radius:50%;margin:0 auto;animation:sp .8s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
 
+/* ---------- Menu "Lagi" dalam editor ---------- */
+.ed-lagi{position:relative}
+.ed-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:40;min-width:218px;
+  background:var(--putih);border:1px solid var(--garis);border-radius:12px;
+  box-shadow:0 14px 34px rgba(0,0,0,.14);padding:6px;display:none}
+.ed-menu.buka{display:block}
+.ed-menu button{display:block;width:100%;text-align:left;background:none;border:0;
+  padding:9px 11px;border-radius:8px;font-size:13.5px;cursor:pointer;color:var(--teks-1);
+  font-family:inherit}
+.ed-menu button:hover{background:var(--bg)}
+.ed-menu button.merah{color:#c0392b}
+.ed-menu button.merah:hover{background:#fdeaea}
+
+/* ---------- Kumpulan menu boleh lipat ---------- */
+.nav-lipat{display:flex;align-items:center;width:100%;background:none;border:0;
+  cursor:pointer;font:inherit;text-align:left}
+.nav-lipat i{font-style:normal;font-size:10px;opacity:.6;margin-left:auto}
+.nav-lipat:hover{color:var(--ungu)}
+
+/* ---------- Petunjuk halaman ---------- */
+.tip{display:flex;gap:10px;align-items:flex-start;background:var(--ungu-t);
+  border:1px solid #ddd3fb;border-radius:var(--r-sm);padding:10px 12px;margin-bottom:14px}
+.tip-ikon{flex:none;font-size:15px;line-height:1.3}
+.tip-teks{flex:1;font-size:12.5px;color:var(--teks-2);line-height:1.5}
+.tip-tutup{flex:none;background:none;border:0;cursor:pointer;color:var(--teks-3);
+  font-size:16px;line-height:1;padding:0 2px}
+.tip-tutup:hover{color:var(--teks-1)}
+
 /* ---------- Jam bar atas ---------- */
 .jam{flex:none;text-align:right;line-height:1.15;padding:5px 13px;border-radius:12px;
   background:var(--putih);border:1px solid var(--garis);cursor:pointer;transition:all .15s;

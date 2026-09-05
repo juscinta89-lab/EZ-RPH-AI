@@ -73,6 +73,7 @@ const IKON = {
   tetapan:  '<circle cx="12" cy="12" r="3.2"/><path d="M19.4 14.4a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.84 2.84l-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.04 1.56V21a2 2 0 1 1-4 0v-.11a1.7 1.7 0 0 0-1.1-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.84-2.84l.06-.06a1.7 1.7 0 0 0 .34-1.88 1.7 1.7 0 0 0-1.56-1.04H3a2 2 0 1 1 0-4h.11a1.7 1.7 0 0 0 1.56-1.1 1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.84-2.84l.06.06a1.7 1.7 0 0 0 1.88.34H9a1.7 1.7 0 0 0 1-1.56V3a2 2 0 1 1 4 0v.11a1.7 1.7 0 0 0 1.04 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.84 2.84l-.06.06a1.7 1.7 0 0 0-.34 1.88V9a1.7 1.7 0 0 0 1.56 1H21a2 2 0 1 1 0 4h-.11a1.7 1.7 0 0 0-1.49 1.4z"/>',
   admin:    '<path d="M12 3l7.5 3v5.5c0 4.6-3.1 8.4-7.5 9.5-4.4-1.1-7.5-4.9-7.5-9.5V6z"/><path d="m9 12 2 2 4-4"/>',
   audit:    '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/><path d="m8.5 11 1.8 1.8L14 9.2"/>',
+  sampah:   '<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/><path d="M12 11v5"/>',
   drive:    '<path d="M8 3h8l5 8.5-4 7H7l-4-7z"/><path d="M8 3 3.5 11.5M16 3l-4.5 8.5M3.5 11.5h17"/>',
   rujukan:  '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 1 6.5 18H19v3H6.5A2.5 2.5 0 0 1 4 20.5z"/><circle cx="11.5" cy="9" r="2.2"/><path d="M11.5 11.2v2"/>',
   lagi:     '<circle cx="5.5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18.5" cy="12" r="1.6"/>'
@@ -119,15 +120,41 @@ const MENU = [
   { id:'drive',     nama:'Google Drive' },
   { id:'rujukan',   nama:'Bahan Rujukan' },
   { id:'laporan',   nama:'Laporan & Statistik' },
+  { id:'sampah',    nama:'Kitar Semula' },
   { id:'tetapan',   nama:'Tetapan' },
   { id:'admin',     nama:'Admin Panel', peranan:['pemilik','admin'] }
 ];
 
+/* Kumpulan "Setup Kurikulum" ialah kerja sekali setahun — jadual, kelas, subjek,
+   RPT, buku teks, takwim. Selepas persediaan selesai ia dilipat supaya menu harian
+   tinggal pendek. Guru boleh buka semula bila-bila masa. */
+function setupSelesai(){
+  return !!(S.jadual?.length && S.kelas?.length && S.subjek?.length && S.takwim);
+}
+function lipatSetup(){
+  if(localStorage.getItem('erph_buka_setup') === '1') return false;
+  return setupSelesai();
+}
+function togolSetup(){
+  const buka = lipatSetup();
+  localStorage.setItem('erph_buka_setup', buka ? '1' : '0');
+  binaMenu(); pergi(S.hal || 'dashboard');
+}
+
 function binaMenu(){
   const boleh = m => !m.peranan || m.peranan.includes(S.peranan);
-  $('#sideNav').innerHTML = MENU.filter(boleh).map(m =>
-    m.grp ? `<div class="nav-lbl">${m.grp}</div>`
-          : `<button class="nav-i" data-hal="${m.id}">${svgIkon(m.id)}<span>${m.nama}</span></button>`).join('');
+  const lipat = lipatSetup();
+  let dalamSetup = false;
+  $('#sideNav').innerHTML = MENU.filter(boleh).map(m => {
+    if(m.grp){
+      dalamSetup = m.grp === 'Setup Kurikulum';
+      if(!dalamSetup) return `<div class="nav-lbl">${m.grp}</div>`;
+      return `<button class="nav-lbl nav-lipat${lipat?'':' buka'}" onclick="togolSetup()">
+        <span>${m.grp}</span><i>${lipat ? '▸' : '▾'}</i></button>`;
+    }
+    if(dalamSetup && lipat) return '';
+    return `<button class="nav-i" data-hal="${m.id}">${svgIkon(m.id)}<span>${m.nama}</span></button>`;
+  }).join('');
   $('#botNav').innerHTML = [
     {id:'dashboard',n:'Utama'},{id:'rph',n:'RPH'},{id:'jana',n:'Jana'},
     {id:'cetak',n:'Cetak'},{id:'lagi',n:'Lagi'}
@@ -155,10 +182,43 @@ const TAJUK = {
   drive:['Google Drive','Dokumen Google Docs sedia untuk Classroom'],
   rujukan:['Bahan Rujukan','Pautan sekolah & panduan tetap untuk AI'],
   laporan:['Laporan & Statistik','Prestasi RPH & liputan RPT'],
+  sampah:['Kitar Semula','RPH dipadam disimpan 30 hari sebelum dibuang'],
   tetapan:['Tetapan','Profil, AI dan aplikasi'],
   admin:['Admin Panel','Urus sekolah, guru dan data'],
   editor:['Editor RPH','Semak dan edit sebelum simpan']
 };
+
+/* ---------- Petunjuk halaman ----------
+   Satu baris sahaja, muncul kali pertama halaman dibuka dan hilang selepas
+   ditutup. Bukan tutorial — cukup untuk guru baharu tahu halaman ini untuk apa. */
+const TIP = {
+  jana:     ['✨','Pilih slot, dan AI akan bina RPH daripada RPT minggu itu. Kalau kelas anda mendahului atau ketinggalan, buka "Pilih tajuk daripada minggu lain".'],
+  jadual:   ['🕐','Masukkan slot PdP anda sekali sahaja. Dashboard, penjanaan RPH dan peringatan kelas semuanya bergantung pada jadual ini.'],
+  rpt:      ['📗','RPT ialah rujukan utama AI. Muat naik Excel, atau tekan "Jana RPT dengan AI" untuk subjek yang belum ada.'],
+  buku:     ['📖','Isi bab dan unit buku teks anda. AI hanya merujuk kandungan yang dimasukkan di sini — semakin lengkap, semakin tepat RPH keluar.'],
+  audit:    ['🔍','Semak semua RPH sekali gus. Kebanyakan isu boleh dibetulkan automatik tanpa menjana semula.'],
+  cetak:    ['🖨️','Cetak satu set RPH untuk fail rekod. Pilih gaya padat atau penuh mengikut kehendak sekolah anda.'],
+  sampah:   ['♻️','RPH yang dipadam disimpan di sini 30 hari. Tersilap padam pun masih boleh dipulihkan.'],
+  takwim:   ['📅','Tetapkan minggu persekolahan dan cuti. Tanpa takwim, sistem tidak tahu RPH anda minggu keberapa.'],
+  rujukan:  ['🏫','"Panduan Sekolah untuk AI" di sini akan dimasukkan ke dalam setiap RPH yang dijana.'],
+  laporan:  ['📊','Lihat liputan RPT dan prestasi RPH anda sepanjang tahun.']
+};
+function lukisTip(hal){
+  const t = TIP[hal]; if(!t) return;
+  if(localStorage.getItem('erph_tip_'+hal) === '1') return;
+  const bekas = $('#kandungan'); if(!bekas) return;
+  const div = document.createElement('div');
+  div.className = 'tip';
+  div.innerHTML = `<span class="tip-ikon">${t[0]}</span>
+    <span class="tip-teks">${t[1]}</span>
+    <button class="tip-tutup" title="Jangan tunjuk lagi" aria-label="Tutup petunjuk"
+      onclick="tutupTip('${hal}', this)">✕</button>`;
+  bekas.prepend(div);
+}
+function tutupTip(hal, el){
+  localStorage.setItem('erph_tip_'+hal, '1');
+  el.closest('.tip')?.remove();
+}
 
 function pergi(hal){
   S.hal = hal;
@@ -173,10 +233,11 @@ function pergi(hal){
   const f = {
     dashboard:halDashboard, rph:halRph, kalendar:halKalendar, jana:halJana,
     jadual:halJadual, kelas:halKelas, subjek:halSubjek, rpt:halRpt,
-    buku:halBuku, takwim:halTakwim, cetak:halCetak, audit:halAudit, drive:halDrive, rujukan:halRujukan, laporan:halLaporan, tetapan:halTetapan,
+    buku:halBuku, takwim:halTakwim, cetak:halCetak, audit:halAudit, drive:halDrive, rujukan:halRujukan, laporan:halLaporan, sampah:halSampah, tetapan:halTetapan,
     admin:halAdmin, editor:halEditor
   }[hal];
-  if(f) f(); else $('#kandungan').innerHTML = '<div class="kosong"><b>Halaman tidak dijumpai</b></div>';
+  if(f){ f(); lukisTip(hal); }
+  else $('#kandungan').innerHTML = '<div class="kosong"><b>Halaman tidak dijumpai</b></div>';
 }
 window.pergi = pergi;
 
