@@ -727,6 +727,63 @@ function formSlot(id){
     </div>`,
     `<button class="btn" onclick="tutupModal()">Batal</button><button class="btn btn-primary" onclick="simpanSlot('${id||''}')">Simpan</button>`);
 }
+/* RPH yang slotnya sudah tiada dalam jadual, bermula dari tarikh berkuat kuasa.
+   RPH sebelum tarikh itu ialah rekod PdP yang sudah berlaku — ia TIDAK disentuh
+   walaupun slotnya sudah dibuang, kerana ia bukti pengajaran yang telah dijalankan. */
+function rphYatim(mulaBerkuatKuasa){
+  const idSlot = new Set(S.jadual.map(s => s.id));
+  return S.rph.filter(r => r.tarikh >= mulaBerkuatKuasa && r.slotId && !idSlot.has(r.slotId))
+              .sort((a,b) => String(a.tarikh).localeCompare(b.tarikh));
+}
+
+/* Dipanggil selepas jadual disimpan. Menunjukkan senarai penuh sebelum memadam —
+   RPH ialah kerja guru, jadi ia tidak dipadam tanpa pengesahan. */
+async function semakRphYatim(){
+  const dari = tarikhISO();
+  const yatim = rphYatim(dari);
+  if(!yatim.length) return;
+
+  const adaRefleksi = yatim.filter(r => String(r.refleksi||'').trim()).length;
+  modal('RPH tidak lagi dalam jadual', `
+    <p style="font-size:13px;color:var(--teks-2);margin-bottom:12px">
+      Jadual waktu anda berubah. <b>${yatim.length} RPH</b> dari
+      <b>${tarikhCantik(dari)}</b> dan seterusnya merujuk slot yang sudah tiada.</p>
+
+    <div class="kad" style="background:var(--bg);padding:11px;margin-bottom:12px;max-height:34vh;overflow:auto">
+      ${yatim.slice(0,40).map(r => `<div style="font-size:12.5px;padding:5px 0;border-bottom:1px solid var(--garis)">
+        <b>${esc(r.subjek||'—')}</b> · ${esc(r.kelas||'—')}
+        <span style="color:var(--teks-3)"> — ${tarikhCantik(r.tarikh)}${r.mula?' · '+esc(r.mula):''}</span>
+        ${String(r.refleksi||'').trim() ? '<span class="pil hijau" style="margin-left:6px">ada refleksi</span>' : ''}
+      </div>`).join('')}
+      ${yatim.length>40 ? `<div style="font-size:12px;color:var(--teks-3);padding-top:6px">…dan ${yatim.length-40} lagi</div>`:''}
+    </div>
+
+    ${adaRefleksi ? `<div class="kad" style="background:#fdf3dd;border-color:#f0dcae;padding:10px;margin-bottom:12px;font-size:12.5px;color:#8a6106">
+      <b>${adaRefleksi} daripadanya sudah ada refleksi.</b> Kemungkinan ia sudah diajar.
+      Pertimbangkan untuk menyimpannya sebagai rekod.</div>` : ''}
+
+    <p style="font-size:12px;color:var(--teks-3)">
+      RPH sebelum ${tarikhCantik(dari)} tidak disentuh — itu rekod PdP yang sudah berlaku.</p>`,
+    `<button class="btn" onclick="tutupModal()">Simpan semua</button>
+     <button class="btn btn-danger" onclick="padamRphYatim('${dari}')">🗑️ Padam ${yatim.length} RPH</button>`);
+}
+
+async function padamRphYatim(dari){
+  const yatim = rphYatim(dari);
+  tutupModal();
+  if(!yatim.length) return;
+  sibuk(true, `Memadam ${yatim.length} RPH…`);
+  try{
+    for(let i = 0; i < yatim.length; i += 300){
+      const b = db.batch();
+      yatim.slice(i, i+300).forEach(r => b.delete(rujuk('rph').doc(r.id)));
+      await b.commit();
+    }
+    await muatRph(); sibuk(false); pergi('jadual');
+    toast(`${yatim.length} RPH dipadam`,'jaya');
+  }catch(e){ sibuk(false); toast('Gagal: '+e.message,'salah'); }
+}
+
 async function simpanSlot(id){
   const d = { id: id || uid(), hari:$('#fjHari').value, mula:$('#fjMula').value, tamat:$('#fjTamat').value,
               subjek:$('#fjSubjek').value, kelas:$('#fjKelas').value, bilik:$('#fjBilik').value.trim(), nota:$('#fjNota').value.trim() };
@@ -735,12 +792,14 @@ async function simpanSlot(id){
   sibuk(true,'Menyimpan…');
   await rujuk('jadual').doc(S.user.email).set({ slot:S.jadual, emel:S.user.email, dikemas:Date.now() });
   sibuk(false); tutupModal(); pergi('jadual'); toast('Slot disimpan','jaya');
+  semakRphYatim();
 }
 function hapusSlot(id){
   sahkan('Padam slot ini daripada jadual?', async () => {
     S.jadual = S.jadual.filter(x => x.id !== id);
     await rujuk('jadual').doc(S.user.email).set({ slot:S.jadual, emel:S.user.email, dikemas:Date.now() });
     pergi('jadual'); toast('Slot dipadam');
+    semakRphYatim();
   });
 }
 async function hapusItem(koleksi, id){
@@ -933,6 +992,102 @@ function importCuti(){
 
 /* ================= RPT ================= */
 let rptHasil = [];
+/* Pasangan subjek+tahun yang ada dalam jadual waktu tetapi tiada baris RPT */
+function subjekTanpaRpt(){
+  const ada = new Set(S.rpt.map(r => norma(r.subjek)+'|'+norma(r.tahun)));
+  const perlu = new Map();
+  S.jadual.forEach(s => {
+    const k = S.kelas.find(x => norma(x.nama) === norma(s.kelas));
+    const tahun = k?.tahun || '';
+    if(!s.subjek || !tahun) return;
+    const kunci = norma(s.subjek)+'|'+norma(tahun);
+    if(ada.has(kunci) || perlu.has(kunci)) return;
+    perlu.set(kunci, { subjek:s.subjek, tahun });
+  });
+  return [...perlu.values()];
+}
+
+function kadRptTiada(){
+  const senarai = subjekTanpaRpt();
+  if(!senarai.length) return '';
+  return `<div class="kad" style="background:var(--ungu-t);border-color:#ddd3fb">
+    <div class="kad-h"><h3 style="color:#5b3fbe">${senarai.length} subjek belum ada RPT</h3></div>
+    <p style="font-size:12.5px;color:var(--teks-2);margin-bottom:11px">
+      Subjek ini ada dalam jadual waktu anda tetapi tiada baris RPT. Tanpa RPT, AI terpaksa
+      meneka SK dan SP semasa menjana RPH.</p>
+    <div style="display:grid;gap:7px">
+      ${senarai.map(x => `<div class="baris">
+        <div class="baris-t"><b>${esc(x.subjek)}</b><small>${esc(x.tahun)}</small></div>
+        <button class="btn btn-sm btn-primary"
+          onclick="modalJanaRpt('${esc(x.subjek)}','${esc(x.tahun)}')">✨ Jana RPT</button>
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function modalJanaRpt(subjek, tahun){
+  const sjJadual = [...new Set(S.jadual.map(x => x.subjek).filter(Boolean))];
+  const senaraiSubjek = [...new Set([...sjJadual, ...S.subjek.map(x => x.nama)])].sort();
+  const TAHUN = ['Prasekolah','Tahun 1','Tahun 2','Tahun 3','Tahun 4','Tahun 5','Tahun 6',
+                 'Tingkatan 1','Tingkatan 2','Tingkatan 3','Tingkatan 4','Tingkatan 5'];
+  const jumMinggu = Math.max(...(janaMinggu(takwimSesi(sesiPilihan()))||[]).map(m => noMinggu(m.label)||0), 43);
+
+  modal('Jana RPT dengan AI', `
+    <div class="kad" style="background:#fdf3dd;border-color:#f0dcae;padding:11px;margin-bottom:13px;font-size:12.5px;color:var(--teks-2)">
+      <b style="color:#8a6106">Sila sahkan dengan DSKP rasmi.</b>
+      AI menyusun RPT berdasarkan pengetahuan kurikulum, bukan salinan dokumen KPM.
+      Kod SK dan SP mungkin perlu dibetulkan. Setiap baris ditanda "Dijana AI" dalam catatan.
+    </div>
+
+    <div class="grid2">
+      <label class="fld"><span>Subjek</span>
+        <select id="jrSubjek">${senaraiSubjek.map(x =>
+          `<option${norma(x)===norma(subjek||'')?' selected':''}>${esc(x)}</option>`).join('')}</select></label>
+      <label class="fld"><span>Tahun</span>
+        <select id="jrTahun">${TAHUN.map(x =>
+          `<option${norma(x)===norma(tahun||'')?' selected':''}>${x}</option>`).join('')}</select></label>
+    </div>
+    <div class="grid2">
+      <label class="fld"><span>Minggu mula</span><input id="jrMula" type="number" value="1" min="1" max="52"></label>
+      <label class="fld"><span>Minggu tamat</span><input id="jrTamat" type="number" value="${jumMinggu}" min="1" max="52"></label>
+    </div>
+    <label class="fld" style="margin-bottom:0"><span>Arahan khas <em>(pilihan)</em></span>
+      <textarea id="jrArahan" rows="2"
+        placeholder="Cth: Ikut susunan buku teks Rozayus. Letak ujian pada minggu 20 dan 40."></textarea></label>`,
+    `<button class="btn" onclick="tutupModal()">Batal</button>
+     <button class="btn btn-primary" onclick="janaRptSekarang()">✨ Jana RPT</button>`);
+}
+
+async function janaRptSekarang(){
+  const subjek = $('#jrSubjek').value, tahun = $('#jrTahun').value;
+  const mula = Math.max(1, +$('#jrMula').value || 1);
+  const tamat = Math.min(52, +$('#jrTamat').value || 43);
+  const arahan = $('#jrArahan').value.trim();
+  if(tamat < mula) return toast('Minggu tamat mesti selepas minggu mula','salah');
+  tutupModal();
+
+  const sedia = S.rpt.filter(r => norma(r.subjek)===norma(subjek) && norma(r.tahun)===norma(tahun));
+  const teruskan = async () => {
+    try{
+      const baris = await janaRptAI({ subjek, tahun, mula, tamat, arahan,
+        lapor: t => sibuk(true, t) });
+      sibuk(true, `Menyimpan ${baris.length} baris…`);
+      for(let i = 0; i < baris.length; i += 300){
+        const b = db.batch();
+        baris.slice(i, i+300).forEach(x => b.set(rujuk('rpt').doc(), { ...x, dicipta:Date.now() }));
+        await b.commit();
+      }
+      await tandaRptBerubah(); await muatRpt();
+      sibuk(false); pergi('rpt');
+      toast(`${baris.length} baris RPT dijana untuk ${subjek} ${tahun}`,'jaya');
+    }catch(e){ sibuk(false); toast('Gagal: '+e.message,'salah'); }
+  };
+
+  if(sedia.length)
+    sahkan(`${subjek} ${tahun} sudah ada ${sedia.length} baris RPT. Baris baharu akan DITAMBAH, bukan menggantikan. Teruskan?`, teruskan);
+  else teruskan();
+}
+
 function halRpt(){
   const sjJadual = [...new Set(S.jadual.map(x=>x.subjek).filter(Boolean))];
   const senaraiSubjek = [...new Set([...sjJadual, ...S.subjek.map(x=>x.nama)])].sort();
@@ -954,6 +1109,7 @@ function halRpt(){
         <input id="rtCari" placeholder="Tapis tajuk, SK atau SP…" oninput="lukisRpt()">
         <button class="btn" onclick="formRpt()">+ Tambah baris</button>
         <button class="btn btn-ungu" onclick="importRpt()">📥 Muat naik RPT (Excel)</button>
+        <button class="btn btn-ungu" onclick="modalJanaRpt()">✨ Jana RPT dengan AI</button>
         <button class="btn" onclick="templatRpt()">⬇️ Templat Excel</button>
         <button class="btn btn-danger" onclick="padamRptPukal()">🗑️ Padam pukal</button>
       </div>
@@ -961,6 +1117,7 @@ function halRpt(){
         Satu baris untuk satu minggu. Semasa menjana RPH, sistem padankan minggu persekolahan
         dengan RPT anda dan AI menggunakan tajuk serta standard di situ — AI tidak mencipta SP sendiri.</p>
     </div>
+    ${kadRptTiada()}
     <div id="rtSenarai"></div>`;
   lukisRpt();
 }

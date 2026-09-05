@@ -1115,6 +1115,76 @@ function binaCariPerkataan(kata, aras){
            gugur: kata.length - letak.length, arah: ARAH.length };
 }
 
+/* ================= PENJANA RPT TAHUNAN ================= */
+/* RPT dijana ikut kelompok minggu, bukan sekali gus, kerana satu tahun penuh
+   melebihi had panjang jawapan kebanyakan model dan JSON akan terpotong. */
+
+function promptRpt(ctx){
+  const tahunNombor = (String(ctx.tahun||'').match(/\b([1-6])\b/) || [])[1] || '';
+  return `Anda pakar kurikulum KPM yang menyediakan Rancangan Pengajaran Tahunan (RPT).
+Pulangkan SATU objek JSON sahaja. Tiada teks pengenalan, tiada pagar kod markdown.
+
+SUBJEK  : ${ctx.subjek}
+TAHUN   : ${ctx.tahun}${tahunNombor ? ` (KSSR Tahun ${tahunNombor})` : ''}
+MINGGU  : ${ctx.mula} hingga ${ctx.tamat} (${ctx.tamat - ctx.mula + 1} minggu)
+${ctx.sudahAda?.length ? `\nTAJUK YANG SUDAH DIRANCANG PADA MINGGU TERDAHULU — JANGAN ULANG:\n${ctx.sudahAda.map(x => `  M${x.minggu}: ${x.tajuk} (${x.kodSp})`).join('\n')}` : ''}
+${ctx.arahan ? `\nARAHAN GURU — PATUHI DAHULU:\n${ctx.arahan}` : ''}
+
+PERATURAN
+1. Satu baris untuk satu minggu. Hasilkan TEPAT satu baris bagi setiap minggu ${ctx.mula} hingga ${ctx.tamat}.
+2. Kod SK dan SP mesti mengikut format DSKP sebenar bagi subjek dan tahun ini
+   (contoh Bahasa Melayu: SK 1.1 dengan SP 1.1.1; Matematik: SK 5.1 dengan SP 5.1.3).
+3. Susunan tajuk mesti mengikut turutan pembelajaran yang munasabah — kemahiran
+   asas dahulu, kemahiran kompleks kemudian.
+4. Agihkan tema secara seimbang sepanjang tahun. Jangan letak semua tajuk berat berturut-turut.
+5. Ayat Standard Kandungan dan Standard Pembelajaran mesti BERBEZA. SP lebih khusus daripada SK.
+6. Bahasa Melayu baku. JANGAN guna: berbasis, mereview, sessi, menggunapakai, kemampuan.
+7. Jika anda tidak pasti kod DSKP yang tepat, tetap berikan kod yang paling munasabah
+   dan tulis dalam "catatan": "Sahkan dengan DSKP".
+
+FORMAT JSON:
+{
+  "baris": [
+    { "minggu": ${ctx.mula}, "tema": "Tema atau bidang", "tajuk": "Tajuk / kemahiran",
+      "kodSk": "1.1", "sk": "Ayat Standard Kandungan",
+      "kodSp": "1.1.1", "sp": "Ayat Standard Pembelajaran",
+      "tp": "TP3", "catatan": "" }
+  ]
+}`;
+}
+
+async function janaRptAI(ctx){
+  const KELOMPOK = 8;                       // minggu setiap panggilan
+  const semua = [];
+  for(let m = ctx.mula; m <= ctx.tamat; m += KELOMPOK){
+    const hingga = Math.min(m + KELOMPOK - 1, ctx.tamat);
+    if(ctx.lapor) ctx.lapor(`AI merancang minggu ${m}–${hingga}…`);
+    const j = ambilJSON(await panggilAiSelamat(promptRpt({
+      ...ctx, mula:m, tamat:hingga,
+      sudahAda: semua.map(x => ({ minggu:x.minggu, tajuk:x.tajuk, kodSp:x.kodSp }))
+    }), null, ctx.lapor));
+
+    (j.baris||[]).forEach(b => {
+      const minggu = Number(String(b.minggu).replace(/\D/g,'')) || 0;
+      if(minggu < m || minggu > hingga) return;             // di luar kelompok, abaikan
+      semua.push({
+        minggu: String(minggu), tahun: ctx.tahun, subjek: ctx.subjek,
+        tema: betulEjaan(b.tema||''), tajuk: betulEjaan(b.tajuk||''),
+        kodSk: String(b.kodSk||'').trim(), sk: betulEjaan(b.sk||''),
+        kodSp: String(b.kodSp||'').trim(), sp: betulEjaan(b.sp||''),
+        tp: String(b.tp||'').trim(),
+        catatan: betulEjaan(b.catatan||'') || 'Dijana AI — sahkan dengan DSKP'
+      });
+    });
+  }
+  if(!semua.length) throw new Error('AI tidak menghasilkan baris RPT yang sah');
+
+  // Buang minggu berulang, kekalkan yang pertama
+  const nampak = new Set();
+  return semua.filter(x => !nampak.has(x.minggu) && nampak.add(x.minggu))
+              .sort((a,b) => Number(a.minggu) - Number(b.minggu));
+}
+
 function semakKualiti(r){
   const angka = semakAngkaMurid(r);
   const cek = [
