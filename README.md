@@ -1,3 +1,5 @@
+> Versi penambahbaikan v1.1.0: baca `PANDUAN-KEMAS-KINI.md` sebelum pemasangan, khususnya perubahan peranan pemilik dan Firestore Rules.
+
 # e-RPH AI
 
 **Sistem Rancangan Pengajaran Harian Berbantukan AI untuk guru-guru Malaysia**
@@ -48,7 +50,7 @@ contoh-cuti.csv
 
 **b) firebase-config.js**
 - Tampal `FIREBASE_CONFIG` dari Firebase Console (Project settings → Your apps → Web).
-- Isi `EMEL_PEMILIK` dengan e-mel anda. E-mel dalam senarai ini automatik jadi **pemilik** (akses penuh semua sekolah) pada log masuk pertama.
+- Akaun baharu sentiasa didaftarkan sebagai **guru**. Untuk pemilik pertama, daftar/log masuk kemudian tetapkan medan `peranan` kepada `pemilik` pada dokumen `pengguna/{emel}` melalui Firebase Console. Senarai `EMEL_PEMILIK` dalam pelayar tidak lagi memberikan hak akses.
 
 **c) GitHub Pages**
 1. Cipta repo baharu, upload semua fail (kekalkan folder `js/` dan `icons/`).
@@ -68,7 +70,7 @@ Guru baharu daftar guna **kod sekolah** (ditetapkan oleh pemilik semasa cipta se
 ## 4. Enjin AI
 
 Buka **Tetapan → Enjin AI**. Pilih Gemini / OpenAI / Claude, masukkan API key dan model.
-Kunci disimpan dalam `localStorage` peranti tersebut sahaja (aplikasi statik, tiada server).
+Kunci digunakan terus dari pelayar. Tetapan juga boleh disegerakkan ke dokumen peribadi Firestore oleh aliran sedia ada; ia bukan stor rahsia pelayan.
 Tekan **Uji sambungan** untuk sahkan.
 
 Model lalai:
@@ -131,6 +133,6 @@ sekolah/{sid}/rph/{id}/versi/{vid}    sejarah versi
 
 ## 9. Kemas kini versi
 
-Selepas upload fail baharu, tukar `const CACHE = 'erph-v1'` dalam `sw.js` kepada `erph-v2`
+Selepas upload fail baharu, tukar `const CACHE = 'erph-v66'` dalam `sw.js` kepada `erph-v2`
 supaya service worker muat semula fail terkini. Pengguna juga boleh tekan
 **Tetapan → Kosongkan cache**.

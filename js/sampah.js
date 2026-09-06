@@ -38,8 +38,9 @@ async function buangKeSampah(senarai, sebab){
 
 async function muatSampah(){
   try{
-    const snap = await rujuk('sampah').orderBy('dipadamPada','desc').limit(400).get();
-    S.sampah = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+    const q = S.peranan === 'guru' ? rujuk('sampah').where('emel','==',S.user.email) : rujuk('sampah').orderBy('dipadamPada','desc').limit(400);
+    const snap = await q.get();
+    S.sampah = snap.docs.map(d => ({ id:d.id, ...d.data() })).sort((a,b)=>b.dipadamPada-a.dipadamPada);
   }catch(e){ S.sampah = []; }
   return S.sampah;
 }
@@ -48,12 +49,14 @@ async function muatSampah(){
 async function bersihSampahLama(){
   const had = Date.now() - SAMPAH_HARI * 86400000;
   try{
-    const snap = await rujuk('sampah').where('dipadamPada','<', had).limit(300).get();
-    if(snap.empty) return 0;
+    const q = S.peranan === 'guru' ? rujuk('sampah').where('emel','==',S.user.email) : rujuk('sampah').where('dipadamPada','<', had).limit(300);
+    const snap = await q.get();
+    const lama = snap.docs.filter(d => d.data().dipadamPada < had).slice(0,300);
+    if(!lama.length) return 0;
     const b = db.batch();
-    snap.docs.forEach(d => b.delete(d.ref));
+    lama.forEach(d => b.delete(d.ref));
     await b.commit();
-    return snap.size;
+    return lama.length;
   }catch(e){ return 0; }
 }
 

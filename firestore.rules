@@ -6,22 +6,36 @@ service cloud.firestore {
     function emel()     { return request.auth.token.email.lower(); }
     function pgn()      { return get(/databases/$(database)/documents/pengguna/$(emel())).data; }
     function peranan()  { return pgn().peranan; }
-    function pemilik()  { return log() && peranan() == 'pemilik'; }
-    function admin()    { return log() && peranan() == 'admin'; }
+    function aktif() { return log() && pgn().aktif == true; }
+    function pemilik()  { return aktif() && peranan() == 'pemilik'; }
+    function admin()    { return aktif() && peranan() == 'admin'; }
     function sid()      { return pgn().sekolahId; }
-    function tukarPeranan() {
-      return request.resource.data.diff(resource.data).affectedKeys()
-        .hasAny(['peranan','aktif','langganTamat']);
+    function profilSendiriSelamat() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['peranan','aktif','langganTamat','emel','dibuat'])
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['sekolahId'])
+          || (resource.data.sekolahId == null
+            && request.resource.data.sekolahId is string
+            && exists(/databases/$(database)/documents/sekolah/$(request.resource.data.sekolahId))));
     }
 
     // --- Pengguna ---
     match /pengguna/{e} {
-      allow read:   if log() && (e == emel() || pemilik() || admin());
-      allow create: if log() && e == emel();
+      allow read:   if log() && (e == emel() || pemilik() || (admin() && resource.data.sekolahId == sid()));
+      allow create: if log() && e == emel()
+        && request.resource.data.emel == emel()
+        && request.resource.data.peranan == 'guru'
+        && request.resource.data.aktif == true
+        && !request.resource.data.keys().hasAny(['langganTamat'])
+        && (request.resource.data.sekolahId == null
+          || exists(/databases/$(database)/documents/sekolah/$(request.resource.data.sekolahId)));
       allow update: if log() && (
         pemilik()
-        || (admin() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['langganTamat']))
-        || (e == emel() && !tukarPeranan())
+        || (admin() && resource.data.sekolahId == sid()
+          && resource.data.peranan != 'pemilik'
+          && request.resource.data.peranan in ['guru','admin']
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['langganTamat','sekolahId','emel']))
+        || (e == emel() && profilSendiriSelamat())
       );
       allow delete: if pemilik();
 
@@ -38,8 +52,28 @@ service cloud.firestore {
       allow update: if pemilik() || (admin() && s == sid());
       allow delete: if pemilik();
 
-      match /{dokumen=**} {
-        allow read, write: if log() && (pemilik() || s == sid());
+      function ahli() { return aktif() && (pemilik() || s == sid()); }
+      function pentadbir() { return pemilik() || (admin() && s == sid()); }
+      match /{koleksi}/{id} {
+        allow read, write: if ahli() && koleksi in ['kelas','subjek','rpt','buku','dskp'];
+        allow read: if ahli() && koleksi in ['tetapan','takwim'];
+        allow write: if pentadbir() && koleksi in ['tetapan','takwim'];
+      }
+      match /jadual/{e} {
+        allow read, write: if ahli() && (pentadbir() || e == request.auth.token.email);
+      }
+      match /{koleksi}/{id} {
+        allow read, delete: if ahli() && koleksi in ['rph','sampah']
+          && (pentadbir() || resource.data.emel == request.auth.token.email);
+        allow create: if ahli() && koleksi in ['rph','sampah']
+          && (pentadbir() || request.resource.data.emel == request.auth.token.email);
+        allow update: if ahli() && koleksi in ['rph','sampah']
+          && (pentadbir() || (resource.data.emel == request.auth.token.email
+            && request.resource.data.emel == resource.data.emel));
+      }
+      match /rph/{id}/versi/{vid} {
+        allow read, write: if ahli() && (pentadbir()
+          || get(/databases/$(database)/documents/sekolah/$(s)/rph/$(id)).data.emel == request.auth.token.email);
       }
     }
   }

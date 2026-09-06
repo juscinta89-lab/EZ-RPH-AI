@@ -83,23 +83,6 @@ function svgIkon(id, saiz){
     stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${IKON[id]||IKON.lagi}</svg>`;
 }
 
-/* ---------- Kunci zoom pada peranti mudah alih ---------- */
-(function kunciZoom(){
-  // iOS Safari mengabaikan user-scalable=no, jadi disekat secara manual
-  document.addEventListener('gesturestart', e => e.preventDefault(), { passive:false });
-  document.addEventListener('gesturechange', e => e.preventDefault(), { passive:false });
-  document.addEventListener('gestureend', e => e.preventDefault(), { passive:false });
-  let ketukAkhir = 0;
-  document.addEventListener('touchend', e => {
-    const kini = Date.now();
-    if(kini - ketukAkhir <= 300) e.preventDefault();   // ketuk dua kali
-    ketukAkhir = kini;
-  }, { passive:false });
-  document.addEventListener('touchmove', e => {
-    if(e.touches.length > 1) e.preventDefault();       // cubit dua jari
-  }, { passive:false });
-})();
-
 /* ---------- Ikon SVG ----------
    Simbol Unicode seperti ⏻ dan ✕ tiada dalam fon lalai kebanyakan peranti
    Android, jadi ia keluar sebagai kotak kosong. SVG sentiasa dilukis sama
@@ -119,6 +102,7 @@ const MENU = [
   { id:'dashboard', nama:'Dashboard' },
   { id:'rph',       nama:'RPH Saya' },
   { id:'kalendar',  nama:'Kalendar' },
+  { id:'pembantu', nama:'Pembantu AI' },
   { id:'jana',      nama:'AI Generator' },
   { grp:'Setup Kurikulum' },
   { id:'jadual',    nama:'Jadual Waktu' },
@@ -180,6 +164,7 @@ function binaMenu(){
 }
 
 const TAJUK = {
+  pembantu:['Pembantu AI','Idea, bahan pengajaran dan pentaksiran dalam satu ruang'],
   dashboard:['Dashboard','Ringkasan PdP anda hari ini'],
   rph:['RPH Saya','Semua Rancangan Pengajaran Harian'],
   kalendar:['Kalendar RPH','Status RPH mengikut tarikh'],
@@ -244,7 +229,7 @@ function pergi(hal){
   $('#tajukHal').textContent = t[0]; $('#subTajuk').textContent = t[1];
   window.scrollTo(0,0);
   const f = {
-    dashboard:halDashboard, rph:halRph, kalendar:halKalendar, jana:halJana,
+    pembantu:halPembantu, dashboard:halDashboard, rph:halRph, kalendar:halKalendar, jana:halJana,
     jadual:halJadual, kelas:halKelas, subjek:halSubjek, rpt:halRpt,
     buku:halBuku, takwim:halTakwim, cetak:halCetak, audit:halAudit, drive:halDrive, rujukan:halRujukan, laporan:halLaporan, sampah:halSampah, tetapan:halTetapan,
     admin:halAdmin, editor:halEditor
@@ -290,26 +275,33 @@ $('#btnMasuk').onclick = async () => {
   sibuk(false);
 };
 
+window._sedangDaftar = false;
 $('#btnDaftar').onclick = async () => {
+  if(window._sedangDaftar) return;
   const nama = $('#rgNama').value.trim(), e = $('#rgEmel').value.trim().toLowerCase();
   const k = $('#rgKata').value, kod = $('#rgKod').value.trim().toUpperCase();
   if(!nama || !e || k.length < 6) return toast('Lengkapkan nama, e-mel dan kata laluan (6 aksara)','salah');
+  window._sedangDaftar = true;
   sibuk(true,'Mendaftar…');
+  let cred;
   try{
+    // Log masuk dahulu: peraturan sekolah memerlukan pengguna disahkan.
+    cred = await auth.createUserWithEmailAndPassword(e,k);
+    await cred.user.updateProfile({ displayName:nama });
     let sid = null;
     if(kod){
       const q = await db.collection('sekolah').where('kod','==',kod).limit(1).get();
-      if(q.empty){ sibuk(false); return toast('Kod sekolah tidak dijumpai','salah'); }
+      if(q.empty) throw new Error('Kod sekolah tidak dijumpai. Semak kod dan daftar semula.');
       sid = q.docs[0].id;
     }
-    const cred = await auth.createUserWithEmailAndPassword(e,k);
-    await cred.user.updateProfile({ displayName: nama });
     await db.collection('pengguna').doc(e).set({
-      emel:e, nama, peranan: EMEL_PEMILIK.includes(e) ? 'pemilik' : 'guru',
-      sekolahId: sid, aktif:true, dibuat: Date.now()
+      emel:e, nama, peranan:'guru', sekolahId:sid, aktif:true, dibuat:Date.now()
     });
-  }catch(err){ toast(ralat(err),'salah'); }
-  sibuk(false);
+    location.reload();
+  }catch(err){
+    if(cred) { try { await cred.user.delete(); } catch { await auth.signOut(); } }
+    toast(ralat(err),'salah');
+  }finally{ window._sedangDaftar = false; sibuk(false); }
 };
 
 $('#btnLupa').onclick = async () => {

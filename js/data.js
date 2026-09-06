@@ -1890,7 +1890,7 @@ async function simpanProfil(){
   $('#uNama').textContent = d.nama; sibuk(false); toast('Profil disimpan','jaya');
 }
 function tetapanAI(){
-  const t = JSON.parse(localStorage.getItem('erph_ai') || '{}');
+  let t; try { t = JSON.parse(localStorage.getItem('erph_ai') || '{}') || {}; } catch { t = {}; }
   const prov = t.prov || 'gemini';
   const p = (typeof PENYEDIA !== 'undefined' ? PENYEDIA[prov] : null) || {};
   return { prov, key:t.key||'', model:t.model || p.model || '', baseUrl:t.baseUrl || p.base || '' };

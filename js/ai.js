@@ -43,8 +43,7 @@ const PENYEDIA = {
 
 function infoPenyedia(id){ return PENYEDIA[id] || PENYEDIA.gemini; }
 
-function alamatAsas(){
-  const t = tetapanAI();
+function alamatAsas(t = tetapanAI()){
   const p = infoPenyedia(t.prov);
   let b = (t.baseUrl || p.base || '').trim().replace(/\/+$/,'');
   if(b && !/\/v\d+$/.test(b) && !/openai\/v1$/.test(b)) { /* biarkan seperti diberi pengguna */ }
@@ -57,19 +56,24 @@ function alamatAsas(){
    dan mengendalikan ralat 429 secara automatik. */
 
 function tetapanKadar(){
-  const t = JSON.parse(localStorage.getItem('erph_kadar') || '{}');
-  return { rpm: t.rpm || 12, cubaan: t.cubaan || 4, sandaran: t.sandaran || null };
+  let t; try { t = JSON.parse(localStorage.getItem('erph_kadar') || '{}') || {}; } catch { t = {}; }
+  return { rpm: Math.min(120, Math.max(1, Number(t.rpm) || 12)), cubaan: Math.min(6, Math.max(1, Math.floor(Number(t.cubaan) || 4))), sandaran: t.sandaran || null };
 }
 function simpanKadar(t){ localStorage.setItem('erph_kadar', JSON.stringify(t)); }
 
 let _kaliAkhir = 0;
-async function jedaKadar(){
-  const { rpm } = tetapanKadar();
-  const selang = Math.ceil(60000 / Math.max(1, rpm));       // ms antara permintaan
-  const perlu = _kaliAkhir + selang - Date.now();
-  if(perlu > 0) await tidur(perlu);
-  _kaliAkhir = Date.now();
+let _giliranAi = Promise.resolve();
+function jedaKadar(){
+  const giliran = _giliranAi.then(async () => {
+    const selang = Math.ceil(60000 / tetapanKadar().rpm);
+    const perlu = _kaliAkhir + selang - Date.now();
+    if(perlu > 0) await tidur(perlu);
+    _kaliAkhir = Date.now();
+  });
+  _giliranAi = giliran.catch(()=>{});
+  return giliran;
 }
+
 function tidur(ms){ return new Promise(r => setTimeout(r, ms)); }
 
 function adalahHadKadar(e){
@@ -120,25 +124,45 @@ async function panggilAiSelamat(prompt, sistem, lapor){
 
 /* Panggil penyedia tertentu (untuk sandaran) tanpa mengubah tetapan utama */
 async function panggilAiPenyedia(cfg, prompt, sistem){
-  const asal = localStorage.getItem('erph_ai');
-  try{
-    localStorage.setItem('erph_ai', JSON.stringify(cfg));
-    _kaliAkhir = 0;
-    return await panggilAI(prompt, sistem);
-  } finally {
-    if(asal) localStorage.setItem('erph_ai', asal);
-  }
+  return panggilAI(prompt, sistem, cfg);
 }
 
-async function panggilAI(prompt, sistem){
-  const t = tetapanAI();
+/* Setiap permintaan memiliki konfigurasi dan had masanya sendiri. */
+async function fetchAi(url, options = {}, timeoutMs = 90000){
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {...options, signal:controller.signal});
+    const raw = await response.text();
+    let data;
+    try { data = JSON.parse(raw); }
+    catch { throw new Error('HTTP ' + response.status + ': Balasan AI bukan JSON yang sah.'); }
+    if(!response.ok || data.error){
+      const error = new Error('HTTP ' + response.status + ': ' + (data.error?.message || 'Permintaan AI gagal.'));
+      error.status = response.status;
+      throw error;
+    }
+    return data;
+  } catch(error){
+    if(error.name === 'AbortError') throw new Error('AI mengambil masa terlalu lama. Cuba lagi atau pilih model lain.');
+    throw error;
+  } finally { clearTimeout(timer); }
+}
+function teksAiSah(text, reason){
+  if(['length','MAX_TOKENS','max_tokens'].includes(reason)) throw new Error('Jawapan AI terpotong. Kecilkan skop atau bilangan soalan dan cuba semula.');
+  if(typeof text !== 'string' || !text.trim()) throw new Error('AI tidak memberikan jawapan. Semak arahan atau cuba model lain.');
+  return text.trim();
+}
+
+async function panggilAI(prompt, sistem, konfigurasi){
+  const t = {...(konfigurasi || tetapanAI())};
   const p = infoPenyedia(t.prov);
   if(!t.key && t.prov !== 'ollama') throw new Error('API key belum ditetapkan. Buka Tetapan > Enjin AI.');
   const sys = sistem || 'Anda pembantu guru Malaysia yang pakar kurikulum KPM. Jawab dalam Bahasa Melayu baku.';
 
   try{
     if(p.jenis === 'gemini'){
-      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${t.model}:generateContent?key=${encodeURIComponent(t.key)}`,{
+      const j = await fetchAi(`https://generativelanguage.googleapis.com/v1beta/models/${t.model}:generateContent?key=${encodeURIComponent(t.key)}`,{
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
           systemInstruction:{ parts:[{text:sys}] },
@@ -146,39 +170,31 @@ async function panggilAI(prompt, sistem){
           generationConfig:{ temperature:0.6, maxOutputTokens:8192 }
         })
       });
-      const j = await r.json();
-      if(j.error) throw new Error(j.error.message);
-      return (j.candidates?.[0]?.content?.parts||[]).map(x=>x.text||'').join('');
+      return teksAiSah((j.candidates?.[0]?.content?.parts||[]).map(x=>x.text||'').join(''), j.candidates?.[0]?.finishReason);
     }
 
     if(p.jenis === 'claude'){
-      const r = await fetch('https://api.anthropic.com/v1/messages',{
+      const j = await fetchAi('https://api.anthropic.com/v1/messages',{
         method:'POST',
         headers:{'Content-Type':'application/json','x-api-key':t.key,'anthropic-version':'2023-06-01',
                  'anthropic-dangerous-direct-browser-access':'true'},
         body: JSON.stringify({ model:t.model, max_tokens:8000, system:sys, messages:[{role:'user',content:prompt}] })
       });
-      const j = await r.json();
-      if(j.error) throw new Error(j.error.message);
-      return (j.content||[]).map(c => c.text || '').join('');
+      return teksAiSah((j.content||[]).map(c => c.text || '').join(''), j.stop_reason);
     }
 
     /* Serasi OpenAI — Groq, OpenRouter, Cerebras, Mistral, DeepSeek, Ollama, dll. */
-    const base = alamatAsas();
+    const base = alamatAsas(t);
     if(!base) throw new Error('Base URL belum ditetapkan untuk penyedia ini.');
     const kepala = { 'Content-Type':'application/json' };
     if(t.key) kepala['Authorization'] = 'Bearer ' + t.key;
     if(t.prov === 'openrouter'){ kepala['HTTP-Referer'] = location.origin; kepala['X-Title'] = 'e-RPH AI'; }
-    const r = await fetch(base + '/chat/completions',{
+    const j = await fetchAi(base + '/chat/completions',{
       method:'POST', headers:kepala,
       body: JSON.stringify({ model:t.model, temperature:0.6, max_tokens:8000,
         messages:[{role:'system',content:sys},{role:'user',content:prompt}] })
     });
-    const teks = await r.text();
-    let j; try{ j = JSON.parse(teks); }catch(e){ throw new Error('Balasan tidak sah daripada pelayan: ' + teks.slice(0,120)); }
-    if(j.error) throw new Error(j.error.message || JSON.stringify(j.error));
-    if(!r.ok) throw new Error('HTTP ' + r.status);
-    return j.choices?.[0]?.message?.content || '';
+    return teksAiSah(j.choices?.[0]?.message?.content, j.choices?.[0]?.finish_reason);
 
   }catch(e){
     if(e instanceof TypeError && /fetch|network/i.test(e.message||'')){
@@ -192,7 +208,7 @@ async function panggilAI(prompt, sistem){
 async function senaraiModel(){
   const t = tetapanAI(), p = infoPenyedia(t.prov);
   if(p.jenis !== 'openai') throw new Error('Senarai model hanya untuk penyedia serasi OpenAI.');
-  const base = alamatAsas();
+  const base = alamatAsas(t);
   const kepala = {}; if(t.key) kepala['Authorization'] = 'Bearer ' + t.key;
   const r = await fetch(base + '/models', { headers:kepala });
   const j = await r.json();
@@ -488,6 +504,9 @@ function stripHtml(h){ const d = document.createElement('div'); d.innerHTML = h|
 async function janaRphAI(ctx){
   const jawapan = await panggilAiSelamat(promptRph(ctx), null, ctx.lapor);
   const j = ambilJSON(jawapan);
+  if(!j || typeof j !== 'object' || Array.isArray(j)) throw new Error('Struktur RPH AI tidak sah.');
+  ['objektif','kriteria','amaran'].forEach(f => { j[f] = Array.isArray(j[f]) ? j[f].map(String) : (typeof j[f] === 'string' ? j[f].split('\n').filter(Boolean) : []); });
+  if(!j.objektif.length || typeof j.aktiviti !== 'string' || !j.aktiviti.trim()) throw new Error('RPH AI tidak lengkap: objektif atau aktiviti tiada. Sila jana semula.');
   // Bersihkan ejaan bukan baku sebelum disimpan
   ['tema','tajuk','sk','sp','aktiviti','pengayaan','pemulihan','penutup',
    'strategi','pak21','kbat','emk','nilai','bbm','pentaksiran'].forEach(f => {

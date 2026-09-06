@@ -7,6 +7,7 @@
 /* ================= e-RPH AI — BOOT ================= */
 
 auth.onAuthStateChanged(async user => {
+  if(window._sedangDaftar) return;
   if(!user){ S.user = null; tunjuk('#authView'); return; }
   tunjuk('#boot'); $('#bootMsg').textContent = 'Menyemak akaun…';
   S.user = user;
@@ -19,7 +20,7 @@ auth.onAuthStateChanged(async user => {
     if(!doc.exists){
       await ref.set({
         emel, nama: user.displayName || emel.split('@')[0],
-        peranan: EMEL_PEMILIK.includes(emel) ? 'pemilik' : 'guru',
+        peranan: 'guru',
         sekolahId: null, aktif: true, dibuat: Date.now()
       });
       doc = await ref.get();
@@ -34,11 +35,7 @@ auth.onAuthStateChanged(async user => {
       S.profil.foto = url;
     }
 
-    /* Naik taraf automatik untuk e-mel pemilik */
-    if(EMEL_PEMILIK.includes(emel) && S.profil.peranan !== 'pemilik'){
-      await ref.set({ peranan:'pemilik' },{merge:true});
-      S.profil.peranan = 'pemilik';
-    }
+    /* Peranan pemilik ditetapkan melalui Firebase Console, bukan kod pelayar. */
     S.peranan = S.profil.peranan || 'guru';
 
     if(S.profil.aktif === false){
@@ -118,10 +115,13 @@ async function sertaiSekolah(){
   const kod = $('#joinKod').value.trim().toUpperCase();
   if(!kod) return toast('Masukkan kod sekolah','salah');
   sibuk(true,'Menyemak kod…');
-  const q = await db.collection('sekolah').where('kod','==',kod).limit(1).get();
-  if(q.empty){ sibuk(false); return toast('Kod sekolah tidak dijumpai','salah'); }
-  await db.collection('pengguna').doc(S.user.email).set({ sekolahId:q.docs[0].id },{merge:true});
-  location.reload();
+  try {
+    const q = await db.collection('sekolah').where('kod','==',kod).limit(1).get();
+    if(q.empty) throw new Error('Kod sekolah tidak dijumpai');
+    await db.collection('pengguna').doc(S.user.email.toLowerCase()).set({ sekolahId:q.docs[0].id },{merge:true});
+    location.reload();
+  } catch(e) { toast(e.message || 'Gagal menyertai sekolah.','salah'); }
+  finally { sibuk(false); }
 }
 
 /* --- Service worker --- */
