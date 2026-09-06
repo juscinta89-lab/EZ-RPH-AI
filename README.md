@@ -1,3 +1,7 @@
+> Versi **v1.2.0**: ilustrasi kartun AI untuk latihan Bina Ayat. Baca `GAMBAR-KARTUN.md` untuk pemasangan dan API key imej.
+
+> Pembaikan terkini **v1.1.1**: baca `BAIKI-EDIT-RPH.md` untuk masalah butang Edit. Panduan v1.1.0 di bawah ialah rekod naik taraf sebelumnya.
+
 > Versi penambahbaikan v1.1.0: baca `PANDUAN-KEMAS-KINI.md` sebelum pemasangan, khususnya perubahan peranan pemilik dan Firestore Rules.
 
 # e-RPH AI

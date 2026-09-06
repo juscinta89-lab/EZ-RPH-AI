@@ -16,8 +16,8 @@ function barisRph(r, ringkas){
     <span class="pil ${w}">${r.status === 'lengkap' ? 'Lengkap' : 'Draf'}</span>
     <button class="ikon-btn" title="Pratonton RPH" aria-label="Pratonton RPH"
       onclick="event.stopPropagation();pratontonRph('${r.id}')">${IKON_MATA}</button>
-    <button class="ikon-btn" title="Edit RPH" aria-label="Edit RPH"
-      onclick="event.stopPropagation();bukaRph('${r.id}')">${IKON_PENSEL}</button>
+    <button type="button" class="ikon-btn rph-edit-btn" title="Edit RPH" aria-label="Edit RPH"
+      onclick="event.stopPropagation();bukaRph('${r.id}')">${IKON_PENSEL}<span>Edit</span></button>
   </div>`;
 }
 
@@ -823,7 +823,66 @@ function lihatHari(iso){
 }
 
 /* ================= EDITOR RPH ================= */
-function bukaRph(id){ S.editRphId = id; window._stdManual = false; window._stdSumberMinggu = ''; pergi('editor'); }
+function bukaRph(id){
+  if(!S.rph.some(r => r.id === id)) {
+    toast('RPH tidak dijumpai dalam senarai semasa. Segarkan halaman dan cuba lagi.','salah');
+    return;
+  }
+  tutupModal();
+  S.editRphId = id;
+  window._stdManual = false;
+  window._stdSumberMinggu = '';
+  try { pergi('editor'); }
+  catch(e) {
+    console.error('Gagal membuka editor RPH:', e);
+    $('#kandungan').innerHTML = `<div class="kosong" role="alert"><b>RPH belum dapat dibuka</b>
+      <p>Data asal masih disimpan. Kembali ke senarai dan cuba lagi.</p>
+      <button class="btn" onclick="pergi('rph')">Kembali ke RPH Saya</button></div>`;
+    toast('Editor gagal dibuka. Data RPH tidak dipadam.','salah');
+  }
+}
+
+// Rekod lama/import mungkin menyimpan senarai sebagai array. Jangan ubah rekod asal.
+function teksMedanRph(value){
+  if(Array.isArray(value)) return value.map(teksMedanRph).filter(Boolean).join('\n');
+  if(value == null) return '';
+  if(typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+function rekodUntukEditor(asal){
+  const r = {...asal};
+  ['subjek','kelas','tarikh','mula','tamat','tema','tajuk','kodSk','kodSp','sk','sp','tp',
+   'objektif','kriteria','aktiviti','pengayaan','pemulihan','penutup','strategi','pak21',
+   'kbat','emk','nilai','bbm','pentaksiran','refleksi','amaran'].forEach(k => r[k] = teksMedanRph(r[k]));
+  return r;
+}
+let _semakanEditorPemasa = null;
+function jadualSemakanEditor(r){
+  clearTimeout(_semakanEditorPemasa);
+  const panel = $('#semakanEditor');
+  // Beri pelayar peluang melukis borang; jangan biarkan audit menghalang Edit.
+  _semakanEditorPemasa = setTimeout(() => {
+    if(S.hal !== 'editor' || S.editRphId !== r.id || $('#semakanEditor') !== panel) return;
+    try { panel.innerHTML = panelSemakanEditor(r); }
+    catch(e) {
+      console.warn('Semakan kualiti RPH gagal:', e);
+      panel.innerHTML = '<h3>Semakan kualiti belum tersedia</h3><p>Borang RPH boleh terus disunting. Semak medan kurikulum dan data kelas.</p>';
+    }
+  }, 0);
+}
+function panelSemakanEditor(r){
+  const q = semakKualiti(r);
+  const warna = q.peratus >= 85 ? 'hijau' : q.peratus >= 60 ? 'kuning' : 'merah';
+  const gagal = q.cek.filter(c=>!c[1]), lulus = q.cek.filter(c=>c[1]);
+  const angka = semakAngkaMurid(r);
+  return `<div class="kad-h"><h3>Semakan kualiti</h3><span class="pil ${warna}">${q.peratus}%</span></div>
+    ${gagal.map(c=>`<div class="sk-baris sk-gagal"><span class="ik-kecil">${IK_SILANG}</span><span>${esc(c[0])}</span></div>`).join('')}
+    ${lulus.length ? `<details class="sk-lulus"><summary>${lulus.length} semakan lulus</summary>${lulus.map(c=>`<div class="sk-baris"><span class="ik-kecil">${IK_TANDA}</span><span>${esc(c[0])}</span></div>`).join('')}</details>` : ''}
+    ${!gagal.length ? '<p>Tiada isu dikesan</p>' : ''}
+    ${angka.ok ? '' : `<p>⚠️ RPH menyebut ${esc(angka.salah.join(', '))} murid tetapi kelas ini ada ${esc(angka.jum)} murid.</p><button class="btn btn-sm" onclick="betulkanAngka(${Number(angka.jum)})">Betulkan automatik</button>`}
+    ${r.amaran ? `<p>⚠️ ${esc(r.amaran)}</p>` : ''}
+    <p style="font-size:11px;color:var(--teks-3);margin-top:10px">Semakan ini bantuan sistem sahaja, bukan pengesahan rasmi KPM.</p>`;
+}
 
 function rte(id, isi, tinggi){
   return `<div class="rte-bar">
@@ -872,10 +931,9 @@ function navRph(){
 }
 
 function halEditor(){
-  const r = S.rph.find(x => x.id === S.editRphId);
-  if(!r){ pergi('rph'); return; }
-  const q = semakKualiti(r);
-  const warna = q.peratus >= 85 ? 'hijau' : q.peratus >= 60 ? 'kuning' : 'merah';
+  const asal = S.rph.find(x => x.id === S.editRphId);
+  if(!asal){ pergi('rph'); return; }
+  const r = rekodUntukEditor(asal);
   $('#subTajuk').textContent = `${r.subjek} · ${r.kelas} · ${tarikhCantik(r.tarikh)}`;
 
   $('#kandungan').innerHTML = `${navRph()}
@@ -953,7 +1011,7 @@ function halEditor(){
           <div class="ed-menu" id="edMenu">
             <button onclick="tutupLagi();simpanRph('draf')">💾 Simpan sebagai draf</button>
             <button onclick="tutupLagi();modalLatihan()">📝 Jana soalan latihan</button>
-            ${driveSedia() ? `<button onclick="tutupLagi();simpanRphKeDrive()">📁 Simpan ke Google Drive</button>` : ''}
+            ${typeof driveSedia === 'function' && driveSedia() ? `<button onclick="tutupLagi();simpanRphKeDrive()">📁 Simpan ke Google Drive</button>` : ''}
             <button onclick="tutupLagi();salinRph()">📋 Salin ke tarikh lain</button>
             <button class="merah" onclick="tutupLagi();padamRph()">🗑️ Padam RPH</button>
           </div>
@@ -962,25 +1020,8 @@ function halEditor(){
     </div>
 
     <div>
-      <div class="kad ai-panel">
-        <div class="kad-h"><h3>Semakan kualiti</h3><span class="pil ${warna}">${q.peratus}%</span></div>
-        ${(() => {
-          const gagal = q.cek.filter(c => !c[1]), lulus = q.cek.filter(c => c[1]);
-          /* Hanya perkara yang gagal ditunjukkan. Yang lulus dilipat jadi satu
-             baris supaya mata guru terus jatuh pada apa yang perlu dibaiki. */
-          return `${gagal.map(c=>`<div class="sk-baris sk-gagal"><span class="ik-kecil">${IK_SILANG}</span><span>${c[0]}</span></div>`).join('')}
-          ${lulus.length ? `<details class="sk-lulus">
-            <summary><span class="ik-kecil">${IK_TANDA}</span> ${lulus.length} semakan lulus</summary>
-            ${lulus.map(c=>`<div class="sk-baris"><span class="ik-kecil">${IK_TANDA}</span><span>${c[0]}</span></div>`).join('')}
-          </details>` : ''}
-          ${!gagal.length ? `<div class="sk-baris sk-ok"><span class="ik-kecil">${IK_TANDA}</span><span>Tiada isu dikesan</span></div>` : ''}`;
-        })()}
-        ${(() => { const a = semakAngkaMurid(r);
-          return a.ok ? '' : `<p style="margin-top:10px;font-size:12px;background:#fdeaea;color:#a33;padding:9px;border-radius:8px">
-            ⚠️ RPH menyebut <b>${esc(a.salah.join(', '))}</b> murid tetapi kelas ini ada <b>${a.jum}</b> murid.
-            <button class="btn btn-sm" style="margin-top:7px" onclick="betulkanAngka(${a.jum})">Betulkan automatik</button></p>`; })()}
-        ${r.amaran ? `<p style="margin-top:10px;font-size:12px;background:#fdf3dd;color:#8a6106;padding:9px;border-radius:8px">⚠️ ${esc(r.amaran)}</p>` : ''}
-        <p style="font-size:11px;color:var(--teks-3);margin-top:10px">Semakan ini bantuan sistem sahaja, bukan pengesahan rasmi KPM.</p>
+      <div class="kad ai-panel" id="semakanEditor" aria-live="polite">
+        <h3>Semakan kualiti</h3><p>Semakan sedang disediakan…</p>
       </div>
 
     </div>
@@ -999,6 +1040,7 @@ function halEditor(){
     <button class="btn btn-ungu btn-block" onclick="aiUbah()">Jalankan arahan</button>
     <button class="btn btn-block" style="margin-top:8px" onclick="janaSemula()">🔄 Jana semula keseluruhan</button>
   </div>`;
+  jadualSemakanEditor(r);
 }
 
 function bukaAiDrawer(){ $('#aiDrawer').classList.add('buka'); $('#aiTirai').classList.add('buka'); }
@@ -1072,11 +1114,14 @@ function modalLatihan(){
       </select></label>
 
     <label class="fld" id="ltGambarBaris" style="display:none"><span>Gambar untuk setiap item</span>
-      <select id="ltGambar">
-        <option value="emoji">Emoji besar berwarna</option>
+      <select id="ltGambar" onchange="ubahJenisLatihan()">
+        <option value="warna">Kartun berwarna (AI imej)</option>
+        <option value="garisan">Lukisan hitam putih (AI imej)</option>
+        <option value="emoji">Emoji (mod lama)</option>
         <option value="kosong">Kotak kosong — saya tampal gambar sendiri</option>
       </select></label>
 
+    <div id="ltKunciGambar" style="display:none">${borangKunciGambar()}</div>
     <label class="baris" style="cursor:pointer;align-items:flex-start;margin-bottom:13px">
       <input type="checkbox" id="ltSemak" checked style="width:auto;margin-top:3px">
       <div class="baris-t"><b>Semak jawapan dengan AI</b>
@@ -1096,6 +1141,7 @@ function modalLatihan(){
 function ubahJenisLatihan(){
   const j = $('#ltJenis')?.value;
   const main = JENIS_LATIHAN[j]?.main;
+  if($('#ltKunciGambar')) $('#ltKunciGambar').style.display = j === 'gambarAyat' && ['warna','garisan'].includes($('#ltGambar')?.value) ? '' : 'none';
   if($('#ltBilBaris')) $('#ltBilBaris').style.display = main ? 'none' : '';
   if($('#ltGambarBaris')) $('#ltGambarBaris').style.display = j === 'gambarAyat' ? '' : 'none';
   if($('#ltNota')) $('#ltNota').textContent = main
@@ -1111,6 +1157,9 @@ async function janaLatihan(){
   const arahanGuru = $('#ltArahan') ? $('#ltArahan').value.trim() : '';
   const gambar = $('#ltGambar') ? $('#ltGambar').value : 'emoji';
   const semak = $('#ltSemak') ? $('#ltSemak').checked : true;
+  let imageKey='';
+  if(jenis==='gambarAyat' && ['warna','garisan'].includes(gambar)) { try { imageKey=kunciGambar(); } catch(e) { return toast(e.message,'salah'); } }
+  const id=S.editRphId;
   tutupModal();
   const r = { ...S.rph.find(x => x.id === S.editRphId), ...bacaEditor() };
   sibuk(true, 'AI sedang menyediakan latihan…');
@@ -1118,7 +1167,13 @@ async function janaLatihan(){
     const latihan = await janaSoalanAI({ jenis, aras, bilangan, arahanGuru, gambar, semak,
       subjek:r.subjek, kelas:r.kelas, tajuk:r.tajuk, sk:r.sk, sp:r.sp, objektif:r.objektif,
       lapor: t => sibuk(true, t) });
-    await rujuk('rph').doc(S.editRphId).update({ latihan, dikemas: Date.now() });
+    await rujuk('rph').doc(id).update({ latihan, dikemas: Date.now() });
+    S.rph.find(x=>x.id===id).latihan=latihan;
+    if(imageKey) {
+      const gagal=await lengkapkanGambarLatihan(id,latihan,gambar,imageKey);
+      if(gagal) latihan.semakanGagal=`${gagal} gambar belum siap. Buka Ilustrasi kartun untuk melengkapkan.`;
+    }
+    imageKey='';
     await muatRph(); sibuk(false);
     lihatLatihan();
     const n = latihan.pembetulan?.length || 0;
@@ -1126,7 +1181,7 @@ async function janaLatihan(){
       : n ? `Latihan siap · AI membetulkan ${n} jawapan`
           : latihan.disemak ? 'Latihan siap · semakan AI tiada isu' : 'Latihan siap dijana',
       latihan.semakanGagal ? 'salah' : 'jaya');
-  }catch(e){ sibuk(false); toast('Gagal: '+e.message,'salah'); }
+  }catch(e){ imageKey='';sibuk(false); toast('Gagal: '+e.message+' Buka latihan sedia ada untuk sambung gambar.','salah'); }
 }
 
 function lihatLatihan(){
@@ -1136,6 +1191,7 @@ function lihatLatihan(){
   modal(L.tajuk || 'Latihan', `
     <div class="lt-pratonton">${htmlLatihan(r, L, false)}</div>`,
     `<button class="btn" onclick="tutupModal()">Tutup</button>
+     ${L.jenis==='gambarAyat' ? '<button class="btn" onclick="modalGambarLatihan()">Ilustrasi kartun / lengkapkan gambar</button>' : ''}
      <button class="btn" onclick="cetakLatihan(true)">🖨️ Cetak + skema</button>
      <button class="btn btn-primary" onclick="cetakLatihan(false)">🖨️ Cetak lembaran murid</button>`);
 }
@@ -1143,6 +1199,7 @@ function lihatLatihan(){
 function cetakLatihan(denganSkema){
   const r = S.rph.find(x => x.id === S.editRphId);
   if(!r?.latihan) return toast('Belum ada latihan');
+  if(['kartun','warna','garisan'].includes(r.latihan.gambar) && r.latihan.soalan.some(s=>!sumberGambarSah(s.imej))) return toast('Lengkapkan gambar yang belum siap sebelum mencetak.','salah');
   tutupModal();
   keluarkanCetak(htmlLatihan(r, r.latihan, denganSkema) + notaCetak());
 }
@@ -1263,10 +1320,11 @@ function htmlPadanan(L, skema){
 function htmlGambarAyat(L, skema){
   const kosong = L.gambar === 'kosong';
   const item = (L.soalan||[]).map(s => `<div class="lt-gambar">
-    <div class="lt-kotak${kosong ? ' lt-kotak-kosong' : ''}">
-      ${kosong ? '<em>Tampal<br>gambar</em>' : `
-        ${s.latar ? `<span class="gm-latar">${esc(s.latar)}</span>` : ''}
-        <span class="gm-emoji">${esc(s.emoji||'🖼️')}</span>`}
+    <div class="lt-kotak${kosong ? ' lt-kotak-kosong' : ''}${sumberGambarSah(s.imej) ? ' lt-kartun' : ''}">
+      ${sumberGambarSah(s.imej) ? `<img src="${s.imej}" alt="Ilustrasi soalan ${esc(s.no)}" decoding="sync">`
+        : kosong ? '<em>Tampal<br>gambar</em>'
+        : ['kartun','warna','garisan'].includes(L.gambar) ? '<em>Gambar belum siap</em>'
+        : `${s.latar ? `<span class="gm-latar">${esc(s.latar)}</span>` : ''}<span class="gm-emoji">${esc(s.emoji||'')}</span>`}
     </div>
     <div class="lt-tulis">
       <div class="lt-s"><b>${s.no}.</b>${s.kataBantu?.length
@@ -1498,7 +1556,8 @@ function betulkanAngka(jum){
   if(ed) ed.innerHTML = ed.innerHTML.replace(/(\d{1,3})\s*(daripada|dari)\s*(\d{1,3})(\s*(?:orang\s*)?murid)/gi,
     (m,a,b,c,d) => `${Math.min(+a, jum)} ${b} ${jum}${d}`);
   toast('Angka dibetulkan kepada '+jum+' murid','jaya');
-  if(typeof halEditor === "function") setTimeout(halEditor, 60);
+  const asal = S.rph.find(x=>x.id===S.editRphId);
+  if(asal) jadualSemakanEditor(rekodUntukEditor({...asal,...bacaEditor()}));
 }
 
 function janaRefleksi(){
@@ -1827,11 +1886,14 @@ function semakanHari(){
 function notaCetak(){
   return `<div class="cetak-nota">Dijana oleh e-RPH AI · © 2026 Alimin bin Abu Bakar</div>`;
 }
-function keluarkanCetak(html){
+async function keluarkanCetak(html){
   let box = document.getElementById('cetak');
   if(!box){ box = document.createElement('div'); box.id = 'cetak'; document.body.appendChild(box); }
   box.innerHTML = html;
-  setTimeout(()=> window.print(), 150);
+  try {
+    await Promise.all(Array.from(box.querySelectorAll('img')).map(img=>Promise.race([img.decode(),new Promise((_,reject)=>setTimeout(()=>reject(new Error('Imej belum siap')),15000))])));
+    window.print();
+  } catch(e) { toast('Gambar belum dapat dimuatkan untuk cetakan. Cuba lagi.','salah'); }
 }
 
 function cetakRph(){ cetakRphId(S.editRphId); }

@@ -951,12 +951,9 @@ PERATURAN WAJIB
   SALAH  : kiri "Contoh bahan ketagihan yang disedut dan menghasilkan asap beracun"  kanan "Rokok"
 - Setiap item maksimum 4 patah perkataan. Kalau lebih panjang, ia bukan padanan.
 - Setiap jawapan mesti unik dan hanya sepadan dengan satu item kiri sahaja.`,
-      gambarAyat: `"soalan": [ { "no":1, "emoji":"👦🎣🐟", "latar":"🌊", "perihal":"Seorang budak lelaki memancing ikan di tepi sungai.", "kataBantu":["memancing","sungai","ikan"], "jawapan":"Ali memancing ikan di tepi sungai.", "huraian":"" } ]
-- "emoji" ialah 2 hingga 4 emoji yang disusun membentuk SATU PEMANDANGAN, bukan satu objek.
-  Mulakan dengan watak (👦 👧 👨‍🌾 👩‍🏫 dsb), diikuti perbuatan atau alat, kemudian objek.
-  Contoh baik: "👩‍🌾🥭🌳"  "👦🚲🏫"  "👧📚🪑"  "👨‍🍳🍲🔥"
-- "latar" ialah SATU emoji latar belakang sahaja (🌊 🌳 🏫 🏠 ☀️ 🌾) atau "" jika tiada.
-- "perihal" ialah keterangan gambar untuk rujukan guru, satu ayat sahaja.
+      gambarAyat: `"soalan": [ { "no":1, "perihal":"Seorang peniaga wanita meletakkan epal pada penimbang di gerai pasar pagi, dengan seorang pelanggan menunggu.", "kataBantu":["menimbang","buah","pelanggan"], "jawapan":"Peniaga itu menimbang buah untuk pelanggannya.", "huraian":"" } ]
+${ctx.gambar === 'emoji' ? '- Tambah medan "emoji" (2 hingga 4 emoji watak, perbuatan dan objek) serta "latar" (satu emoji latar) bagi mod emoji lama.' : '- Jangan hasilkan emoji, ikon, SVG atau URL gambar. Aplikasi akan menghantar perihal kepada model penjana imej berasingan.'}
+- "perihal" ialah arahan adegan untuk pelukis: nyatakan watak, perbuatan sebenar, objek dan latar yang tepat dalam 1 hingga 2 ayat. Adegan mesti sepadan dengan kata bantu dan jawapan. Tunjukkan perbuatan yang boleh dilihat, bukan idea abstrak.
 - "kataBantu" ialah 3 perkataan panduan untuk murid bina ayat.
 - "jawapan" ialah satu contoh ayat lengkap yang betul dari segi tatabahasa.
 - Situasi mesti pelbagai, berkaitan tajuk pelajaran, dan mudah dikenali murid sekolah rendah.`
@@ -1015,7 +1012,7 @@ async function janaSoalanAI(ctx){
       const kocok = jw.slice().sort(() => Math.random() - .5);
       j.padananKanan = kocok;
     }
-    if(ctx.jenis === 'gambarAyat') j.gambar = ctx.gambar || 'emoji';
+    if(ctx.jenis === 'gambarAyat') j.gambar = ctx.gambar || 'warna';
     j.soalan = (j.soalan||[]).map((s,i) => ({ ...s, no:i+1,
       soalan: betulEjaan(s.soalan||''), huraian: betulEjaan(s.huraian||''),
       perihal: betulEjaan(s.perihal||''), jawapan: betulEjaan(s.jawapan||'') }));

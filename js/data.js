@@ -489,8 +489,8 @@ function halDashboard(){
           ${ada ? `<span class="pil ${ada.status==='lengkap'?'hijau':'kuning'}">${ada.status==='lengkap'?'Lengkap':'Draf'}</span>
                   <button class="ikon-btn" title="Pratonton RPH" aria-label="Pratonton RPH"
                     onclick="pratontonRph('${ada.id}')">${IKON_MATA}</button>
-                  <button class="ikon-btn" title="Edit RPH" aria-label="Edit RPH"
-                    onclick="bukaRph('${ada.id}')">${IKON_PENSEL}</button>`
+                  <button type="button" class="ikon-btn rph-edit-btn" title="Edit RPH" aria-label="Edit RPH"
+                    onclick="bukaRph('${ada.id}')">${IKON_PENSEL}<span>Edit</span></button>`
                 : `<button class="btn btn-sm btn-primary" onclick="janaSlot('${s.id}','${hariIni}')">✨ Jana RPH</button>`}
           </div>
         </div>`; }).join('')

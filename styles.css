@@ -1081,3 +1081,16 @@ span.foto-besar{display:grid;place-content:center;background:var(--gradien);
 .ai-eyebrow{font-size:11px;letter-spacing:2px;font-weight:800;color:#6753b2}.ai-hero h2{font-size:clamp(25px,3vw,38px);line-height:1.22;letter-spacing:-1px;margin:14px 0}.ai-hero p{max-width:480px;line-height:1.7;color:#5e6880}.ai-orbit{font-size:100px;color:#7d6bca;padding:0 20px;text-shadow:18px 12px 0 #d6ceef}.ai-workspace{display:grid;grid-template-columns:minmax(280px, .85fr) minmax(0,1.3fr);gap:22px;align-items:start}.ai-controls,.ai-result{padding:25px}.ai-task-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:20px 0}.ai-task{padding:13px 10px;border:1px solid #d9ddeb;border-radius:12px;background:#fff;color:#43516b;cursor:pointer;font:inherit;font-size:12px;font-weight:600;text-align:left}.ai-task.selected{border-color:#7560cc;background:#f0ecff;color:#514094;box-shadow:0 0 0 1px #7560cc}.ai-note{font-size:12px;line-height:1.65;color:#647089;margin:14px 0}.ai-result-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.ai-output{white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.9;margin-top:20px}.ai-empty{white-space:normal;text-align:center;padding:65px 15px;color:#68758b}.ai-empty>span{font-size:55px;color:#9581c9}.ai-empty h3{margin:18px 0 10px}.ai-result{min-height:470px}#pembantuStatus{color:#725417;font-size:13px;line-height:1.6}button:disabled{opacity:.55;cursor:not-allowed}:focus-visible{outline:3px solid #8973dd;outline-offset:3px}
 @media(max-width:850px){.ai-workspace{grid-template-columns:1fr}.ai-hero{padding:25px}.ai-orbit{font-size:65px;padding:0}.ai-controls,.ai-result{padding:20px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
+/* v1.1.1: sasaran Edit kekal stabil semasa ditekan. */
+.rph-edit-btn{width:auto;min-width:72px;min-height:44px;padding:0 12px;display:flex;align-items:center;justify-content:center;gap:7px;touch-action:manipulation;transition:background-color .15s,border-color .15s,color .15s}
+.rph-edit-btn:active{transform:none}
+.rph-edit-btn span{font-size:12px;font-weight:700}
+.rph-edit-btn svg{pointer-events:none}
+@media(max-width:640px){.baris-sj{flex-wrap:wrap}.baris-sj .baris-t{min-width:130px}.slot-aksi{flex-wrap:wrap}}
+
+/* v1.2.0 — adegan kartun dalam latihan */
+.lt-kotak.lt-kartun{width:200px;min-width:200px;min-height:150px;padding:0;display:flex;align-items:center;background:white}
+.lt-kartun img{display:block;width:100%;height:150px;object-fit:contain;background:white}
+@media(max-width:520px){.lt-kotak.lt-kartun{width:135px;min-width:135px;min-height:110px}.lt-kartun img{height:110px}}
+@media print{#cetak .lt-kotak.lt-kartun{width:50mm;min-width:50mm;min-height:38mm;padding:0;display:flex;background:white!important}#cetak .lt-kartun img{width:50mm;height:38mm;object-fit:contain}#cetak .lt-gambar{break-inside:avoid;page-break-inside:avoid}}
