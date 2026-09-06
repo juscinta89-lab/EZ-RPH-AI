@@ -6,37 +6,61 @@
  */
 /* ================= e-RPH AI — Reka bentuk ================= */
 :root{
-  --biru:#4a2ae0;        /* utama — ungu-biru ikon */
-  --biru-t:#ece9fe;      /* tint lembut */
-  --ungu:#6a1ed6;        /* ungu ikon */
-  --ungu-t:#f2ebfe;
-  --cyan:#29a8ff;        /* aksen pensel ikon */
-  --gradien:linear-gradient(135deg,#6a1ed6 0%,#4a2ae0 45%,#1f6df5 100%);
-  --hijau:#16a37b;
-  --kuning:#e0a010;
-  --merah:#dc4d4d;
-  --teks:#1b2333;
-  --teks-2:#5b6577;
-  --teks-3:#8b94a6;
-  --garis:#e7e6f2;
-  --bg:#f7f7fd;
+  /* Palet mengikut sistem warna Apple. Latar kelabu neutral, kad putih di atasnya,
+     dan garis pemisah setipis rambut — kedalaman datang daripada beza latar,
+     bukan daripada bayang. */
+  --biru:#5B3FE8;        /* tint tunggal aplikasi */
+  --biru-t:#EEEBFF;
+  --ungu:#5B3FE8;
+  --ungu-t:#EEEBFF;
+  --cyan:#0A84FF;
+  --gradien:linear-gradient(160deg,#6B4BF0 0%,#5B3FE8 40%,#3B6FF5 100%);
+
+  --hijau:#34C759;
+  --kuning:#FF9F0A;
+  --merah:#FF3B30;
+
+  --teks:#1C1C1E;                       /* label */
+  --teks-2:rgba(60,60,67,.62);          /* secondaryLabel */
+  --teks-3:rgba(60,60,67,.34);          /* tertiaryLabel */
+  --garis:rgba(60,60,67,.16);           /* separator */
+  --garis-tebal:rgba(60,60,67,.26);
+  --bg:#F2F2F7;                         /* systemGroupedBackground */
   --putih:#fff;
-  --r:16px;
-  --r-sm:10px;
-  --bayang:0 1px 2px rgba(20,30,60,.05), 0 8px 24px rgba(20,30,60,.06);
-  --bayang-sm:0 1px 3px rgba(20,30,60,.08);
-  --sans:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
-  --disp:'Plus Jakarta Sans',var(--sans);
+  --isi:rgba(120,120,128,.12);          /* fill untuk medan input */
+
+  --r:18px;
+  --r-sm:12px;
+  --r-lg:26px;
+
+  /* Bayang hampir tiada pada kad; hanya lapisan terapung yang mengangkat */
+  --bayang:0 1px 2px rgba(0,0,0,.04);
+  --bayang-sm:0 1px 2px rgba(0,0,0,.04);
+  --bayang-apung:0 12px 40px rgba(0,0,0,.16), 0 2px 8px rgba(0,0,0,.06);
+
+  /* SF Pro pada peranti Apple, Inter di tempat lain */
+  --sans:-apple-system,BlinkMacSystemFont,'SF Pro Text','SF Pro Display','Inter',
+    system-ui,'Segoe UI',Roboto,sans-serif;
+  --disp:var(--sans);
+
+  /* Lengkung spring iOS — digunakan untuk semua gerakan yang menjawab tindakan */
+  --spring:cubic-bezier(.32,.72,0,1);
+  --pantas:180ms var(--spring);
+  --sederhana:280ms var(--spring);
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%;touch-action:manipulation}
 
 html,body{height:100%}
-body{font-family:var(--sans);background:var(--bg);color:var(--teks);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+body{font-family:var(--sans);background:var(--bg);color:var(--teks);font-size:16px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+  letter-spacing:-.01em;text-rendering:optimizeLegibility}
+h1,h2,h3,h4{letter-spacing:-.022em;font-weight:600}
 h1,h2,h3,h4,.brand-mark{font-family:var(--disp);letter-spacing:-.02em}
 button{font-family:inherit;font-size:14px;color:var(--teks);cursor:pointer}
-input,select,textarea{width:100%;border:1px solid var(--garis);border-radius:12px;padding:10.5px 13px;
-  font-size:14px;font-family:inherit;background:var(--putih);color:var(--teks);transition:.15s}
+input,select,textarea{width:100%;border:1px solid transparent;background:var(--isi);
+  border-radius:12px;padding:11px 13px;font-family:inherit;font-size:16px;color:var(--teks);
+  transition:background var(--pantas),border-color var(--pantas),box-shadow var(--pantas)}
 a{color:var(--biru)}
 .hide{display:none !important}
 
@@ -74,19 +98,21 @@ a{color:var(--biru)}
 .fld{display:block;margin-bottom:13px}
 .fld>span{display:block;font-size:12.5px;font-weight:600;color:var(--teks-2);margin-bottom:6px}
 .fld>span em{font-weight:400;font-style:normal;color:var(--teks-3)}
-input:focus,select:focus,textarea:focus{outline:0;border-color:var(--ungu);
-  box-shadow:0 0 0 3.5px var(--ungu-t)}
+input:focus,select:focus,textarea:focus{outline:0;background:var(--putih);
+  border-color:var(--biru);box-shadow:0 0 0 4px rgba(91,63,232,.14)}
 textarea{resize:vertical;min-height:88px;line-height:1.6}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:0 12px}
 @media(max-width:640px){.grid2,.grid3{grid-template-columns:1fr}}
 
 /* ---------- Butang ---------- */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--garis);
-  background:var(--putih);color:var(--teks);padding:9.5px 15px;border-radius:12px;font-size:13.5px;
-  font-weight:600;cursor:pointer;transition:.15s;font-family:inherit;line-height:1.2}
-.btn:hover{border-color:#cfd7e6;transform:translateY(-1px)}
-.btn:active{transform:none}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  border:1px solid var(--garis);background:var(--putih);color:var(--teks);
+  border-radius:12px;padding:10px 16px;font-family:inherit;font-size:15px;font-weight:590;
+  letter-spacing:-.01em;cursor:pointer;
+  transition:transform 120ms var(--spring),background var(--pantas),border-color var(--pantas)}
+.btn:hover{border-color:var(--garis-tebal);background:#fbfbfd}
+.btn:active{transform:scale(.97)}
 .btn-primary{background:var(--gradien);border-color:transparent;color:#fff;box-shadow:0 5px 16px rgba(74,42,224,.28)}
 .btn-primary:hover{filter:brightness(1.07);border-color:transparent}
 .btn-ungu{background:var(--ungu);border-color:var(--ungu);color:#fff;box-shadow:0 5px 16px rgba(106,30,214,.25)}
@@ -101,7 +127,7 @@ textarea{resize:vertical;min-height:88px;line-height:1.6}
 
 /* ---------- Rangka aplikasi ---------- */
 .app{display:grid;grid-template-columns:248px 1fr;min-height:100dvh}
-.side{background:var(--putih);border-right:1px solid var(--garis);display:flex;flex-direction:column;position:sticky;top:0;height:100dvh}
+.side{background:rgba(255,255,255,.8);backdrop-filter:saturate(180%) blur(20px);border-right:.5px solid var(--garis);display:flex;flex-direction:column;position:sticky;top:0;height:100dvh}
 .side-brand{display:flex;gap:11px;align-items:center;padding:16px 16px 12px}
 .side-brand-txt b{display:block;font-family:var(--disp);font-size:15px}
 .side-brand-txt small{color:var(--teks-3);font-size:11.5px;display:block;max-width:150px;
@@ -120,7 +146,10 @@ textarea{resize:vertical;min-height:88px;line-height:1.6}
 .side-user-txt small{color:var(--teks-3);font-size:11px;text-transform:capitalize}
 
 .main{min-width:0;display:flex;flex-direction:column}
-.topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:12px;padding:12px 20px;background:rgba(247,247,253,.88);backdrop-filter:blur(10px);border-bottom:1px solid var(--garis)}
+.topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:12px;
+  padding:13px 22px;background:rgba(242,242,247,.72);
+  backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);
+  border-bottom:.5px solid var(--garis)}
 .topbar-txt{flex:1;min-width:0}
 .topbar h2{font-size:17px}
 .topbar small{color:var(--teks-3);font-size:12px}
@@ -146,24 +175,25 @@ textarea{resize:vertical;min-height:88px;line-height:1.6}
   /* Menu bawah — bar pil terapung */
   .botnav{display:grid;grid-template-columns:repeat(5,1fr);gap:2px;
     position:fixed;left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom));
-    background:#16233f;border-radius:26px;padding:7px;z-index:50;
-    box-shadow:0 12px 32px rgba(12,20,40,.32)}
+    background:rgba(28,28,30,.82);backdrop-filter:saturate(180%) blur(24px);
+    -webkit-backdrop-filter:saturate(180%) blur(24px);
+    border:.5px solid rgba(255,255,255,.1);
+    border-radius:26px;padding:7px;z-index:50;box-shadow:0 8px 30px rgba(0,0,0,.28)}
   .botnav button{border:0;background:none;border-radius:20px;padding:8px 2px 7px;
     font-size:10.5px;font-weight:600;letter-spacing:.01em;color:#9fb0cd;
     display:grid;gap:3px;justify-items:center;cursor:pointer;transition:.16s}
   .botnav button span{line-height:1}
   .botnav button svg{stroke-width:1.8}
   .botnav button:active{transform:scale(.94)}
-  .botnav button.on{background:var(--gradien);color:#fff;
-    box-shadow:0 4px 12px rgba(74,42,224,.4)}
+  .botnav button.on{background:var(--biru);color:#fff;box-shadow:none}
   /* ruang supaya kandungan tidak tertutup bar */
   .app{padding-bottom:96px}
 }
 
 /* ---------- Kad ---------- */
-.kad{background:var(--putih);border:1px solid var(--garis);border-radius:16px;padding:17px;
-  margin-bottom:15px;box-shadow:0 1px 3px rgba(20,30,60,.045)}
-.kad+.kad{margin-top:14px}
+.kad{background:var(--putih);border:.5px solid var(--garis);border-radius:var(--r);
+  padding:18px;box-shadow:var(--bayang);margin-bottom:14px}
+.kad+.kad{margin-top:0}
 .kad-h{display:flex;align-items:center;gap:10px;margin-bottom:14px}
 .kad-h h3{font-size:15.5px;flex:1}
 .kad-h small{color:var(--teks-3);font-size:12px}
@@ -173,7 +203,7 @@ textarea{resize:vertical;min-height:88px;line-height:1.6}
 .stat small{color:var(--teks-3);font-size:12px}
 .stat.b b{color:var(--biru)} .stat.h b{color:var(--hijau)} .stat.k b{color:var(--kuning)} .stat.m b{color:var(--merah)}
 
-.hero{background:var(--gradien);color:#fff;border-radius:var(--r);padding:20px;margin-bottom:14px;box-shadow:0 12px 32px rgba(74,42,224,.28);position:relative;overflow:hidden}
+.hero{background:var(--gradien);color:#fff;border-radius:var(--r);padding:20px;margin-bottom:14px;box-shadow:0 8px 30px rgba(91,63,232,.22);position:relative;overflow:hidden}
 .hero:after{content:"";position:absolute;right:-40px;top:-60px;width:210px;height:210px;border-radius:50%;background:rgba(41,168,255,.28);filter:blur(6px)}
 .hero>*{position:relative;z-index:1}
 .hero h3{font-size:19px;margin-bottom:4px}
@@ -199,8 +229,10 @@ textarea{resize:vertical;min-height:88px;line-height:1.6}
 /* margin-left:auto menjajarkan tindakan ke kanan sama ada ia kekal pada baris
    yang sama atau terpaksa turun ke baris bawah. */
 .slot-aksi{display:flex;gap:8px;align-items:center;margin-left:auto;flex:none}
-.slot-aksi .pil{white-space:nowrap}
+.slot-aksi /* lencana status */
+.pil{white-space:nowrap}
 
+/* lencana status */
 .pil{display:inline-flex;align-items:center;font-size:11.3px;font-weight:650;padding:3.5px 9px;
   border-radius:20px;white-space:nowrap;letter-spacing:.01em}
 .pil.hijau{background:#e5f7f1;color:#0d7a5c}
@@ -380,7 +412,7 @@ tr:last-child td{border-bottom:0}
 
 /* ---------- Modal, toast, busy ---------- */
 .modal-wrap{position:fixed;inset:0;background:rgba(20,28,48,.45);display:grid;place-items:center;z-index:80;padding:16px;backdrop-filter:blur(2px)}
-.modal{background:var(--putih);border-radius:18px;width:100%;max-width:560px;max-height:88dvh;display:flex;flex-direction:column;box-shadow:0 30px 70px rgba(0,0,0,.25);min-width:0;overflow:hidden}
+.modal{background:var(--putih);border-radius:var(--r-lg);width:100%;max-width:560px;max-height:88dvh;display:flex;flex-direction:column;box-shadow:var(--bayang-apung);min-width:0;overflow:hidden}
 /* Item grid mempunyai min-width:auto, jadi kandungan lebar seperti pratonton A4
    boleh menolak modal melebihi skrin. min-width:0 menghalangnya. */
 .modal-head{display:flex;align-items:center;gap:10px;padding:16px 18px;border-bottom:1px solid var(--garis)}
@@ -396,6 +428,56 @@ tr:last-child td{border-bottom:0}
 .busy-box p{margin-top:12px;font-size:13.5px;color:var(--teks-2)}
 .spin{width:32px;height:32px;border:3px solid var(--biru-t);border-top-color:var(--biru);border-radius:50%;margin:0 auto;animation:sp .8s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
+
+/* ==========================================================
+   GERAKAN
+   Satu peralihan berkoordinasi semasa halaman bertukar, dan selebihnya
+   hanya gerakan yang MENJAWAB tindakan pengguna — tekan, buka, tutup.
+   Tiada animasi masuk pada setiap kad; itu hiasan, bukan maklumat.
+   ========================================================== */
+
+/* Tindak balas sentuhan — seperti butang iOS yang mengecil bila ditekan */
+.btn:active,.ikon-btn:active,.stat:active,.baris:active,.slot:active,
+.botnav button:active,.nav-i:active{transform:scale(.97)}
+.btn,.ikon-btn,.stat,.baris,.slot,.nav-i{
+  transition:transform 120ms var(--spring),background var(--pantas),
+             border-color var(--pantas),box-shadow var(--pantas);
+  -webkit-tap-highlight-color:transparent}
+
+/* Peralihan halaman: kandungan baharu naik sedikit dan muncul, sekali sahaja */
+@keyframes halMasuk{
+  from{opacity:0;transform:translateY(8px) scale(.995)}
+  to  {opacity:1;transform:none}
+}
+#kandungan.tukar{animation:halMasuk 300ms var(--spring)}
+
+/* Modal: helaian naik dari bawah pada telefon, mengembang di tengah pada desktop */
+@keyframes tiraiMasuk{from{opacity:0}to{opacity:1}}
+@keyframes helaianMasuk{
+  from{opacity:0;transform:translateY(24px) scale(.97)}
+  to  {opacity:1;transform:none}
+}
+.modal-wrap{animation:tiraiMasuk 200ms ease-out}
+.modal{animation:helaianMasuk 320ms var(--spring)}
+@media (max-width:640px){
+  @keyframes helaianMasuk{
+    from{opacity:.6;transform:translateY(100%)}
+    to  {opacity:1;transform:none}
+  }
+  .modal{animation-duration:360ms}
+}
+
+/* Laci AI dan toast mengikut lengkung yang sama */
+.ai-drawer{transition:transform 320ms var(--spring)}
+.toast{animation:helaianMasuk 260ms var(--spring)}
+
+/* Pengguna yang mematikan gerakan pada peranti mereka dapat antara muka
+   yang sama, cuma tanpa pergerakan. */
+@media (prefers-reduced-motion:reduce){
+  *,*:before,*:after{animation-duration:.01ms !important;animation-iteration-count:1 !important;
+    transition-duration:.01ms !important;scroll-behavior:auto !important}
+  .btn:active,.ikon-btn:active,.stat:active,.baris:active,.slot:active{transform:none}
+}
 
 /* ---------- Panel semakan kualiti ---------- */
 .sk-baris{display:flex;gap:8px;font-size:12.5px;padding:3px 0;color:var(--teks-2)}

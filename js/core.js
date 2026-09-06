@@ -236,7 +236,14 @@ function pergi(hal){
     buku:halBuku, takwim:halTakwim, cetak:halCetak, audit:halAudit, drive:halDrive, rujukan:halRujukan, laporan:halLaporan, sampah:halSampah, tetapan:halTetapan,
     admin:halAdmin, editor:halEditor
   }[hal];
-  if(f){ f(); lukisTip(hal); }
+  if(f){
+    f(); lukisTip(hal);
+    /* Satu peralihan bila halaman bertukar. Kelas dibuang selepas animasi
+       supaya ia boleh dicetuskan semula pada perpindahan berikutnya. */
+    const k = $('#kandungan');
+    if(k){ k.classList.remove('tukar'); void k.offsetWidth; k.classList.add('tukar');
+      setTimeout(() => k.classList.remove('tukar'), 340); }
+  }
   else $('#kandungan').innerHTML = '<div class="kosong"><b>Halaman tidak dijumpai</b></div>';
 }
 window.pergi = pergi;
