@@ -973,7 +973,7 @@ function halEditor(){
             <summary><span class="ik-kecil">${IK_TANDA}</span> ${lulus.length} semakan lulus</summary>
             ${lulus.map(c=>`<div class="sk-baris"><span class="ik-kecil">${IK_TANDA}</span><span>${c[0]}</span></div>`).join('')}
           </details>` : ''}
-          ${!gagal.length ? '<div class="sk-baris sk-ok"><span class="ik-kecil">${IK_TANDA}</span><span>Tiada isu dikesan</span></div>' : ''}`;
+          ${!gagal.length ? `<div class="sk-baris sk-ok"><span class="ik-kecil">${IK_TANDA}</span><span>Tiada isu dikesan</span></div>` : ''}`;
         })()}
         ${(() => { const a = semakAngkaMurid(r);
           return a.ok ? '' : `<p style="margin-top:10px;font-size:12px;background:#fdeaea;color:#a33;padding:9px;border-radius:8px">
