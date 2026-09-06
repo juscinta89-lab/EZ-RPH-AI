@@ -836,6 +836,41 @@ function rte(id, isi, tinggi){
 }
 function cmd(c){ document.execCommand(c,false,null); }
 
+/* Susunan RPH untuk navigasi editor — ikut tarikh, kemudian waktu mula.
+   Ini turutan yang sama dilihat guru dalam senarai dan dashboard, jadi
+   "seterusnya" bermakna RPH seterusnya mengikut jadual, bukan mengikut
+   susunan pangkalan data. */
+function turutanRph(){
+  return S.rph.slice().sort((a,b) =>
+    String(a.tarikh).localeCompare(b.tarikh) ||
+    (minitJam(a.mula) ?? 0) - (minitJam(b.mula) ?? 0));
+}
+
+function lompatRph(arah){
+  const senarai = turutanRph();
+  const i = senarai.findIndex(x => x.id === S.editRphId);
+  if(i < 0) return;
+  const seterus = senarai[i + arah];
+  if(!seterus) return toast(arah > 0 ? 'Ini RPH terakhir' : 'Ini RPH pertama');
+  bukaRph(seterus.id);
+}
+
+function navRph(){
+  const senarai = turutanRph();
+  const i = senarai.findIndex(x => x.id === S.editRphId);
+  const sebelum = senarai[i-1], selepas = senarai[i+1];
+  const label = r => r ? `${r.subjek} · ${r.kelas}` : '';
+  return `<div class="ed-nav">
+    <button class="ed-nav-btn" ${sebelum?'':'disabled'} onclick="lompatRph(-1)"
+      title="${esc(label(sebelum))}" aria-label="RPH sebelum">
+      <span class="ik">${IK_KIRI}</span><span class="ed-nav-teks">Sebelum</span></button>
+    <div class="ed-nav-kira">${i+1} <small>daripada ${senarai.length}</small></div>
+    <button class="ed-nav-btn" ${selepas?'':'disabled'} onclick="lompatRph(1)"
+      title="${esc(label(selepas))}" aria-label="RPH seterusnya">
+      <span class="ed-nav-teks">Seterusnya</span><span class="ik">${IK_KANAN}</span></button>
+  </div>`;
+}
+
 function halEditor(){
   const r = S.rph.find(x => x.id === S.editRphId);
   if(!r){ pergi('rph'); return; }
@@ -843,7 +878,8 @@ function halEditor(){
   const warna = q.peratus >= 85 ? 'hijau' : q.peratus >= 60 ? 'kuning' : 'merah';
   $('#subTajuk').textContent = `${r.subjek} · ${r.kelas} · ${tarikhCantik(r.tarikh)}`;
 
-  $('#kandungan').innerHTML = `<div class="dua-lajur">
+  $('#kandungan').innerHTML = `${navRph()}
+  <div class="dua-lajur">
     <div>
       <div class="kad">
         <div class="kad-h"><h3>Maklumat sesi</h3>
@@ -913,7 +949,7 @@ function halEditor(){
         <button class="btn btn-primary" onclick="simpanRph('lengkap')">Simpan sebagai lengkap</button>
         <button class="btn" onclick="cetakRph()">🖨️ Cetak / PDF</button>
         <div class="ed-lagi">
-          <button class="btn" onclick="togolLagi(event)">⋯ Lagi</button>
+          <button class="btn" onclick="togolLagi(event)"><span class="ik">${IK_LAGI}</span> Lagi</button>
           <div class="ed-menu" id="edMenu">
             <button onclick="tutupLagi();simpanRph('draf')">💾 Simpan sebagai draf</button>
             <button onclick="tutupLagi();modalLatihan()">📝 Jana soalan latihan</button>
@@ -932,12 +968,12 @@ function halEditor(){
           const gagal = q.cek.filter(c => !c[1]), lulus = q.cek.filter(c => c[1]);
           /* Hanya perkara yang gagal ditunjukkan. Yang lulus dilipat jadi satu
              baris supaya mata guru terus jatuh pada apa yang perlu dibaiki. */
-          return `${gagal.map(c=>`<div class="sk-baris sk-gagal"><span>✕</span><span>${c[0]}</span></div>`).join('')}
+          return `${gagal.map(c=>`<div class="sk-baris sk-gagal"><span class="ik-kecil">${IK_SILANG}</span><span>${c[0]}</span></div>`).join('')}
           ${lulus.length ? `<details class="sk-lulus">
-            <summary><span>✓</span> ${lulus.length} semakan lulus</summary>
-            ${lulus.map(c=>`<div class="sk-baris"><span>✓</span><span>${c[0]}</span></div>`).join('')}
+            <summary><span class="ik-kecil">${IK_TANDA}</span> ${lulus.length} semakan lulus</summary>
+            ${lulus.map(c=>`<div class="sk-baris"><span class="ik-kecil">${IK_TANDA}</span><span>${c[0]}</span></div>`).join('')}
           </details>` : ''}
-          ${!gagal.length ? '<div class="sk-baris sk-ok"><span>✓</span><span>Tiada isu dikesan</span></div>' : ''}`;
+          ${!gagal.length ? '<div class="sk-baris sk-ok"><span class="ik-kecil">${IK_TANDA}</span><span>Tiada isu dikesan</span></div>' : ''}`;
         })()}
         ${(() => { const a = semakAngkaMurid(r);
           return a.ok ? '' : `<p style="margin-top:10px;font-size:12px;background:#fdeaea;color:#a33;padding:9px;border-radius:8px">

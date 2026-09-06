@@ -456,7 +456,7 @@ function halDashboard(){
         onclick="${rphSorot ? `bukaRph('${rphSorot.id}')` : `janaSlot('${sorot.id}','${hariIni}')`}">
       <div class="sorot-cop">${slotKini
         ? '<i class="sorot-titik"></i> Sedang berlangsung'
-        : '<i class="sorot-anak">⏭</i> Slot seterusnya'}</div>
+        : '<i class="sorot-anak">${IK_KANAN}</i> Slot seterusnya'}</div>
       <div class="sorot-baris">
         <div class="sorot-kiri">
           <div class="sorot-masa">${esc(sorot.mula)} – ${esc(sorot.tamat)}</div>

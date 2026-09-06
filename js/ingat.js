@@ -156,7 +156,7 @@ function kadIngat(){
 
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn btn-sm" onclick="ujiIngat()">🔔 Hantar ujian</button>
-      <button class="btn btn-sm" onclick="pergi('tetapan')">↻ Segarkan status</button>
+      <button class="btn btn-sm" onclick="pergi('tetapan')"><span class="ik">${IK_PUTAR}</span> Segarkan status</button>
     </div>
 
     <p style="font-size:11.5px;color:var(--teks-3);margin-top:11px;line-height:1.5">

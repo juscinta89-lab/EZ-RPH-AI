@@ -100,6 +100,19 @@ function svgIkon(id, saiz){
   }, { passive:false });
 })();
 
+/* ---------- Ikon SVG ----------
+   Simbol Unicode seperti ⏻ dan ✕ tiada dalam fon lalai kebanyakan peranti
+   Android, jadi ia keluar sebagai kotak kosong. SVG sentiasa dilukis sama
+   pada semua peranti. */
+const IK_KUASA = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v9"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/></svg>`;
+const IK_SILANG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>`;
+const IK_TANDA = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>`;
+const IK_KANAN = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 5 7 7-7 7"/></svg>`;
+const IK_KIRI = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 5-7 7 7 7"/></svg>`;
+const IK_PUTAR = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>`;
+const IK_PULIH = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 2.6-6.4"/><path d="M3 3v6h6"/></svg>`;
+const IK_LAGI = `<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="19" cy="12" r="1.9"/></svg>`;
+
 /* ---------- Menu ---------- */
 const MENU = [
   { grp:'Utama' },
@@ -150,7 +163,7 @@ function binaMenu(){
       dalamSetup = m.grp === 'Setup Kurikulum';
       if(!dalamSetup) return `<div class="nav-lbl">${m.grp}</div>`;
       return `<button class="nav-lbl nav-lipat${lipat?'':' buka'}" onclick="togolSetup()">
-        <span>${m.grp}</span><i>${lipat ? '▸' : '▾'}</i></button>`;
+        <span>${m.grp}</span><i class="lipat-anak">${IK_KANAN}</i></button>`;
     }
     if(dalamSetup && lipat) return '';
     return `<button class="nav-i" data-hal="${m.id}">${svgIkon(m.id)}<span>${m.nama}</span></button>`;
@@ -212,7 +225,7 @@ function lukisTip(hal){
   div.innerHTML = `<span class="tip-ikon">${t[0]}</span>
     <span class="tip-teks">${t[1]}</span>
     <button class="tip-tutup" title="Jangan tunjuk lagi" aria-label="Tutup petunjuk"
-      onclick="tutupTip('${hal}', this)">✕</button>`;
+      onclick="tutupTip('${hal}', this)">${IK_SILANG}</button>`;
   bekas.prepend(div);
 }
 function tutupTip(hal, el){
@@ -329,6 +342,7 @@ document.addEventListener('visibilitychange', () => {
 });
 mulaJam();
 $('#jamMasa').onclick = () => pergi('jana');
+$('#btnKeluar').innerHTML = IK_KUASA;
 
 function statusLanggan(p){
   const t = (p && p.langganTamat) || '';

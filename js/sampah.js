@@ -120,7 +120,7 @@ function halSampah(){
         RPH yang dipadam disimpan di sini selama <b>${SAMPAH_HARI} hari</b> sebelum dibuang sendiri.
         Anda boleh pulihkan bila-bila masa dalam tempoh itu.</p>
       ${senarai.length ? `<div class="toolbar" style="margin:12px 0 0">
-        <button class="btn" onclick="pulihkanSemua()">↩️ Pulihkan semua</button>
+        <button class="btn" onclick="pulihkanSemua()"><span class="ik">${IK_PULIH}</span> Pulihkan semua</button>
         <button class="btn btn-danger" onclick="kosongkanSampah()">🗑️ Kosongkan</button>
       </div>` : ''}
     </div>
