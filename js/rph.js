@@ -12,7 +12,7 @@ function barisRph(r, ringkas){
   return `<div class="baris baris-sj" style="--sj:${gelap};--sj-t:${cerah}">
     <span class="sj-jalur"></span>
     <div class="baris-t"><b>${esc(r.subjek)} <span class="sj-kelas">${esc(r.kelas)}</span></b>
-      <small>${ringkas ? '' : tarikhCantik(r.tarikh)+' · '}${esc(r.mula)}-${esc(r.tamat)} · ${esc(r.tajuk||'Tiada tajuk')}</small></div>
+      <small>${ringkas ? '' : tarikhRph(r)+' · '}${esc(r.mula)}-${esc(r.tamat)} · ${esc(r.tajuk||teksRph(r,'Tiada tajuk','No topic'))}</small></div>
     <span class="pil ${w}">${r.status === 'lengkap' ? 'Lengkap' : 'Draf'}</span>
     <button class="ikon-btn" title="Pratonton RPH" aria-label="Pratonton RPH"
       onclick="event.stopPropagation();pratontonRph('${r.id}')">${IKON_MATA}</button>
@@ -934,7 +934,7 @@ function halEditor(){
   const asal = S.rph.find(x => x.id === S.editRphId);
   if(!asal){ pergi('rph'); return; }
   const r = rekodUntukEditor(asal);
-  $('#subTajuk').textContent = `${r.subjek} · ${r.kelas} · ${tarikhCantik(r.tarikh)}`;
+  $('#subTajuk').textContent = `${subjekRph(r)} · ${r.kelas} · ${tarikhRph(r)}`;
 
   $('#kandungan').innerHTML = `${navRph()}
   <div class="dua-lajur">
@@ -1052,7 +1052,7 @@ function bacaEditor(){
   const g = id => $('#'+id) ? $('#'+id).value.trim() : '';
   if(!editorTerbuka()) return {};          // dipanggil di luar editor — jangan meletup
   return {
-    tarikh:g('eTarikh'), hari:namaHari(g('eTarikh')), mula:g('eMula'), tamat:g('eTamat'),
+    tarikh:g('eTarikh'), hari:hariRph({tarikh:g('eTarikh'),subjek:g('eSubjek')}), mula:g('eMula'), tamat:g('eTamat'),
     tempoh:minit(g('eMula'),g('eTamat')), subjek:g('eSubjek'), kelas:g('eKelas'), minggu:g('eMinggu'),
     tema:g('eTema'), tajuk:g('eTajuk'), kodSk:g('eKodSk'), kodSp:g('eKodSp'), sk:g('eSk'), sp:g('eSp'), tp:g('eTp'),
     objektif:g('eObjektif'), kriteria:g('eKriteria'), aktiviti:$('#eAktiviti')?.innerHTML || '',
@@ -1201,7 +1201,7 @@ function cetakLatihan(denganSkema){
   if(!r?.latihan) return toast('Belum ada latihan');
   if(['kartun','warna','garisan'].includes(r.latihan.gambar) && r.latihan.soalan.some(s=>!sumberGambarSah(s.imej))) return toast('Lengkapkan gambar yang belum siap sebelum mencetak.','salah');
   tutupModal();
-  keluarkanCetak(htmlLatihan(r, r.latihan, denganSkema) + notaCetak());
+  keluarkanCetak(htmlLatihan(r, r.latihan, denganSkema) + notaCetak(r));
 }
 
 /* ---------- Paparan & cetakan lembaran ---------- */
@@ -1422,7 +1422,7 @@ function salinRph(){
 async function buatSalinan(){
   const r = S.rph.find(x => x.id === S.editRphId);
   const t = $('#slTarikh').value;
-  const baru = { ...r, tarikh:t, hari:namaHari(t), kelas:$('#slKelas').value, minggu:mingguUntuk(t),
+  const baru = { ...r, tarikh:t, hari:hariRph({...r,tarikh:t}), kelas:$('#slKelas').value, minggu:mingguUntuk(t),
                  status:'draf', dicipta:Date.now(), dikemas:Date.now() };
   delete baru.id;
   sibuk(true,'Menyalin…'); const ref = await rujuk('rph').add(baru);
@@ -1521,7 +1521,8 @@ ARAHAN GURU: ${arahan}
 
 Ubah HANYA bahagian yang berkaitan dengan arahan. Kekalkan Standard Kandungan dan Standard Pembelajaran seperti asal tanpa sebarang perubahan.
 Balas JSON sahaja dengan medan yang sama (medan yang tidak diubah dikembalikan seperti asal).`;
-    const j = ambilJSON(await panggilAiSelamat(p));
+    const sistem = bahasaRph(r) ? 'Edit this English lesson plan in English only. Keep all returned JSON field values in English, including the topic, activities, objectives, and teaching terminology. Return JSON only.' : null;
+    const j = ambilJSON(await panggilAiSelamat(p, sistem));
     const set = (id,v) => { if(v != null && $('#'+id)) $('#'+id).value = v; };
     set('eTajuk', j.tajuk); set('eObjektif', Array.isArray(j.objektif)?j.objektif.join('\n'):j.objektif);
     set('eKriteria', Array.isArray(j.kriteria)?j.kriteria.join('\n'):j.kriteria);
@@ -1617,7 +1618,8 @@ Objektif: ${r.objektif}
 Aktiviti: ${stripHtml(r.aktiviti).slice(0,400)}
 Keadaan sebenar: ${pilih}${nota?'. Catatan guru: '+nota:''}
 Balas teks refleksi sahaja tanpa tajuk atau markdown.`;
-    $('#eRefleksi').value = (await panggilAiSelamat(p)).trim();
+    const sistem = bahasaRph(r) ? 'Write this lesson reflection entirely in natural professional English. Translate any Malay context into English. Return only the reflection text.' : null;
+    $('#eRefleksi').value = (await panggilAiSelamat(p, sistem)).trim();
     sibuk(false); toast('Refleksi dijana','jaya');
   }catch(e){ sibuk(false); toast('Gagal: '+e.message,'salah'); }
 }
@@ -1637,9 +1639,9 @@ function senaraiNombor(t){
 function pecahAktiviti(html){
   // Pisahkan blok "Set Induksi" daripada langkah utama jika boleh dikesan
   const t = String(html||'');
-  if(!/Set\s*Induksi/i.test(t)) return { starter:'', utama:t };
+  if(!/Set\s*Induksi|Set\s*Induction/i.test(t)) return { starter:'', utama:t };
   // cari permulaan "Langkah 1" tanpa mengira tag <b>/<strong> di dalamnya
-  const m = t.match(/<(p|h\d|div)[^>]*>(?:\s|<[^>]+>)*Langkah\s*1/i);
+  const m = t.match(/<(p|h\d|div)[^>]*>(?:\s|<[^>]+>)*(?:Langkah|Step)\s*1/i);
   if(m){
     const i = t.indexOf(m[0]);
     if(i > 0) return { starter: t.slice(0, i), utama: t.slice(i) };
@@ -1647,7 +1649,51 @@ function pecahAktiviti(html){
   return { starter:'', utama:t };
 }
 
+function bahasaRph(r){ return rphBahasaInggeris(r?.subjek); }
+function teksRph(r, bm, en){ return bahasaRph(r) ? en : bm; }
+function mingguRph(r){
+  const m = String(r.minggu||'');
+  return bahasaRph(r) ? m.replace(/^Minggu\s*/i, 'Week ') : m;
+}
+function tarikhRph(r){
+  if(!bahasaRph(r)) return tarikhCantik(r.tarikh);
+  const d = new Date(r.tarikh+'T00:00:00');
+  return Number.isNaN(d.getTime()) ? r.tarikh :
+    new Intl.DateTimeFormat('en-GB', {weekday:'long', day:'numeric', month:'long', year:'numeric'}).format(d);
+}
+function hariRph(r){
+  if(!bahasaRph(r)) return namaHari(r.tarikh);
+  const d = new Date(r.tarikh+'T00:00:00');
+  return Number.isNaN(d.getTime()) ? '' : new Intl.DateTimeFormat('en-GB', {weekday:'long'}).format(d);
+}
+function subjekRph(r){ return bahasaRph(r) ? 'English' : r.subjek; }
+function tahunRph(r){
+  const t = String(r.tahun||'');
+  return bahasaRph(r) ? t.replace(/^Tahun\s*/i,'Year ').replace(/^Tingkatan\s*/i,'Form ') : t;
+}
+function jawatanRph(r, jawatan){
+  const t = String(jawatan||'').trim();
+  if(!bahasaRph(r)) return t;
+  const padanan = {
+    'guru':'Teacher', 'guru kelas':'Class Teacher', 'guru mata pelajaran':'Subject Teacher',
+    'guru besar':'Headteacher', 'pengetua':'Principal',
+    'penolong kanan':'Senior Assistant', 'guru penolong kanan':'Senior Assistant'
+  };
+  return padanan[t.toLowerCase()] || t;
+}
+function refleksiKosongRph(r, bil, penuh){
+  if(r.refleksi) return esc(r.refleksi);
+  if(bahasaRph(r)) return `____ / ${bil} pupils achieved the learning objectives independently and were given enrichment activities.<br><br>
+    ____ / ${bil} pupils achieved the learning objectives with guidance and were given reinforcement activities.<br><br>
+    ____ / ${bil} pupils have yet to achieve the learning objectives and were given remedial activities.` +
+    (penuh ? `<br><br><b>Today's lesson:</b><table style="width:100%;border-collapse:collapse;margin-top:2pt">
+      <tr><td style="border:1px solid #444;padding:1.6pt 3pt">Satisfactory</td><td style="border:1px solid #444;width:9mm"></td></tr>
+      <tr><td style="border:1px solid #444;padding:1.6pt 3pt">Needs improvement</td><td style="border:1px solid #444"></td></tr></table>` : '');
+  return null;
+}
+
 function htmlRph(r, tunjukSemakan){
+  const L = (bm,en) => teksRph(r,bm,en);
   const p = v => { const t = String(v||'').trim(); return (t && t !== '-') ? esc(t) : '-'; };
   const nilai = v => { const t = String(v||'').trim(); return (t && t !== '-') ? t : ''; };
   const [gelap, cerah] = warnaSubjek(r.subjek);
@@ -1659,7 +1705,7 @@ function htmlRph(r, tunjukSemakan){
   const akt = pecahAktiviti(r.aktiviti);
   const th = `style="background:${cerah}"`;
   const band = (t, span) => `<tr class="pd-band" style="background:${gelap}"><td colspan="${span||6}">${t}</td></tr>`;
-  const refleksiKanan = r.refleksi ? esc(r.refleksi) : `
+  const refleksiKanan = refleksiKosongRph(r, bil, true) || `
     ___ / ${bil} murid dapat mencapai objektif pembelajaran dengan baik dan diberi latihan pengayaan.<br><br>
     ___ / ${bil} murid dapat mencapai objektif pembelajaran dengan bimbingan dan diberi latihan pengukuhan.<br><br>
     ___ / ${bil} murid tidak dapat mencapai objektif pembelajaran dan diberi latihan pemulihan.<br><br>
@@ -1674,56 +1720,57 @@ function htmlRph(r, tunjukSemakan){
     <div><b>${esc((S.sekolah?.nama||'').toUpperCase())}</b></div></div>` : ''}
   <table class="pd-tbl">
     <colgroup><col style="width:34mm"><col style="width:56mm"><col style="width:16mm"><col style="width:34mm"><col style="width:16mm"><col></colgroup>
-    ${band('<div style="text-align:center;font-size:9.5pt">RANCANGAN PENGAJARAN HARIAN (PdPC)</div>')}
-    <tr><th ${th}>MATA PELAJARAN</th>
-        <td colspan="5" style="background:${cerah}"><b>${p(r.subjek).toUpperCase()} ${nilai(r.tahun)?esc(r.tahun.toUpperCase()):''}</b></td></tr>
-    <tr><th ${th}>TEMA</th><td>${p(r.tema)}</td>
-        <th ${th}>KELAS</th><td><b>${p(r.kelas)}</b></td>
-        <th ${th}>MINGGU</th><td>${p((r.minggu||'').replace('Minggu ',''))}</td></tr>
-    <tr><th ${th}>UNIT / TOPIK</th><td>${p(r.tajuk)}</td>
-        <th ${th}>MASA</th><td>${esc(r.mula)} – ${esc(r.tamat)}</td>
-        <th ${th}>TARIKH</th><td>${esc(r.tarikh)}</td></tr>
-    <tr><th ${th}>TEMPOH</th><td>${tempoh} minit</td>
-        <th ${th}>HARI</th><td>${esc(namaHari(r.tarikh))}</td>
-        <th ${th}>TAHUN</th><td>${p(r.tahun)}</td></tr>
-    <tr><th ${th}>Kod SK</th><td style="text-align:center"><b>${p(r.kodSk)}</b></td>
-        <th ${th}>Kod SP</th><td style="text-align:center"><b>${p(r.kodSp)}</b></td>
-        <th ${th}>Nilai Murni</th><td>${p(r.nilai)}</td></tr>
-    <tr><th ${th}>Std. Kandungan</th><td colspan="3">${p(r.sk)}</td>
+    ${band('<div style="text-align:center;font-size:9.5pt">'+L('RANCANGAN PENGAJARAN HARIAN (PdPC)','DAILY LESSON PLAN')+'</div>')}
+    <tr><th ${th}>${L('MATA PELAJARAN','SUBJECT')}</th>
+        <td colspan="5" style="background:${cerah}"><b>${p(subjekRph(r)).toUpperCase()} ${nilai(r.tahun)?esc(tahunRph(r).toUpperCase()):''}</b></td></tr>
+    <tr><th ${th}>${L('TEMA','THEME')}</th><td>${p(r.tema)}</td>
+        <th ${th}>${L('KELAS','CLASS')}</th><td><b>${p(r.kelas)}</b></td>
+        <th ${th}>${L('MINGGU','WEEK')}</th><td>${p((mingguRph(r)||'').replace(/^(Minggu|Week)\s*/i,''))}</td></tr>
+    <tr><th ${th}>${L('UNIT / TOPIK','UNIT / TOPIC')}</th><td>${p(r.tajuk)}</td>
+        <th ${th}>${L('MASA','TIME')}</th><td>${esc(r.mula)} – ${esc(r.tamat)}</td>
+        <th ${th}>${L('TARIKH','DATE')}</th><td>${esc(bahasaRph(r)?tarikhRph(r):r.tarikh)}</td></tr>
+    <tr><th ${th}>${L('TEMPOH','DURATION')}</th><td>${tempoh} ${L('minit','minutes')}</td>
+        <th ${th}>${L('HARI','DAY')}</th><td>${esc(hariRph(r))}</td>
+        <th ${th}>${L('TAHUN','YEAR')}</th><td>${p(tahunRph(r))}</td></tr>
+    <tr><th ${th}>${L('Kod SK','Content Standard Code')}</th><td style="text-align:center"><b>${p(r.kodSk)}</b></td>
+        <th ${th}>${L('Kod SP','Learning Standard Code')}</th><td style="text-align:center"><b>${p(r.kodSp)}</b></td>
+        <th ${th}>${L('Nilai Murni','Values')}</th><td>${p(r.nilai)}</td></tr>
+    <tr><th ${th}>${L('Std. Kandungan','Content Standard')}</th><td colspan="3">${p(r.sk)}</td>
         <th ${th}>EMK</th><td>${p(r.emk)}</td></tr>
-    <tr><th ${th}>Std. Pembelajaran</th><td colspan="3">${p(r.sp)}</td>
+    <tr><th ${th}>${L('Std. Pembelajaran','Learning Standard')}</th><td colspan="3">${p(r.sp)}</td>
         <th ${th}>TP</th><td>${p(r.tp)}</td></tr>
-    ${band('ASPIRASI MURID')}
+    ${band(L('ASPIRASI MURID','PUPIL ASPIRATIONS'))}
     <tr><td colspan="6" style="padding:0"><table style="width:100%;border-collapse:collapse;table-layout:fixed">
-      <tr>${['Pengetahuan','Kemahiran Berfikir','Kemahiran Memimpin','Kemahiran Dwibahasa','Etika dan Kerohanian','Identiti Nasional']
+      <tr>${(bahasaRph(r) ? ['Knowledge','Thinking Skills','Leadership Skills','Bilingual Skills','Ethics and Spirituality','National Identity'] : ['Pengetahuan','Kemahiran Berfikir','Kemahiran Memimpin','Kemahiran Dwibahasa','Etika dan Kerohanian','Identiti Nasional'])
         .map((x,i)=>`<td style="${i<5?'border-right:1px solid #444;':''}padding:1.6pt 3pt;font-size:7.6pt;text-align:center">☐ ${x}</td>`).join('')}</tr>
     </table></td></tr>
-    <tr class="pd-band" style="background:${gelap}"><td colspan="3">OBJEKTIF PEMBELAJARAN (OP)</td>
-        <td colspan="3">KRITERIA KEJAYAAN (KK)</td></tr>
-    <tr><td colspan="3">Pada akhir PdPC, murid dapat:<br>${obj.map((x,i)=>(i+1)+'. '+esc(x)).join('<br>')||'-'}</td>
-        <td colspan="3">Murid berjaya:<br>${kk.map((x,i)=>(i+1)+'. '+esc(x)).join('<br>')||'-'}</td></tr>
-    <tr><th ${th}>Strategi / Kaedah</th><td colspan="2">${p(r.strategi)}</td>
-        <th ${th}>BBM / SUMBER</th><td colspan="2">${p(r.bbm)}</td></tr>
-    <tr class="pd-band" style="background:${gelap}"><td colspan="4">STRATEGI PEMBELAJARAN DAN PEMUDAHCARAAN</td>
-        <td colspan="2">IMPAK / REFLEKSI</td></tr>
+    <tr class="pd-band" style="background:${gelap}"><td colspan="3">${L('OBJEKTIF PEMBELAJARAN (OP)','LEARNING OBJECTIVES')}</td>
+        <td colspan="3">${L('KRITERIA KEJAYAAN (KK)','SUCCESS CRITERIA')}</td></tr>
+    <tr><td colspan="3">${L('Pada akhir PdPC, murid dapat:','By the end of the lesson, pupils will be able to:')}<br>${obj.map((x,i)=>(i+1)+'. '+esc(x)).join('<br>')||'-'}</td>
+        <td colspan="3">${L('Murid berjaya:','Pupils can:')}<br>${kk.map((x,i)=>(i+1)+'. '+esc(x)).join('<br>')||'-'}</td></tr>
+    <tr><th ${th}>${L('Strategi / Kaedah','Strategy / Method')}</th><td colspan="2">${p(r.strategi)}</td>
+        <th ${th}>${L('BBM / SUMBER','TEACHING RESOURCES')}</th><td colspan="2">${p(r.bbm)}</td></tr>
+    <tr class="pd-band" style="background:${gelap}"><td colspan="4">${L('STRATEGI PEMBELAJARAN DAN PEMUDAHCARAAN','TEACHING AND LEARNING ACTIVITIES')}</td>
+        <td colspan="2">${L('IMPAK / REFLEKSI','IMPACT / REFLECTION')}</td></tr>
     <tr class="pd-boleh">
       <td colspan="4" style="padding:0">
-        ${akt.starter?`<div class="pd-sek">Pengenalan:-</div><div class="pd-isi2">${akt.starter}</div>`:''}
-        <div class="pd-sek">Aktiviti:-</div><div class="pd-isi2">${akt.utama||'-'}</div>
-        <div class="pd-sek">Penutup:-</div><div class="pd-isi2">${paparPenutup(r.penutup) || "-"}</div>
+        ${akt.starter?`<div class="pd-sek">${L('Pengenalan:-','Introduction:')}</div><div class="pd-isi2">${akt.starter}</div>`:''}
+        <div class="pd-sek">${L('Aktiviti:-','Activities:')}</div><div class="pd-isi2">${akt.utama||'-'}</div>
+        <div class="pd-sek">${L('Penutup:-','Closure:')}</div><div class="pd-isi2">${paparPenutup(r.penutup) || "-"}</div>
       </td>
       <td colspan="2" class="pd-ref">${refleksiKanan}</td></tr>
     <tr><th ${th}>KBAT</th><td>${p(r.kbat)}</td>
         <th ${th}>PAK-21</th><td>${p(r.pak21)}</td>
         <th ${th}>PBD</th><td>${p(r.pentaksiran)}</td></tr>
-    ${band('TINDAKAN SUSULAN UNTUK MURID')}
-    <tr><th ${th}>Pemulihan</th><td>${p(r.pemulihan)}</td>
-        <th ${th}>Pengukuhan</th><td>-</td>
-        <th ${th}>Pengayaan</th><td>${p(r.pengayaan)}</td></tr>
-    ${band('REFLEKSI / TINDAKAN')}
+    ${band(L('TINDAKAN SUSULAN UNTUK MURID','FOLLOW-UP ACTIONS FOR PUPILS'))}
+    <tr><th ${th}>${L('Pemulihan','Remediation')}</th><td>${p(r.pemulihan)}</td>
+        <th ${th}>${L('Pengukuhan','Reinforcement')}</th><td>-</td>
+        <th ${th}>${L('Pengayaan','Enrichment')}</th><td>${p(r.pengayaan)}</td></tr>
+    ${band(L('REFLEKSI / TINDAKAN','REFLECTION / ACTION'))}
     <tr><td colspan="6" style="padding:0"><table style="width:100%;border-collapse:collapse">
-      ${['PdPC akan diteruskan dengan topik baharu.','PdPC akan diulang semula pada pembelajaran akan datang.',
-         'PdPC tidak dilaksanakan kerana: ________________________________________']
+      ${(bahasaRph(r) ? ['The next lesson will cover a new topic.','This lesson will be repeated in a future session.',
+         'The lesson was not conducted because: ________________________________________'] : ['PdPC akan diteruskan dengan topik baharu.','PdPC akan diulang semula pada pembelajaran akan datang.',
+         'PdPC tidak dilaksanakan kerana: ________________________________________'])
         .map(x=>`<tr><td style="border-bottom:1px solid #444;width:8mm;text-align:center;padding:1.6pt">☐</td>
           <td style="border-bottom:1px solid #444;padding:1.6pt 3pt">${x}</td></tr>`).join('')}
     </table></td></tr>
@@ -1731,9 +1778,9 @@ function htmlRph(r, tunjukSemakan){
   ${tunjukSemakan === false ? '' : `
   <table class="pd-tbl lp-semakan">
     <colgroup><col style="width:26mm"><col><col style="width:60mm"></colgroup>
-    <tr><th style="background:#cfe3f7;text-align:center;vertical-align:middle;font-size:9pt">SEMAKAN</th>
-      <td>${ttdDisediakan()}</td>
-      <td>${ttdDisemak()}</td></tr>
+    <tr><th style="background:#cfe3f7;text-align:center;vertical-align:middle;font-size:9pt">${L('SEMAKAN','REVIEW')}</th>
+      <td>${ttdDisediakan(r)}</td>
+      <td>${ttdDisemak(r)}</td></tr>
   </table>`}`;
 }
 
@@ -1758,17 +1805,20 @@ function warnaSubjek(nama){
 function gayaCetak(){ return localStorage.getItem('erph_gaya_cetak') || 'padat'; }
 function setGayaCetak(g){ localStorage.setItem('erph_gaya_cetak', g); }
 
-function kepalaHari(tarikh){
+function kepalaHariRph(r){
+  const tarikh = r.tarikh;
+  const L = (bm,en) => teksRph(r,bm,en);
   return `<table class="pd-tbl pd-hari">
     <tr>
-      <td style="width:34mm"><b>${esc((S.profil.nama||'').toUpperCase())}</b><br>${esc(S.profil.jawatan||'Guru')}</td>
-      <td style="text-align:center"><b>${esc((S.sekolah?.nama||'').toUpperCase())}</b><br>RANCANGAN PENGAJARAN HARIAN</td>
-      <td style="width:52mm"><b>TARIKH:</b> ${esc(tarikh)}<br>
-        <b>HARI:</b> ${esc(namaHari(tarikh).toUpperCase())} &nbsp; <b>MINGGU:</b> ${esc((mingguUntuk(tarikh)||'').replace('Minggu ','M'))}</td>
+      <td style="width:34mm"><b>${esc((S.profil.nama||'').toUpperCase())}</b><br>${esc(jawatanRph(r,S.profil.jawatan||'Guru'))}</td>
+      <td style="text-align:center"><b>${esc((S.sekolah?.nama||'').toUpperCase())}</b><br>${L('RANCANGAN PENGAJARAN HARIAN','DAILY LESSON PLAN')}</td>
+      <td style="width:52mm"><b>${L('TARIKH','DATE')}:</b> ${esc(bahasaRph(r)?tarikhRph(r):tarikh)}<br>
+        <b>${L('HARI','DAY')}:</b> ${esc(hariRph(r).toUpperCase())} &nbsp; <b>${L('MINGGU','WEEK')}:</b> ${esc((mingguRph({...r, minggu:r.minggu||mingguUntuk(tarikh)})||'').replace(/^(Minggu|Week)\s*/i,'M'))}</td>
     </tr></table>`;
 }
 
 function htmlRphPadat(r, noKelas){
+  const L = (bm,en) => teksRph(r,bm,en);
   const p = v => { const t = String(v||'').trim(); return (t && t !== '-') ? esc(t) : '-'; };
   const nilai = v => { const t = String(v||'').trim(); return (t && t !== '-') ? t : ''; };
   const [gelap, cerah] = warnaSubjek(r.subjek);
@@ -1778,47 +1828,47 @@ function htmlRphPadat(r, noKelas){
   const obj = (r.objektif||'').split('\n').map(x=>x.trim().replace(/^\d+[.)]\s*/,'')).filter(x=>x && x!=='-');
   const kk  = (r.kriteria||'').split('\n').map(x=>x.trim().replace(/^\d+[.)]\s*/,'')).filter(x=>x && x!=='-');
   const akt = pecahAktiviti(r.aktiviti);
-  const refleksi = r.refleksi ? esc(r.refleksi)
-    : `____ / ${bil} murid dapat mencapai objektif pembelajaran dan diberi latihan pengayaan.<br><br>
+  const refleksi = refleksiKosongRph(r, bil, false) ||
+    `____ / ${bil} murid dapat mencapai objektif pembelajaran dan diberi latihan pengayaan.<br><br>
        ____ / ${bil} murid dapat mencapai objektif dengan bimbingan dan diberi latihan pengukuhan.<br><br>
        ____ / ${bil} murid tidak dapat mencapai objektif dan diberi latihan pemulihan.`;
   const band = t => `<tr class="pd-band" style="background:${gelap}"><td colspan="6">${t}</td></tr>`;
   return `<table class="pd-tbl pd-blok">
     <colgroup><col style="width:21mm"><col style="width:47mm"><col style="width:15mm"><col style="width:34mm"><col style="width:15mm"><col></colgroup>
     <tr class="pd-band" style="background:${gelap}">
-      <td colspan="4"><b>KELAS ${noKelas} · ${p(r.subjek).toUpperCase()}</b></td>
-      <td colspan="2" style="text-align:right">RANCANGAN PENGAJARAN HARIAN</td></tr>
-    <tr><th style="background:${cerah}">Tema / Unit</th><td>${p(r.tema)}</td>
-        <th style="background:${cerah}">Kelas</th><td><b>${p(r.kelas)}</b></td>
-        <th style="background:${cerah}">Minggu</th><td>${p((r.minggu||'').replace('Minggu ','M'))}</td></tr>
-    <tr><th style="background:${cerah}">Tajuk</th><td>${p(r.tajuk)}</td>
-        <th style="background:${cerah}">Masa</th><td>${esc(r.mula)} – ${esc(r.tamat)}</td>
-        <th style="background:${cerah}">Tempoh</th><td>${tempoh} minit</td></tr>
-    <tr><th style="background:${cerah}">Kod SK / SP</th><td><b>${p(r.kodSk)}</b> / <b>${p(r.kodSp)}</b>${nilai(r.tp)?' · '+esc(r.tp):''}</td>
-        <th style="background:${cerah}">Nilai Murni</th><td>${p(r.nilai)}</td>
+      <td colspan="4"><b>${L('KELAS','CLASS')} ${noKelas} · ${p(subjekRph(r)).toUpperCase()}</b></td>
+      <td colspan="2" style="text-align:right">${L('RANCANGAN PENGAJARAN HARIAN','DAILY LESSON PLAN')}</td></tr>
+    <tr><th style="background:${cerah}">${L('Tema / Unit','Theme / Unit')}</th><td>${p(r.tema)}</td>
+        <th style="background:${cerah}">${L('Kelas','Class')}</th><td><b>${p(r.kelas)}</b></td>
+        <th style="background:${cerah}">${L('Minggu','Week')}</th><td>${p((mingguRph(r)||'').replace(/^(Minggu|Week)\s*/i,'M'))}</td></tr>
+    <tr><th style="background:${cerah}">${L('Tajuk','Topic')}</th><td>${p(r.tajuk)}</td>
+        <th style="background:${cerah}">${L('Masa','Time')}</th><td>${esc(r.mula)} – ${esc(r.tamat)}</td>
+        <th style="background:${cerah}">${L('Tempoh','Duration')}</th><td>${tempoh} ${L('minit','minutes')}</td></tr>
+    <tr><th style="background:${cerah}">${L('Kod SK / SP','CS / LS Codes')}</th><td><b>${p(r.kodSk)}</b> / <b>${p(r.kodSp)}</b>${nilai(r.tp)?' · '+esc(r.tp):''}</td>
+        <th style="background:${cerah}">${L('Nilai Murni','Values')}</th><td>${p(r.nilai)}</td>
         <th style="background:${cerah}">EMK</th><td>${p(r.emk)}</td></tr>
-    <tr><th style="background:${cerah}">Std. Kandungan</th><td colspan="5">${p(r.sk)}</td></tr>
-    <tr><th style="background:${cerah}">Std. Pembelajaran</th><td colspan="5">${p(r.sp)}</td></tr>
-    ${band('OBJEKTIF PEMBELAJARAN (OP)')}
-    <tr><td colspan="6">Pada akhir PdP, murid dapat:<br>${obj.map((x,i)=>(i+1)+'. '+esc(x)).join('<br>')||'-'}</td></tr>
-    ${kk.length?band('KRITERIA KEJAYAAN (KK)')+`<tr><td colspan="6">Murid berjaya:<br>${kk.map((x,i)=>(i+1)+'. '+esc(x)).join('<br>')}</td></tr>`:''}
-    <tr><th style="background:${cerah}">BBM / Sumber</th><td colspan="3">${p(r.bbm)}</td>
-        <th style="background:${cerah}">Strategi</th><td>${p(r.strategi)}</td></tr>
-    <tr class="pd-band" style="background:${gelap}"><td colspan="4">STRATEGI PdP &amp; PEMUDAHCARAAN</td>
-        <td colspan="2">IMPAK / REFLEKSI</td></tr>
+    <tr><th style="background:${cerah}">${L('Std. Kandungan','Content Standard')}</th><td colspan="5">${p(r.sk)}</td></tr>
+    <tr><th style="background:${cerah}">${L('Std. Pembelajaran','Learning Standard')}</th><td colspan="5">${p(r.sp)}</td></tr>
+    ${band(L('OBJEKTIF PEMBELAJARAN (OP)','LEARNING OBJECTIVES'))}
+    <tr><td colspan="6">${L('Pada akhir PdP, murid dapat:','By the end of the lesson, pupils will be able to:')}<br>${obj.map((x,i)=>(i+1)+'. '+esc(x)).join('<br>')||'-'}</td></tr>
+    ${kk.length?band(L('KRITERIA KEJAYAAN (KK)','SUCCESS CRITERIA'))+`<tr><td colspan="6">${L('Murid berjaya:','Pupils can:')}<br>${kk.map((x,i)=>(i+1)+'. '+esc(x)).join('<br>')}</td></tr>`:''}
+    <tr><th style="background:${cerah}">${L('BBM / Sumber','Teaching Resources')}</th><td colspan="3">${p(r.bbm)}</td>
+        <th style="background:${cerah}">${L('Strategi','Strategy')}</th><td>${p(r.strategi)}</td></tr>
+    <tr class="pd-band" style="background:${gelap}"><td colspan="4">${L('STRATEGI PdP &amp; PEMUDAHCARAAN','TEACHING AND LEARNING ACTIVITIES')}</td>
+        <td colspan="2">${L('IMPAK / REFLEKSI','IMPACT / REFLECTION')}</td></tr>
     <tr class="pd-boleh">
       <td colspan="4" style="padding:0">
-        ${akt.starter?`<div class="pd-sek">Pengenalan / Set Induksi</div><div class="pd-isi2">${akt.starter}</div>`:''}
-        <div class="pd-sek">Aktiviti</div><div class="pd-isi2">${akt.utama||'-'}</div>
-        ${nilai(r.penutup)?`<div class="pd-sek">Penutup</div><div class="pd-isi2">${paparPenutup(r.penutup)}</div>`:''}
+        ${akt.starter?`<div class="pd-sek">${L('Pengenalan / Set Induksi','Introduction / Set Induction')}</div><div class="pd-isi2">${akt.starter}</div>`:''}
+        <div class="pd-sek">${L('Aktiviti','Activities')}</div><div class="pd-isi2">${akt.utama||'-'}</div>
+        ${nilai(r.penutup)?`<div class="pd-sek">${L('Penutup','Closure')}</div><div class="pd-isi2">${paparPenutup(r.penutup)}</div>`:''}
       </td>
-      <td colspan="2" class="pd-ref">${refleksi}<br><br><b>Intervensi:</b><br>______________________</td></tr>
+      <td colspan="2" class="pd-ref">${refleksi}<br><br><b>${L('Intervensi','Intervention')}:</b><br>______________________</td></tr>
     <tr><th style="background:${cerah}">KBAT</th><td>${p(r.kbat)}</td>
         <th style="background:${cerah}">PAK-21</th><td>${p(r.pak21)}</td>
         <th style="background:${cerah}">PBD</th><td>${p(r.pentaksiran)}</td></tr>
-    ${band('TINDAKAN SUSULAN UNTUK MURID')}
-    <tr><th style="background:${cerah}">Pemulihan</th><td colspan="2">${p(r.pemulihan)}</td>
-        <th style="background:${cerah}">Pengayaan</th><td colspan="2">${p(r.pengayaan)}</td></tr>
+    ${band(L('TINDAKAN SUSULAN UNTUK MURID','FOLLOW-UP ACTIONS FOR PUPILS'))}
+    <tr><th style="background:${cerah}">${L('Pemulihan','Remediation')}</th><td colspan="2">${p(r.pemulihan)}</td>
+        <th style="background:${cerah}">${L('Pengayaan','Enrichment')}</th><td colspan="2">${p(r.pengayaan)}</td></tr>
   </table>`;
 }
 
@@ -1845,12 +1895,12 @@ function blokTtd(label, nama, jawatan, imej){
     ${jawatan ? `<div class="ttd-jawatan">(${esc(jawatan)})</div>` : ''}
   </div>`;
 }
-function ttdDisediakan(){
-  return blokTtd('Disediakan oleh', S.profil.nama, S.profil.jawatan || 'Guru', tandatanganSaya());
+function ttdDisediakan(r){
+  return blokTtd(teksRph(r,'Disediakan oleh','Prepared by'), S.profil.nama, jawatanRph(r,S.profil.jawatan||'Guru'), tandatanganSaya());
 }
-function ttdDisemak(){
+function ttdDisemak(r){
   const g = pengesahBaris();
-  return blokTtd('Disemak oleh', g.nama, g.jawatan, '');
+  return blokTtd(teksRph(r,'Disemak oleh','Reviewed by'), g.nama, jawatanRph(r,g.jawatan), '');
 }
 
 /* Sesetengah RPH lama menyimpan HTML mentah dalam medan penutup (daripada versi
@@ -1875,16 +1925,16 @@ function blokPengesah(){
   return `<b>${esc(g.nama)}</b>${g.jawatan ? `<br>${esc(g.jawatan)}` : ''}`;
 }
 
-function semakanHari(){
+function semakanHari(r){
   return `<table class="pd-tbl pd-blok"><tr>
-    <th style="width:24mm;background:#cfe3f7;vertical-align:middle">SEMAKAN</th>
-    <td>${ttdDisediakan()}</td>
-    <td style="width:60mm">${ttdDisemak()}</td>
+    <th style="width:24mm;background:#cfe3f7;vertical-align:middle">${teksRph(r,'SEMAKAN','REVIEW')}</th>
+    <td>${ttdDisediakan(r)}</td>
+    <td style="width:60mm">${ttdDisemak(r)}</td>
   </tr></table>`;
 }
 
-function notaCetak(){
-  return `<div class="cetak-nota">Dijana oleh e-RPH AI · © 2026 Alimin bin Abu Bakar</div>`;
+function notaCetak(r){
+  return `<div class="cetak-nota">${teksRph(r,'Dijana oleh','Generated by')} e-RPH AI · © 2026 Alimin bin Abu Bakar</div>`;
 }
 async function keluarkanCetak(html){
   let box = document.getElementById('cetak');
@@ -1904,14 +1954,14 @@ function cetakRphId(id){
   const asal = S.rph.find(x => x.id === id);
   if(!asal) return toast('RPH tidak dijumpai','salah');
   const r = (editorTerbuka() && S.editRphId === id) ? { ...asal, ...bacaEditor() } : asal;
-  keluarkanCetak(badanCetakRph(r) + notaCetak());
+  keluarkanCetak(badanCetakRph(r) + notaCetak(r));
 }
 
 /* Satu sumber untuk kedua-dua cetakan dan pratonton, supaya tidak boleh terpesong. */
 function badanCetakRph(r){
   return gayaCetak() === 'penuh'
     ? htmlRph(r, true)
-    : kepalaHari(r.tarikh) + htmlRphPadat(r, 1) + semakanHari();
+    : kepalaHariRph(r) + htmlRphPadat(r, 1) + semakanHari(r);
 }
 
 /* Cetak banyak RPH — satu RPH satu muka surat.
@@ -1921,23 +1971,26 @@ function cetakBanyak(senarai){
   const susun = [...senarai].sort((a,b)=> (a.tarikh+(a.mula||'')).localeCompare(b.tarikh+(b.mula||'')));
   if(gayaCetak() === 'penuh'){
     const akhirHari = {};
-    susun.forEach((r,i) => akhirHari[r.tarikh] = i);
+    const kumpulan = r => r.tarikh + '|' + (bahasaRph(r) ? 'en' : 'ms');
+    susun.forEach((r,i) => akhirHari[kumpulan(r)] = i);
     keluarkanCetak(susun.map((r,i) =>
-      `<div style="${i ? 'page-break-before:always;' : ''}">${htmlRph(r, akhirHari[r.tarikh] === i)}</div>`).join('') + notaCetak());
+      `<div style="${i ? 'page-break-before:always;' : ''}">${htmlRph(r, akhirHari[kumpulan(r)] === i)}</div>`).join('') + notaCetak(susun[susun.length-1]));
     return;
   }
   /* Gaya padat: mengalir berterusan, tiada muka surat dibazir */
-  let html = ''; let hariSemasa = ''; let noKelas = 0; let pertama = true;
+  let html = ''; let hariSemasa = ''; let noKelas = 0; let pertama = true; let akhirRph = null;
   susun.forEach(r => {
-    if(r.tarikh !== hariSemasa){
-      if(hariSemasa) html += semakanHari();
-      html += `<div style="${pertama ? '' : 'page-break-before:always;'}">${kepalaHari(r.tarikh)}</div>`;
-      hariSemasa = r.tarikh; noKelas = 0; pertama = false;
+    const kumpulan = r.tarikh + '|' + (bahasaRph(r) ? 'en' : 'ms');
+    if(kumpulan !== hariSemasa){
+      if(hariSemasa) html += semakanHari(akhirRph);
+      html += `<div style="${pertama ? '' : 'page-break-before:always;'}">${kepalaHariRph(r)}</div>`;
+      hariSemasa = kumpulan; noKelas = 0; pertama = false;
     }
     noKelas++;
     html += htmlRphPadat(r, noKelas);
+    akhirRph = r;
   });
-  html += semakanHari() + notaCetak();
+  html += semakanHari(akhirRph) + notaCetak(akhirRph);
   keluarkanCetak(html);
 }
 function halCetak(){

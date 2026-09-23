@@ -323,6 +323,9 @@ function labelMinggu(m){
   if(!t) return '-';
   return /^minggu\b/i.test(t) ? t : 'Minggu ' + t;
 }
+function rphBahasaInggeris(subjek){
+  return /^(?:bahasa\s+inggeris|english|bi)(?:\s|$)/i.test(String(subjek||'').trim());
+}
 function barisRpt(r){
   return `- ${labelMinggu(r.minggu)} | Tema/Bidang: ${r.tema||'-'} | Tajuk: ${r.tajuk||'-'}\n` +
          `  SK [${r.kodSk||'-'}]: ${r.sk||'-'}\n  SP [${r.kodSp||'-'}]: ${r.sp||'-'}` +
@@ -496,28 +499,43 @@ Balas HANYA objek JSON tanpa markdown, mengikut skema ini:
  "strategi":"", "pak21":"", "kbat":"", "emk":"", "nilai":"", "bbm":"", "pentaksiran":"",
  "amaran":["senaraikan apa-apa maklumat rasmi yang tiada dalam pangkalan data"]
 }
-Medan "aktiviti", "pengayaan", "pemulihan", "penutup" gunakan HTML ringkas (p, ul, ol, li, b).`;
+Medan "aktiviti", "pengayaan", "pemulihan", "penutup" gunakan HTML ringkas (p, ul, ol, li, b).
+${rphBahasaInggeris(ctx.subjek) ? `
+OVERRIDING LANGUAGE REQUIREMENT FOR ENGLISH LESSONS (takes precedence over every Malay-language instruction above):
+- Write every generated RPH field entirely in natural, professional English: theme, topic/title, content and learning standards, objectives, success criteria, lesson activities and step headings, enrichment, remediation, closure, strategies, 21st-century learning, higher-order thinking, cross-curricular elements, values, teaching resources, assessment, and warnings.
+- Use English terms such as Set Induction, Step, Closure, pupils, minutes, and Week. Do not output Malay labels or Malay date/day/month names in any generated field.
+- Source RPT, textbook, school guidance, and teacher notes may be in Malay. Translate their wording into English while preserving the exact SK/SP codes, curriculum meaning, sequence and intended topic. A teacher-supplied English title takes priority. Never copy Malay prose into the English RPH.
+- Use English equivalents of the approved EMK and KBAT categories, e.g. Creativity and Innovation; Applying, Analysing, Evaluating, Creating. Keep established abbreviations SK, SP, TP, PAK-21 and PBD where relevant.
+- Keep the JSON property names exactly as specified; only their content is in English.
+` : ''}`;
 }
 function stripHtml(h){ const d = document.createElement('div'); d.innerHTML = h||''; return d.textContent || ''; }
 
 /* ---------- Jana satu RPH ---------- */
 async function janaRphAI(ctx){
-  const jawapan = await panggilAiSelamat(promptRph(ctx), null, ctx.lapor);
+  const sistem = rphBahasaInggeris(ctx.subjek)
+    ? 'You are a Malaysian KPM curriculum specialist. Write the entire English lesson plan in English, including all JSON field values. Translate Malay source wording faithfully while preserving curriculum codes and meaning. Return valid JSON only.'
+    : null;
+  const jawapan = await panggilAiSelamat(promptRph(ctx), sistem, ctx.lapor);
   const j = ambilJSON(jawapan);
   if(!j || typeof j !== 'object' || Array.isArray(j)) throw new Error('Struktur RPH AI tidak sah.');
   ['objektif','kriteria','amaran'].forEach(f => { j[f] = Array.isArray(j[f]) ? j[f].map(String) : (typeof j[f] === 'string' ? j[f].split('\n').filter(Boolean) : []); });
   if(!j.objektif.length || typeof j.aktiviti !== 'string' || !j.aktiviti.trim()) throw new Error('RPH AI tidak lengkap: objektif atau aktiviti tiada. Sila jana semula.');
-  // Bersihkan ejaan bukan baku sebelum disimpan
-  ['tema','tajuk','sk','sp','aktiviti','pengayaan','pemulihan','penutup',
-   'strategi','pak21','kbat','emk','nilai','bbm','pentaksiran'].forEach(f => {
-    if(typeof j[f] === 'string') j[f] = betulEjaan(j[f]);
-  });
-  ['objektif','kriteria'].forEach(f => {
-    if(Array.isArray(j[f])) j[f] = j[f].map(betulEjaan);
-  });
+  // Pembetulan ejaan BM tidak boleh mengubah teks RPH Bahasa Inggeris.
+  if(!rphBahasaInggeris(ctx.subjek)){
+    ['tema','tajuk','sk','sp','aktiviti','pengayaan','pemulihan','penutup',
+     'strategi','pak21','kbat','emk','nilai','bbm','pentaksiran'].forEach(f => {
+      if(typeof j[f] === 'string') j[f] = betulEjaan(j[f]);
+    });
+    ['objektif','kriteria'].forEach(f => {
+      if(Array.isArray(j[f])) j[f] = j[f].map(betulEjaan);
+    });
+  }
   return {
     emel:S.user.email, guru:S.profil.nama||'', slotId:ctx.slotId||'',
-    tarikh:ctx.tarikh, hari:namaHari(ctx.tarikh), minggu:ctx.minggu||'',
+    tarikh:ctx.tarikh, hari:rphBahasaInggeris(ctx.subjek)
+      ? new Intl.DateTimeFormat('en-GB',{weekday:'long'}).format(new Date(ctx.tarikh+'T00:00:00'))
+      : namaHari(ctx.tarikh), minggu:ctx.minggu||'',
     subjek:ctx.subjek, kelas:ctx.kelas, tahun:ctx.tahun||'',
     mula:ctx.mula, tamat:ctx.tamat, tempoh:ctx.tempoh,
     tema:j.tema||'', tajuk:j.tajuk||ctx.tajuk||'',
@@ -551,6 +569,7 @@ function semakAngkaMurid(r){
 /* ============ AUDIT PUKAL SEMUA RPH ============ */
 function auditRph(r){
   const m = [];
+  const inggeris = rphBahasaInggeris(r.subjek);
   const angka = semakAngkaMurid(r);
   if(!angka.ok) m.push({ kod:'angka', berat:'tinggi', boleh:true,
     teks:`Menyebut ${angka.salah.join(', ')} murid — kelas ini ada ${angka.jum} murid`, jum:angka.jum });
@@ -560,7 +579,7 @@ function auditRph(r){
     teks:`Kelas "${r.kelas}" tiada dalam senarai kelas` });
 
   const kosong = t => !String(t||'').trim() || String(t).trim() === '-';
-  const pemegang = t => /sila lengkapkan|belum tersedia|tidak dinyatakan|lorem|xxx|tbd/i.test(String(t||''));
+  const pemegang = t => /sila lengkapkan|belum tersedia|tidak dinyatakan|please complete|not available|not specified|lorem|xxx|tbd/i.test(String(t||''));
 
   if(kosong(r.sk) || pemegang(r.sk)) m.push({ kod:'sk', berat:'tinggi', boleh:false, teks:'Standard Kandungan kosong atau tidak sah' });
   if(kosong(r.sp) || pemegang(r.sp)) m.push({ kod:'sp', berat:'tinggi', boleh:false, teks:'Standard Pembelajaran kosong atau tidak sah' });
@@ -584,14 +603,15 @@ function auditRph(r){
     m.push({ kod:'skPanjang', berat:'sederhana', boleh:false,
       teks:'Standard terlalu panjang — nampak disalin bulat daripada DSKP' });
 
-  if(r.kbat && !KBAT_SAH.some(k => String(r.kbat).trim().toLowerCase().startsWith(k.toLowerCase())))
+  const kbatSah = inggeris ? ['Applying','Analysing','Analyzing','Evaluating','Creating'] : KBAT_SAH;
+  if(r.kbat && !kbatSah.some(k => String(r.kbat).trim().toLowerCase().startsWith(k.toLowerCase())))
     m.push({ kod:'kbat', berat:'sederhana', boleh:true, betul:'kbat',
-      teks:`KBAT "${String(r.kbat).slice(0,40)}" bukan aras KBAT — guna ${KBAT_SAH.join('/')}` });
+      teks:`KBAT "${String(r.kbat).slice(0,40)}" bukan aras KBAT — guna ${kbatSah.join('/')}` });
 
   if(r.emk && (kata(r.emk) > 7 || /^(guru|murid)\s/i.test(String(r.emk).trim())))
     m.push({ kod:'emk', berat:'rendah', boleh:false,
       teks:'EMK ditulis sebagai ayat — patut nama elemen sahaja' });
-  else if(r.emk && !EMK_SAH.some(e => norma(r.emk).includes(norma(e))))
+  else if(r.emk && !inggeris && !EMK_SAH.some(e => norma(r.emk).includes(norma(e))))
     m.push({ kod:'emk', berat:'rendah', boleh:false,
       teks:`EMK "${String(r.emk).slice(0,40)}" tiada dalam senarai rasmi` });
 
@@ -603,14 +623,14 @@ function auditRph(r){
     m.push({ kod:'pak21', berat:'rendah', boleh:false,
       teks:'PAK-21 patut nama teknik (Gallery Walk, Think-Pair-Share), bukan nilai' });
 
-  if(!kosong(r.objektif) && !/\d|sekurang-kurangnya/i.test(String(r.objektif)))
+  if(!kosong(r.objektif) && !/\d|sekurang-kurangnya|at least/i.test(String(r.objektif)))
     m.push({ kod:'objUkur', berat:'sederhana', boleh:false,
       teks:'Tiada objektif yang boleh diukur — tiada kuantiti dinyatakan' });
 
   /* Jumlah minit dalam aktiviti vs tempoh sebenar */
   if(r.tempoh > 0 && r.aktiviti){
     const teksAkt = stripHtml(r.aktiviti);
-    const minit = [...teksAkt.matchAll(/\((\d{1,3})\s*minit\)/gi)].map(x => +x[1]);
+    const minit = [...teksAkt.matchAll(/\((\d{1,3})\s*(?:minit|minutes?|mins?)\)/gi)].map(x => +x[1]);
     const jumlah = minit.reduce((a,b) => a+b, 0);
     if(minit.length >= 2 && Math.abs(jumlah - r.tempoh) > 5)
       m.push({ kod:'masa', berat:'sederhana', boleh:false,
@@ -626,7 +646,7 @@ function auditRph(r){
   const salahEja = cariEjaanSalah([r.sk, r.sp, r.objektif, r.kriteria, r.refleksi,
     r.nilai, r.emk, r.kbat, r.pak21, r.strategi, r.pemulihan, r.pengayaan,
     stripHtml(r.aktiviti||''), stripHtml(r.penutup||'')].join(' '));
-  if(salahEja.length) m.push({ kod:'ejaan', berat:'rendah', boleh:true, betul:'ejaan',
+  if(!inggeris && salahEja.length) m.push({ kod:'ejaan', berat:'rendah', boleh:true, betul:'ejaan',
     teks:`Ejaan bukan baku: ${salahEja.slice(0,4).map(s => `${s} → ${EJAAN_SALAH[s]}`).join(', ')}` });
 
   // SP tidak sepadan dengan RPT minggu berkenaan.
@@ -753,19 +773,19 @@ function baikiMedanRph(r, isu){
       if(baharu !== r[f]) ubah[f] = baharu;
     });
 
-  if(isu.some(p => p.kod === 'kbat') && r.kbat){
+  if(!rphBahasaInggeris(r.subjek) && isu.some(p => p.kod === 'kbat') && r.kbat){
     const baharu = betulKbat(r.kbat);
     if(baharu !== r.kbat) ubah.kbat = baharu;
   }
 
   // EMK ditulis sebagai ayat: cari elemen rasmi yang disebut di dalamnya
-  if(isu.some(p => p.kod === 'emk') && r.emk){
+  if(!rphBahasaInggeris(r.subjek) && isu.some(p => p.kod === 'emk') && r.emk){
     const jumpa = EMK_SAH.filter(e => norma(r.emk).includes(norma(e)));
     if(jumpa.length) ubah.emk = jumpa.slice(0,2).join(', ');
   }
 
   // Nilai Murni ditulis sebagai ayat: cabut kata nama nilai yang dikenali
-  if(isu.some(p => p.kod === 'nilai') && r.nilai){
+  if(!rphBahasaInggeris(r.subjek) && isu.some(p => p.kod === 'nilai') && r.nilai){
     const NILAI = ['Kerjasama','Kerajinan','Kesyukuran','Ketelitian','Keyakinan diri',
       'Kejujuran','Hormat-menghormati','Bertanggungjawab','Berdisiplin','Kesabaran',
       'Keberanian','Kesungguhan','Kreativiti','Empati','Kasih sayang','Toleransi'];
