@@ -830,8 +830,10 @@ function bukaRph(id){
   }
   tutupModal();
   S.editRphId = id;
-  window._stdManual = false;
-  window._stdSumberMinggu = '';
+  const asal = S.rph.find(r => r.id === id);
+  window._stdManual = !!asal.rptManual;
+  window._stdSumberMinggu = asal.rptMingguAsal || '';
+  window._stdRptPilih = null;
   try { pergi('editor'); }
   catch(e) {
     console.error('Gagal membuka editor RPH:', e);
@@ -884,13 +886,14 @@ function panelSemakanEditor(r){
     <p style="font-size:11px;color:var(--teks-3);margin-top:10px">Semakan ini bantuan sistem sahaja, bukan pengesahan rasmi KPM.</p>`;
 }
 
-function rte(id, isi, tinggi){
+function rte(id, isi, tinggi, r){
+  const L = (bm,en) => teksRph(r,bm,en);
   return `<div class="rte-bar">
     <button type="button" onclick="cmd('bold')"><b>B</b></button>
     <button type="button" onclick="cmd('italic')"><i>I</i></button>
-    <button type="button" onclick="cmd('insertUnorderedList')">• Senarai</button>
-    <button type="button" onclick="cmd('insertOrderedList')">1. Nombor</button>
-    <button type="button" onclick="cmd('removeFormat')">Buang format</button>
+    <button type="button" onclick="cmd('insertUnorderedList')">• ${L('Senarai','Bullets')}</button>
+    <button type="button" onclick="cmd('insertOrderedList')">1. ${L('Nombor','Numbers')}</button>
+    <button type="button" onclick="cmd('removeFormat')">${L('Buang format','Clear formatting')}</button>
   </div><div class="rte" id="${id}" contenteditable="true" style="min-height:${tinggi||130}px">${isi||''}</div>`;
 }
 function cmd(c){ document.execCommand(c,false,null); }
@@ -934,70 +937,71 @@ function halEditor(){
   const asal = S.rph.find(x => x.id === S.editRphId);
   if(!asal){ pergi('rph'); return; }
   const r = rekodUntukEditor(asal);
+  const L = (bm,en) => teksRph(r,bm,en);
   $('#subTajuk').textContent = `${subjekRph(r)} · ${r.kelas} · ${tarikhRph(r)}`;
 
   $('#kandungan').innerHTML = `${navRph()}
   <div class="dua-lajur">
     <div>
       <div class="kad">
-        <div class="kad-h"><h3>Maklumat sesi</h3>
-          <span class="pil ${r.status==='lengkap'?'hijau':'kuning'}">${r.status==='lengkap'?'Lengkap':'Draf'}</span></div>
+        <div class="kad-h"><h3>${L('Maklumat sesi','Lesson details')}</h3>
+          <span class="pil ${r.status==='lengkap'?'hijau':'kuning'}">${r.status==='lengkap'?L('Lengkap','Complete'):L('Draf','Draft')}</span></div>
         <div class="grid3">
-          <label class="fld"><span>Tarikh</span><input id="eTarikh" type="date" value="${esc(r.tarikh)}"></label>
-          <label class="fld"><span>Masa mula</span><input id="eMula" type="time" value="${esc(r.mula)}"></label>
-          <label class="fld"><span>Masa tamat</span><input id="eTamat" type="time" value="${esc(r.tamat)}"></label>
+          <label class="fld"><span>${L('Tarikh','Date')}</span><input id="eTarikh" type="date" value="${esc(r.tarikh)}"></label>
+          <label class="fld"><span>${L('Masa mula','Start time')}</span><input id="eMula" type="time" value="${esc(r.mula)}"></label>
+          <label class="fld"><span>${L('Masa tamat','End time')}</span><input id="eTamat" type="time" value="${esc(r.tamat)}"></label>
         </div>
         <div class="grid3">
-          <label class="fld"><span>Subjek</span><input id="eSubjek" value="${esc(r.subjek)}"></label>
-          <label class="fld"><span>Kelas</span><input id="eKelas" value="${esc(r.kelas)}"></label>
-          <label class="fld"><span>Minggu</span><input id="eMinggu" value="${esc(r.minggu||'')}"></label>
+          <label class="fld"><span>${L('Subjek','Subject')}</span><input id="eSubjek" value="${esc(r.subjek)}"></label>
+          <label class="fld"><span>${L('Kelas','Class')}</span><input id="eKelas" value="${esc(r.kelas)}"></label>
+          <label class="fld"><span>${L('Minggu','Week')}</span><input id="eMinggu" value="${esc(mingguRph(r))}"></label>
         </div>
         <div class="grid2">
-          <label class="fld"><span>Tema</span><input id="eTema" value="${esc(r.tema||'')}"></label>
-          <label class="fld"><span>Tajuk</span><input id="eTajuk" value="${esc(r.tajuk||'')}"></label>
+          <label class="fld"><span>${L('Tema','Theme')}</span><input id="eTema" value="${esc(r.tema||'')}"></label>
+          <label class="fld"><span>${L('Tajuk','Topic')}</span><input id="eTajuk" value="${esc(r.tajuk||'')}"></label>
         </div>
       </div>
 
       <div class="kad">
-        <div class="seksyen-tajuk" style="margin-top:0;border:0;padding:0">Standard kurikulum</div>
+        <div class="seksyen-tajuk" style="margin-top:0;border:0;padding:0">${L('Standard kurikulum','Curriculum standards')}</div>
         <div class="grid2">
-          <label class="fld"><span>Kod SK</span><input id="eKodSk" value="${esc(r.kodSk||'')}"></label>
-          <label class="fld"><span>Kod SP</span><input id="eKodSp" value="${esc(r.kodSp||'')}"></label>
+          <label class="fld"><span>${L('Kod SK','Content standard code')}</span><input id="eKodSk" value="${esc(r.kodSk||'')}"></label>
+          <label class="fld"><span>${L('Kod SP','Learning standard code')}</span><input id="eKodSp" value="${esc(r.kodSp||'')}"></label>
         </div>
-        <label class="fld"><span>Standard Kandungan</span><textarea id="eSk">${esc(r.sk||'')}</textarea></label>
-        <label class="fld"><span>Standard Pembelajaran</span><textarea id="eSp">${esc(r.sp||'')}</textarea></label>
-        <label class="fld"><span>Standard Prestasi</span><textarea id="eTp">${esc(r.tp||'')}</textarea></label>
+        <label class="fld"><span>${L('Standard Kandungan','Content standard')}</span><textarea id="eSk">${esc(r.sk||'')}</textarea></label>
+        <label class="fld"><span>${L('Standard Pembelajaran','Learning standard')}</span><textarea id="eSp">${esc(r.sp||'')}</textarea></label>
+        <label class="fld"><span>${L('Standard Prestasi','Performance standard')}</span><textarea id="eTp">${esc(r.tp||'')}</textarea></label>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-sm" onclick="pilihRpt()">📗 Ambil daripada RPT</button>
           <button class="btn btn-sm btn-ungu" onclick="janaDariStandard()"
             title="Jana semula seluruh RPH berdasarkan SK/SP di atas">✨ Jana baru ikut SK/SP ini</button>
         </div>
 
-        <div class="seksyen-tajuk">Objektif & kriteria</div>
-        <label class="fld"><span>Objektif pembelajaran <em>(satu baris satu objektif)</em></span><textarea id="eObjektif">${esc(r.objektif||'')}</textarea></label>
-        <label class="fld"><span>Kriteria kejayaan</span><textarea id="eKriteria">${esc(r.kriteria||'')}</textarea></label>
+        <div class="seksyen-tajuk">${L('Objektif & kriteria','Objectives & criteria')}</div>
+        <label class="fld"><span>${L('Objektif pembelajaran','Learning objectives')} <em>${L('(satu baris satu objektif)','(one objective per line)')}</em></span><textarea id="eObjektif">${esc(r.objektif||'')}</textarea></label>
+        <label class="fld"><span>${L('Kriteria kejayaan','Success criteria')}</span><textarea id="eKriteria">${esc(r.kriteria||'')}</textarea></label>
 
-        <div class="seksyen-tajuk">Aktiviti pembelajaran</div>
-        ${rte('eAktiviti', r.aktiviti, 240)}
+        <div class="seksyen-tajuk">${L('Aktiviti pembelajaran','Learning activities')}</div>
+        ${rte('eAktiviti', r.aktiviti, 240, r)}
         <div class="grid2" style="margin-top:14px">
-          <label class="fld"><span>Aktiviti pengayaan</span><textarea id="ePengayaan">${esc(stripHtml(r.pengayaan||''))}</textarea></label>
-          <label class="fld"><span>Aktiviti pemulihan</span><textarea id="ePemulihan">${esc(stripHtml(r.pemulihan||''))}</textarea></label>
+          <label class="fld"><span>${L('Aktiviti pengayaan','Enrichment activities')}</span><textarea id="ePengayaan">${esc(stripHtml(r.pengayaan||''))}</textarea></label>
+          <label class="fld"><span>${L('Aktiviti pemulihan','Remedial activities')}</span><textarea id="ePemulihan">${esc(stripHtml(r.pemulihan||''))}</textarea></label>
         </div>
-        <label class="fld"><span>Penutup</span><textarea id="ePenutup">${esc(stripHtml(r.penutup||''))}</textarea></label>
+        <label class="fld"><span>${L('Penutup','Closure')}</span><textarea id="ePenutup">${esc(stripHtml(r.penutup||''))}</textarea></label>
 
-        <div class="seksyen-tajuk">Elemen PdP</div>
+        <div class="seksyen-tajuk">${L('Elemen PdP','Teaching elements')}</div>
         <div class="grid2">
-          <label class="fld"><span>Kaedah / strategi</span><input id="eStrategi" value="${esc(r.strategi||'')}"></label>
+          <label class="fld"><span>${L('Kaedah / strategi','Method / strategy')}</span><input id="eStrategi" value="${esc(r.strategi||'')}"></label>
           <label class="fld"><span>PAK21</span><input id="ePak21" value="${esc(r.pak21||'')}"></label>
           <label class="fld"><span>KBAT</span><input id="eKbat" value="${esc(r.kbat||'')}"></label>
           <label class="fld"><span>EMK</span><input id="eEmk" value="${esc(r.emk||'')}"></label>
-          <label class="fld"><span>Nilai murni</span><input id="eNilai" value="${esc(r.nilai||'')}"></label>
-          <label class="fld"><span>BBM / bahan</span><input id="eBbm" value="${esc(r.bbm||'')}"></label>
+          <label class="fld"><span>${L('Nilai murni','Values')}</span><input id="eNilai" value="${esc(r.nilai||'')}"></label>
+          <label class="fld"><span>${L('BBM / bahan','Teaching aids / resources')}</span><input id="eBbm" value="${esc(r.bbm||'')}"></label>
         </div>
-        <label class="fld"><span>Pentaksiran</span><textarea id="ePentaksiran">${esc(r.pentaksiran||'')}</textarea></label>
+        <label class="fld"><span>${L('Pentaksiran','Assessment')}</span><textarea id="ePentaksiran">${esc(r.pentaksiran||'')}</textarea></label>
 
-        <div class="seksyen-tajuk">Refleksi</div>
-        <label class="fld"><span>Refleksi selepas PdP</span><textarea id="eRefleksi">${esc(r.refleksi||'')}</textarea></label>
+        <div class="seksyen-tajuk">${L('Refleksi','Reflection')}</div>
+        <label class="fld"><span>${L('Refleksi selepas PdP','Reflection after the lesson')}</span><textarea id="eRefleksi">${esc(r.refleksi||'')}</textarea></label>
         <button class="btn btn-sm btn-ungu" onclick="janaRefleksi()">✨ Jana refleksi</button>
       </div>
 
@@ -1065,8 +1069,8 @@ async function simpanRph(status){
   const d = { ...bacaEditor(), status };
   // Asal-usul standard direkod supaya Semakan RPH tahu guru memang sengaja
   // menggunakan SK/SP daripada minggu lain atau tulisan sendiri.
-  if(window._stdManual) d.rptManual = true;
-  if(window._stdSumberMinggu) d.rptMingguAsal = window._stdSumberMinggu;
+  d.rptManual = !!window._stdManual;
+  d.rptMingguAsal = window._stdSumberMinggu || '';
   sibuk(true,'Menyimpan…');
   const lama = S.rph.find(x => x.id === S.editRphId);
   await rujuk('rph').doc(S.editRphId).collection('versi').add({ ...lama, disimpan:Date.now() }).catch(()=>{});
@@ -1430,9 +1434,16 @@ async function buatSalinan(){
 }
 async function pilihRpt(){
   const subjek = $('#eSubjek').value, minggu = $('#eMinggu').value;
-  let d = rptUntuk(subjek, '', minggu).semua;
+  const asal = S.rph.find(x => x.id === S.editRphId) || {};
+  const tahun = infoKelas($('#eKelas').value).tahun || asal.tahun || '';
+  const sepadanTahun = x => {
+    if(!tahun || !x.tahun) return true;
+    const a = String(tahun).match(/\d+/), b = String(x.tahun).match(/\d+/);
+    return a && b ? +a[0] === +b[0] : norma(tahun) === norma(x.tahun);
+  };
+  let d = rptUntuk(subjek, '', minggu).semua.filter(sepadanTahun);
   if(!d.length){
-    sibuk(true,'Memuatkan RPT…'); d = await muatRptSubjek(subjek, ''); sibuk(false);
+    sibuk(true,'Memuatkan RPT…'); d = (await muatRptSubjek(subjek, '')).filter(sepadanTahun); sibuk(false);
   }
   window._rptPilih = d.sort((a,b)=> noMinggu(a.minggu) - noMinggu(b.minggu));
   const n = noMinggu(minggu);
@@ -1453,8 +1464,11 @@ function pakaiRpt(i){
   const x = (window._rptPilih || [])[i]; if(!x) return;
   $('#eKodSk').value = x.kodSk||''; $('#eSk').value = x.sk||'';
   $('#eKodSp').value = x.kodSp||''; $('#eSp').value = x.sp||''; $('#eTp').value = x.tp||'';
-  if(!$('#eTajuk').value) $('#eTajuk').value = x.tajuk||'';
-  if(!$('#eTema').value) $('#eTema').value = x.tema||'';
+  // Pilihan baharu menggantikan fokus RPH lama, termasuk tajuk dan tema.
+  $('#eTajuk').value = x.tajuk||'';
+  $('#eTema').value = x.tema||'';
+  window._stdRptPilih = x;
+  window._stdManual = false;
   // Rekod dari minggu mana standard ini diambil, supaya Semakan RPH tidak
   // menandakannya "SP tidak sepadan RPT" sedangkan guru memang sengaja memilihnya.
   window._stdSumberMinggu = noMinggu(x.minggu) === noMinggu($('#eMinggu').value)
@@ -1480,16 +1494,21 @@ async function janaDariStandard(){
     async () => {
       sibuk(true,'AI menjana RPH baharu…');
       try{
+        const dipilih = window._stdRptPilih;
         const fokus = { kodSk:r.kodSk, kodSp:r.kodSp, sk:r.sk, sp:r.sp, tp:r.tp,
-                        tajuk:r.tajuk, tema:r.tema };
+                        tajuk:r.tajuk, tema:r.tema, minggu:dipilih?.minggu || '' };
         const baru = await janaRphAI({
           slotId:r.slotId, tarikh:r.tarikh, subjek:r.subjek, kelas:r.kelas, tahun:r.tahun,
           mula:r.mula, tamat:r.tamat, tempoh:r.tempoh || minit(r.mula,r.tamat),
           minggu:r.minggu, tajuk:r.tajuk || r.tema,
-          rptFokus:fokus, rptManual:true, cadangSp:!(r.sk && r.sp)
+          tajukAsal:S.rph.find(x => x.id === S.editRphId)?.tajuk || '',
+          rptFokus:fokus, rptManual:!dipilih, rptMingguAsal:window._stdSumberMinggu,
+          cadangSp:!(r.sk && r.sp)
         });
         const set = (id,v) => { if(v != null && $('#'+id)) $('#'+id).value = v; };
         set('eTajuk', baru.tajuk); set('eTema', baru.tema);
+        set('eKodSk', baru.kodSk); set('eSk', baru.sk);
+        set('eKodSp', baru.kodSp); set('eSp', baru.sp); set('eTp', baru.tp);
         set('eObjektif', baru.objektif); set('eKriteria', baru.kriteria);
         if(baru.aktiviti) $('#eAktiviti').innerHTML = baru.aktiviti;
         set('ePenutup', stripHtml(baru.penutup||''));
@@ -1497,7 +1516,7 @@ async function janaDariStandard(){
         set('eStrategi', baru.strategi); set('ePak21', baru.pak21); set('eKbat', baru.kbat);
         set('eEmk', baru.emk); set('eNilai', baru.nilai); set('eBbm', baru.bbm);
         set('ePentaksiran', baru.pentaksiran);
-        window._stdManual = true;                    // ditulis semasa simpan
+        window._stdManual = !dipilih;                // sumber sebenar dicatat semasa simpan
         sibuk(false);
         toast('RPH baharu dijana. Semak dan tekan Simpan.','jaya');
       }catch(e){ sibuk(false); toast('Gagal: '+e.message,'salah'); }

@@ -331,7 +331,70 @@ function barisRpt(r){
          `  SK [${r.kodSk||'-'}]: ${r.sk||'-'}\n  SP [${r.kodSp||'-'}]: ${r.sp||'-'}` +
          (r.tp?`\n  TP: ${r.tp}`:'') + (r.catatan?`\n  Catatan RPT: ${r.catatan}`:'');
 }
+/* Prompt BI berasingan supaya contoh kata kerja/label BM tidak bocor ke hasil AI. */
+function promptRphInggeris(ctx){
+  const rpt = rptUntuk(ctx.subjek, ctx.tahun, ctx.minggu);
+  const fokus = ctx.rptFokus || (!ctx.rptManual ? rpt.minggu[0] : null);
+  const tajuk = String(ctx.tajuk || fokus?.tajuk || fokus?.tema || '').trim();
+  const kelasInfo = S.kelas.find(k => norma(k.nama) === norma(ctx.kelas)) || {};
+  const bilMurid = kelasInfo.bilangan || ctx.bilMurid || null;
+  const buku = kontekBuku(ctx.subjek, ctx.tahun, fokus || {tajuk}, 12);
+  const lalu = rphSebelum(ctx.subjek, ctx.kelas, ctx.tarikh, 3);
+  const panduan = String(S.tetapanAI?.panduan || '').trim();
+  return `Create one complete Malaysian KPM English daily lesson plan. Return only a JSON object.
+
+LANGUAGE
+All prose in every JSON value must be natural, professional English. This includes objectives, success criteria, theme, topic, standards, activities, headings, resources, assessment, values and warnings. The source data or school guidance may be in Malay; translate its prose. Never start an objective with Malay verbs such as "Mengenal pasti", "Membina" or "Menyelesaikan". Use "pupils", "teacher", "minutes", "Pre-lesson", "Lesson development" and "Post-lesson". Keep the JSON property names below unchanged.
+
+SESSION
+Date: ${ctx.tarikh} (${new Intl.DateTimeFormat('en-GB',{weekday:'long'}).format(new Date(ctx.tarikh+'T00:00:00'))})
+Week: ${ctx.minggu || '-'}
+Subject: English
+Year/Form: ${ctx.tahun || '-'}
+Class: ${ctx.kelas}
+Actual class size: ${bilMurid ?? 'not provided'}
+Class attainment: ${kelasInfo.tahap || ctx.tahapKelas || 'not provided'}
+Teacher notes: ${kelasInfo.nota || ctx.notaKelas || '-'}
+Time: ${ctx.mula}–${ctx.tamat} (${ctx.tempoh} minutes)
+${ctx.arahan ? 'Teacher instruction: '+ctx.arahan : ''}
+
+AUTHORITATIVE LESSON FOCUS
+${fokus ? JSON.stringify({topic:tajuk, theme:fokus.tema||'', contentStandardCode:fokus.kodSk||'', contentStandard:fokus.sk||'', learningStandardCode:fokus.kodSp||'', learningStandard:fokus.sp||'', performanceStandard:fokus.tp||'', sourceWeek:ctx.rptMingguAsal||fokus.minggu||ctx.minggu||''}) : JSON.stringify({topic:tajuk})}
+${fokus ? 'This is the exact RPT row or teacher-selected SK/SP for THIS lesson. Use this topic and these standards only. Do not substitute another week, topic or standard. Preserve every supplied code. If source prose is already English, preserve its meaning and wording; translate only Malay prose. If a supplied field is blank, do not invent an official code.' : ctx.cadangSp ? 'No RPT row was supplied. Suggest standards only if reasonably certain and state in amaran that the teacher must verify them against the official DSKP.' : 'No RPT row was supplied. Leave unavailable standards blank and explain in amaran.'}
+
+TEXTBOOK REFERENCES (use only if relevant; never invent page numbers)
+${buku.length ? buku.map(barisBuku).join('\n') : 'None provided.'}
+
+PREVIOUS LESSON TOPICS (for variety only; never reuse their topic or standards instead of the selected focus)
+${lalu.length ? lalu.map(r=>`${r.tarikh}: ${r.tajuk||'-'}`).join('\n') : 'None.'}
+
+SCHOOL GUIDANCE (apply where compatible with the English language requirement and selected focus)
+${panduan || 'None.'}
+
+CONTENT RULES
+- Follow the English Year 4/5 lesson-plan style where applicable: a clear theme and topic, measurable learning objectives, matching success criteria, and a Pre-lesson / Lesson development / Post-lesson outline. For other years, adapt to the specified year without claiming a Year 4/5 reference.
+- Write 2–3 objectives, each starting with an English action verb such as Identify, Describe, Read, Write, Listen, Explain or Produce. At least one objective must include a measurable quantity. Do not start with "Pupils will be able to" because the print template already supplies that phrase.
+- Write matching observable success criteria. Do not copy the objectives verbatim.
+- State what the teacher and pupils do in each activity. Give step durations that total ${ctx.tempoh} minutes. Activities must address the selected topic and learning standard specifically.
+- Use the actual class size ${bilMurid ?? '(unknown)'} whenever a total is mentioned. If unknown, do not invent a pupil count.
+- Keep content and learning standards distinct. Keep exact official codes from the selected focus. Do not invent textbook pages or claim an unprovided resource.
+- Use English names for values, cross-curricular elements and higher-order thinking levels (Applying, Analysing, Evaluating or Creating). Use a specific PAK-21 technique and practical teaching aids.
+- Leave reflection empty; it is completed after teaching. Return warnings in English.
+
+Return this JSON schema with no markdown:
+{
+ "tema":"", "tajuk":"",
+ "kodSk":"", "sk":"", "kodSp":"", "sp":"", "tp":"",
+ "objektif":["",""], "kriteria":["",""],
+ "aktiviti":"<p>Pre-lesson (5 minutes)</p><ol><li>...</li></ol><p>Lesson development (20 minutes)</p><ol><li>...</li></ol><p>Post-lesson (5 minutes)</p>",
+ "pengayaan":"", "pemulihan":"", "penutup":"",
+ "strategi":"", "pak21":"", "kbat":"", "emk":"", "nilai":"", "bbm":"", "pentaksiran":"",
+ "amaran":[]
+}
+Use only simple HTML tags (p, ul, ol, li, b) in activity and follow-up fields.`;
+}
 function promptRph(ctx){
+  if(rphBahasaInggeris(ctx.subjek)) return promptRphInggeris(ctx);
   const rpt = rptUntuk(ctx.subjek, ctx.tahun, ctx.minggu);
   let fokus = ctx.rptFokus || null;
   /* Jika guru menulis sendiri atau mengambil tajuk daripada minggu lain, baris
@@ -339,7 +402,7 @@ function promptRph(ctx){
      kembali kepadanya dan mengabaikan pilihan guru. */
   const rptSendiri = !!ctx.rptManual;
   const dariMingguLain = !!ctx.rptMingguAsal;
-  const abaiMingguIni = rptSendiri || dariMingguLain;
+  const abaiMingguIni = rptSendiri || dariMingguLain || !!fokus;
   let lain = abaiMingguIni ? [] : rpt.minggu.filter(r => !fokus || r.id !== fokus.id);
   const rptTeks = fokus
     ? barisRpt(fokus) + (lain.length ? '\n\nBARIS LAIN MINGGU INI (rujukan sahaja):\n' + lain.map(barisRpt).join('\n') : '')
@@ -408,8 +471,9 @@ PERATURAN WAJIB
    : '- Bilangan murid tidak dinyatakan. Jangan sebut sebarang angka bilangan murid; tulis secara umum sahaja.'}
    ${kelasInfo.tahap ? `- Tahap kelas ialah "${kelasInfo.tahap}". Sesuaikan kesukaran aktiviti, sokongan guru dan sasaran kriteria kejayaan dengan tahap ini.` : ''}
    ${kelasInfo.nota ? `- Guru mencatat tentang kelas ini: "${kelasInfo.nota}". Aktiviti dan tindakan susulan MESTI mengambil kira perkara ini secara khusus.` : ''}
-1. JANGAN cipta, ubah atau reka nombor/teks Standard Kandungan atau Standard Pembelajaran apabila RPT tersedia. Salin TEPAT daripada baris RPT minggu ini di atas, termasuk kod SK/SP dan tajuk.
+1. JANGAN cipta, ubah atau reka nombor/teks Standard Kandungan atau Standard Pembelajaran apabila RPT tersedia. ${fokus ? 'Gunakan HANYA baris fokus yang dipilih guru di atas, termasuk kod SK/SP dan tajuk; abaikan RPT minggu lain.' : 'Salin TEPAT daripada baris RPT minggu ini di atas, termasuk kod SK/SP dan tajuk.'}
 ${ctx.cadangSp ? `2. MOD CADANGAN: RPT tidak tersedia untuk sesi ini. Cadangkan SATU pasangan SK dan SP yang paling tepat daripada DSKP KPM sebenar bagi subjek "${ctx.subjek}" ${ctx.tahun||''}${ctx.tajuk?', selari dengan tajuk "'+ctx.tajuk+'"':''}, dengan mengambil kira ini ialah ${ctx.minggu||'pertengahan tahun'}. Gunakan nombor kod dan ayat standard sebenar seperti dalam dokumen DSKP rasmi — bukan rekaan. Jika anda tidak pasti ayat tepat sesuatu standard, berikan yang paling hampir dan WAJIB masukkan dalam "amaran": "SK/SP adalah cadangan AI — sila sahkan dengan DSKP rasmi sebelum digunakan".`
+: fokus ? `2. Baris fokus di atas sengaja dipilih guru. Gunakan standard tersebut walaupun minggu sumbernya berbeza daripada minggu sesi ini.`
 : `2. Jika tiada baris RPT untuk minggu ini, isi medan sk/sp dengan "Sila lengkapkan RPT bagi minggu ini" dan senaraikan dalam "amaran". Jangan ambil standard daripada minggu lain.`}
 3. Aktiviti mesti muat dalam ${ctx.tempoh} minit. Nyatakan anggaran minit setiap langkah, jumlahnya mesti ${ctx.tempoh} minit.
 4. RUJUK BUKU TEKS DI ATAS. Jika ada bab atau unit yang sepadan dengan tajuk ini,
@@ -499,28 +563,71 @@ Balas HANYA objek JSON tanpa markdown, mengikut skema ini:
  "strategi":"", "pak21":"", "kbat":"", "emk":"", "nilai":"", "bbm":"", "pentaksiran":"",
  "amaran":["senaraikan apa-apa maklumat rasmi yang tiada dalam pangkalan data"]
 }
-Medan "aktiviti", "pengayaan", "pemulihan", "penutup" gunakan HTML ringkas (p, ul, ol, li, b).
-${rphBahasaInggeris(ctx.subjek) ? `
-OVERRIDING LANGUAGE REQUIREMENT FOR ENGLISH LESSONS (takes precedence over every Malay-language instruction above):
-- Write every generated RPH field entirely in natural, professional English: theme, topic/title, content and learning standards, objectives, success criteria, lesson activities and step headings, enrichment, remediation, closure, strategies, 21st-century learning, higher-order thinking, cross-curricular elements, values, teaching resources, assessment, and warnings.
-- Use English terms such as Set Induction, Step, Closure, pupils, minutes, and Week. Do not output Malay labels or Malay date/day/month names in any generated field.
-- Source RPT, textbook, school guidance, and teacher notes may be in Malay. Translate their wording into English while preserving the exact SK/SP codes, curriculum meaning, sequence and intended topic. A teacher-supplied English title takes priority. Never copy Malay prose into the English RPH.
-- Use English equivalents of the approved EMK and KBAT categories, e.g. Creativity and Innovation; Applying, Analysing, Evaluating, Creating. Keep established abbreviations SK, SP, TP, PAK-21 and PBD where relevant.
-- Keep the JSON property names exactly as specified; only their content is in English.
-` : ''}`;
+Medan "aktiviti", "pengayaan", "pemulihan", "penutup" gunakan HTML ringkas (p, ul, ol, li, b).`;
 }
 function stripHtml(h){ const d = document.createElement('div'); d.innerHTML = h||''; return d.textContent || ''; }
+
+/* Tolak keluaran BI yang jelas bercampur BM sebelum ia masuk ke editor/Firestore. */
+function medanBmRph(j){
+  const rx = /\b(?:mengenal\s+pasti|sekurang-kurangnya|membina|menyelesaikan|menyatakan|menganalisis|menghasilkan|murid|guru|minit|langkah|set\s+induksi|penutup|pemulihan|pengayaan|lembaran\s+kerja|dengan\s+betul|daripada|aktiviti\s+pembelajaran)\b/i;
+  return ['tema','tajuk','sk','sp','objektif','kriteria','aktiviti','pengayaan',
+    'pemulihan','penutup','strategi','pak21','kbat','emk','nilai','bbm','pentaksiran','amaran']
+    .filter(f => rx.test(Array.isArray(j[f]) ? j[f].join(' ') : String(j[f]||'')));
+}
+function ulangTopikLama(j, ctx){
+  const asal = String(ctx.tajukAsal||'').trim().toLowerCase();
+  const fokus = String(ctx.tajuk||'').trim().toLowerCase();
+  if(!asal || !fokus || asal === fokus) return false;
+  if(String(j.tajuk||'').trim().toLowerCase() === asal) return true;
+  const kataLama = (asal.match(/[a-z]{4,}/g)||[]).filter(k => !fokus.includes(k));
+  const objektif = [j.objektif,j.kriteria].flat().join(' ').toLowerCase();
+  return kataLama.some(k => new RegExp('\\b'+k+'\\b').test(objektif));
+}
 
 /* ---------- Jana satu RPH ---------- */
 async function janaRphAI(ctx){
   const sistem = rphBahasaInggeris(ctx.subjek)
     ? 'You are a Malaysian KPM curriculum specialist. Write the entire English lesson plan in English, including all JSON field values. Translate Malay source wording faithfully while preserving curriculum codes and meaning. Return valid JSON only.'
     : null;
-  const jawapan = await panggilAiSelamat(promptRph(ctx), sistem, ctx.lapor);
-  const j = ambilJSON(jawapan);
+  const arahanAsal = promptRph(ctx);
+  const jawapan = await panggilAiSelamat(arahanAsal, sistem, ctx.lapor);
+  let j = ambilJSON(jawapan);
   if(!j || typeof j !== 'object' || Array.isArray(j)) throw new Error('Struktur RPH AI tidak sah.');
   ['objektif','kriteria','amaran'].forEach(f => { j[f] = Array.isArray(j[f]) ? j[f].map(String) : (typeof j[f] === 'string' ? j[f].split('\n').filter(Boolean) : []); });
   if(!j.objektif.length || typeof j.aktiviti !== 'string' || !j.aktiviti.trim()) throw new Error('RPH AI tidak lengkap: objektif atau aktiviti tiada. Sila jana semula.');
+  if(rphBahasaInggeris(ctx.subjek) && ulangTopikLama(j,ctx)){
+    ctx.lapor?.('AI masih mengikut tajuk lama; menjana semula ikut RPT pilihan…');
+    j = ambilJSON(await panggilAiSelamat(arahanAsal + `\n\nYour previous answer repeated the OLD topic "${ctx.tajukAsal}". Discard it completely. Regenerate the entire lesson for the SELECTED topic "${ctx.tajuk}" and its selected standards only.`, sistem, ctx.lapor));
+    if(!j || typeof j !== 'object' || Array.isArray(j)) throw new Error('Struktur RPH AI tidak sah selepas penjanaan semula.');
+    ['objektif','kriteria','amaran'].forEach(f => { j[f] = Array.isArray(j[f]) ? j[f].map(String) : (typeof j[f] === 'string' ? j[f].split('\n').filter(Boolean) : []); });
+    if(!j.objektif.length || typeof j.aktiviti !== 'string' || !j.aktiviti.trim()) throw new Error('RPH AI tidak lengkap selepas penjanaan semula.');
+    if(ulangTopikLama(j,ctx)) throw new Error('AI masih mengulang tajuk lama. RPH tidak disimpan; sila cuba model AI lain.');
+  }
+  if(rphBahasaInggeris(ctx.subjek) && medanBmRph(j).length){
+    ctx.lapor?.('AI membetulkan campuran bahasa dalam RPH English…');
+    const pembetulan = `Rewrite ONLY the Malay-language wording in this English lesson-plan JSON into natural English. Preserve every curriculum code, the selected topic, standards, lesson meaning, numbers, HTML tags and JSON keys. Return the complete corrected JSON object only.\n${JSON.stringify(j)}`;
+    j = ambilJSON(await panggilAiSelamat(pembetulan, sistem, ctx.lapor));
+    if(!j || typeof j !== 'object' || Array.isArray(j)) throw new Error('Pembetulan bahasa RPH AI tidak sah.');
+    ['objektif','kriteria','amaran'].forEach(f => { j[f] = Array.isArray(j[f]) ? j[f].map(String) : (typeof j[f] === 'string' ? j[f].split('\n').filter(Boolean) : []); });
+    if(!j.objektif.length || typeof j.aktiviti !== 'string' || !j.aktiviti.trim()) throw new Error('Pembetulan bahasa RPH AI tidak lengkap.');
+    const campur = medanBmRph(j);
+    if(campur.length) throw new Error('AI masih mencampur BM dalam medan '+campur.join(', ')+'. RPH tidak disimpan; sila cuba jana semula.');
+  }
+  if(rphBahasaInggeris(ctx.subjek) && ulangTopikLama(j,ctx))
+    throw new Error('AI masih mengulang fokus lama selepas pembetulan bahasa. RPH tidak disimpan; sila cuba model AI lain.');
+  // Kod RPT yang dipilih guru tidak boleh diganti oleh model.
+  if(ctx.rptFokus){
+    if(ctx.rptFokus.kodSk) j.kodSk = ctx.rptFokus.kodSk;
+    if(ctx.rptFokus.kodSp) j.kodSp = ctx.rptFokus.kodSp;
+    if(ctx.rptFokus.tp) j.tp = ctx.rptFokus.tp;
+    const sumberEnglish = t => /\b(?:the|and|with|from|simple|specific|information|understand|recognise|recognize|describe|explain|listen|read|write|use|produce|my|your|world|family|friends|week|free|time|animals|food|home|school|people|health|sports|holiday|what|where|how|are)\b/i.test(String(t||''));
+    if(rphBahasaInggeris(ctx.subjek)){
+      if(sumberEnglish(ctx.rptFokus.tajuk) && !medanBmRph({tajuk:ctx.rptFokus.tajuk}).length) j.tajuk = ctx.rptFokus.tajuk;
+      if(sumberEnglish(ctx.rptFokus.tema) && !medanBmRph({tema:ctx.rptFokus.tema}).length) j.tema = ctx.rptFokus.tema;
+      if(sumberEnglish(ctx.rptFokus.sk) && !medanBmRph({sk:ctx.rptFokus.sk}).length) j.sk = ctx.rptFokus.sk;
+      if(sumberEnglish(ctx.rptFokus.sp) && !medanBmRph({sp:ctx.rptFokus.sp}).length) j.sp = ctx.rptFokus.sp;
+    }
+  }
   // Pembetulan ejaan BM tidak boleh mengubah teks RPH Bahasa Inggeris.
   if(!rphBahasaInggeris(ctx.subjek)){
     ['tema','tajuk','sk','sp','aktiviti','pengayaan','pemulihan','penutup',

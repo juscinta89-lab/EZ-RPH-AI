@@ -96,17 +96,22 @@ async function tandaRptBerubah(){
   localStorage.removeItem('erph_rpt_' + S.sid);
 }
 async function muatRptSubjek(subjek, tahun){
-  const sn = norma(subjek), tn = norma(tahun);
-  return S.rpt.filter(r => norma(r.subjek) === sn && (!tn || !r.tahun || norma(r.tahun) === tn));
+  const sn = norma(subjek);
+  return S.rpt.filter(r => norma(r.subjek) === sn && tahunRptSama(tahun, r.tahun));
 }
 function noMinggu(v){ const m = String(v==null?'':v).match(/\d+/); return m ? +m[0] : 999; }
+function tahunRptSama(a,b){
+  if(!a || !b) return true;
+  const x = String(a).match(/\d+/), y = String(b).match(/\d+/);
+  return x && y ? +x[0] === +y[0] : norma(a) === norma(b);
+}
 function susunRpt(){ S.rpt.sort((a,b)=> noMinggu(a.minggu) - noMinggu(b.minggu)); }
 
 /* Cari baris RPT untuk sesi tertentu */
 function rptUntuk(subjek, tahun, minggu){
   const n = noMinggu(minggu);
-  const sn = norma(subjek), tn = norma(tahun);
-  const sama = S.rpt.filter(r => norma(r.subjek) === sn && (!tn || !r.tahun || norma(r.tahun) === tn));
+  const sn = norma(subjek);
+  const sama = S.rpt.filter(r => norma(r.subjek) === sn && tahunRptSama(tahun, r.tahun));
   return {
     minggu: sama.filter(r => noMinggu(r.minggu) === n),
     sekitar: sama.filter(r => Math.abs(noMinggu(r.minggu) - n) <= 2 && noMinggu(r.minggu) !== n),

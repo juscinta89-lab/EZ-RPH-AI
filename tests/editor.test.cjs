@@ -47,3 +47,46 @@ test('unexpected render exception gives visible recovery action',()=>{
 test('single Edit button handler opens form',()=>{
  const {c,S,main}=setup();const html=c.barisRph(S.rph[0]);const handler=html.match(/aria-label="Edit RPH"\s+onclick="([^"]+)"/)[1];c.event={stopPropagation(){}};vm.runInContext(handler,c);assert.match(main.innerHTML,/id="eTarikh"/);
 });
+test('selected RPT replaces old topic and drives regeneration',async()=>{
+ const {c,S,elements}=setup();
+ S.editRphId='r1';S.rph[0].subjek='Bahasa Inggeris';S.rph[0].tahun='Tahun 4';S.rph[0].tajuk='Old Animals';
+ const ids=['eKodSk','eSk','eKodSp','eSp','eTp','eTajuk','eTema','eMinggu','eObjektif','eKriteria','ePenutup','ePemulihan','ePengayaan','eStrategi','ePak21','eKbat','eEmk','eNilai','eBbm','ePentaksiran','eAktiviti'];
+ ids.forEach(id=>elements.set('#'+id,{value:'',innerHTML:''}));
+ elements.get('#eMinggu').value='Minggu 10';
+ const chosen={minggu:'Minggu 8',tahun:'Tahun 4',tajuk:'Where Are You From?',tema:'World of Self, Family and Friends',kodSk:'1.2',sk:'Understand meaning in familiar contexts',kodSp:'1.2.2',sp:'Understand with support specific information and details of longer simple texts'};
+ c.window._rptPilih=[chosen];
+ c.pakaiRpt(0);
+ assert.equal(elements.get('#eTajuk').value,chosen.tajuk);
+ assert.equal(elements.get('#eTema').value,chosen.tema);
+ let received;
+ c.bacaEditor=()=>({subjek:'Bahasa Inggeris',tarikh:'2026-09-06',kelas:'4A',tahun:'Tahun 4',minggu:'Minggu 10',mula:'08:00',tamat:'09:00',tempoh:60,
+  tajuk:elements.get('#eTajuk').value,tema:elements.get('#eTema').value,kodSk:elements.get('#eKodSk').value,sk:elements.get('#eSk').value,kodSp:elements.get('#eKodSp').value,sp:elements.get('#eSp').value,tp:elements.get('#eTp').value});
+ c.sibuk=()=>{};c.sahkan=(_message,fn)=>{c.confirmPromise=fn()};
+ c.janaRphAI=async ctx=>{received=ctx;return {tajuk:ctx.tajuk,tema:ctx.rptFokus.tema,kodSk:ctx.rptFokus.kodSk,sk:ctx.rptFokus.sk,kodSp:ctx.rptFokus.kodSp,sp:ctx.rptFokus.sp,objektif:'Identify 3 countries',kriteria:'Name 3 countries',aktiviti:'<p>Pre-lesson</p>'}};
+ await c.janaDariStandard();await c.confirmPromise;
+ assert.equal(received.tajuk,chosen.tajuk);
+ assert.equal(received.tajukAsal,'Old Animals');
+ assert.equal(received.rptManual,false);
+ assert.equal(received.rptMingguAsal,'Minggu 8');
+ assert.equal(received.rptFokus.kodSp,'1.2.2');
+ assert.equal(elements.get('#eObjektif').value,'Identify 3 countries');
+ assert.equal(c.window._stdManual,false);
+});
+test('RPT picker excludes a different year and accepts equivalent year labels',async()=>{
+ const {c,S,elements}=setup();S.editRphId='r1';S.rph[0].tahun='Tahun 4';
+ elements.set('#eSubjek',{value:'Bahasa Inggeris'});elements.set('#eMinggu',{value:'Minggu 8'});elements.set('#eKelas',{value:'4A'});
+ const rows=[{tahun:'4',minggu:'Minggu 8',tajuk:'My Week'},{tahun:'Tahun 5',minggu:'Minggu 8',tajuk:'Free Time'}];
+ c.rptUntuk=()=>({semua:rows});c.modal=(_title,html)=>{c.pickerHtml=html};
+ await c.pilihRpt();
+ assert.match(c.pickerHtml,/My Week/);
+ assert.doesNotMatch(c.pickerHtml,/Free Time/);
+});
+test('English editor shows English lesson field labels',()=>{
+ const {c,S,main}=setup();S.rph[0].subjek='Bahasa Inggeris';S.rph[0].minggu='Minggu 8';
+ c.bukaRph('r1');
+ assert.match(main.innerHTML,/Learning objectives/);
+ assert.match(main.innerHTML,/Success criteria/);
+ assert.match(main.innerHTML,/Learning activities/);
+ assert.match(main.innerHTML,/value="Week 8"/);
+ assert.doesNotMatch(main.innerHTML,/Objektif pembelajaran <em>/);
+});
